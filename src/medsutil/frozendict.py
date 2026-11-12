@@ -1,20 +1,23 @@
-""" Provides a frozen dictionary that is hashable.
+"""Provides a frozen dictionary that is hashable.
 
-    Note that TypeError is raised if a mutable object is present in the dictionary.
+Note that TypeError is raised if a mutable object is present in the dictionary.
 
-    .. attention::
-        Python is introducing a native version in 3.15, we should consider replacing this.
+.. attention::
+    Python is introducing a native version in 3.15, we should consider replacing this.
 """
+
 import collections.abc
 import copy
 import typing as t
-from typing import Hashable
+from collections.abc import Hashable
 
 
-class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collections.abc.Hashable):
-    """ A dictionary that cannot be modified after it is instantiated. """
+class FrozenDict[X: Hashable, Y: Hashable](
+    collections.abc.Mapping[X, Y], collections.abc.Hashable
+):
+    """A dictionary that cannot be modified after it is instantiated."""
 
-    __slots__ = ('__keys', '__values', '__hash')
+    __slots__ = ("__hash", "__keys", "__values")
 
     def __init__(self, d: t.Mapping[X, Y] = None, **kwargs: Y):
         fd = {}
@@ -25,17 +28,17 @@ class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collec
                 self._add_hashable(key, d[key], fd)
         self.__values: dict[X, Y] = fd
         self.__keys: list[X] = sorted(list(fd.keys()))
-        self.__hash: t.Optional[int] = None
+        self.__hash: int | None = None
 
     def __repr__(self) -> str:
-        s = f'<{self.__class__.__name__}' + '{'
-        s += ', '.join(f"{repr(x)}: {repr(self.__values[x])}" for x in self.__keys)
+        s = f"<{self.__class__.__name__}" + "{"
+        s += ", ".join(f"{x!r}: {self.__values[x]!r}" for x in self.__keys)
         s += "}>"
         return s
 
     def __str__(self) -> str:
-        s = '{'
-        s += ', '.join(f"{repr(x)}: {repr(self.__values[x])}" for x in self.__keys)
+        s = "{"
+        s += ", ".join(f"{x!r}: {self.__values[x]!r}" for x in self.__keys)
         s += "}"
         return s
 
@@ -71,10 +74,10 @@ class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collec
             self.__hash = hash(tuple(data))
         return t.cast(int, self.__hash)
 
-    def __copy__(self) -> FrozenDict[X,Y]:
+    def __copy__(self) -> FrozenDict[X, Y]:
         return FrozenDict(self.__values)
 
-    def __deepcopy__(self, memo) -> FrozenDict[X,Y]:
+    def __deepcopy__(self, memo) -> FrozenDict[X, Y]:
         return FrozenDict(copy.deepcopy(self.__values, memo))
 
     def keys(self) -> list[X]:
@@ -90,14 +93,14 @@ class FrozenDict[X: Hashable, Y: Hashable](collections.abc.Mapping[X, Y], collec
     def get[Z](self, item: X, /, default: Z = ...) -> Y | Z:
         if item not in self.__keys:
             if default is ...:
-                raise KeyError(f'Missing key {item}')
+                raise KeyError(f"Missing key {item}")
             return default
         return self.__values[item]
 
     @staticmethod
     def _add_hashable(key: X, value: Y, d: dict[X, Y]):
         if not isinstance(key, t.Hashable):
-            raise TypeError(f'Key [{key}] is not hashable')
+            raise TypeError(f"Key [{key}] is not hashable")
         if not isinstance(value, t.Hashable):
-            raise TypeError(f'Value [{key}={value}] is not hashable')
+            raise TypeError(f"Value [{key}={value}] is not hashable")
         d[key] = value

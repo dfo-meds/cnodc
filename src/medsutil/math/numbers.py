@@ -1,28 +1,31 @@
-""" Provides the ScienceNumber helper class. """
+"""Provides the ScienceNumber helper class."""
+
 import copy
 import decimal
 import functools
 import itertools
 import typing as t
 
-import medsutil.math.types as mt
 import medsutil.math._functions as basics
-import medsutil.math._common as _common
-from medsutil.math import types, _constants, nominal_value
+import medsutil.math.types as mt
+from medsutil.math import _common, _constants, nominal_value, types
 from medsutil.math.helpers import numerical_derivative
-
 
 SN = t.TypeVar("SN", bound=float | decimal.Decimal)
 
 
-def with_error_propagation(*derivative_args, units_func: t.Callable = None, **derivative_kwargs):
-    """ Given derivatives for the arguments and keyword arguments, decorates a function to correctly
-        calculate the error using standard error propagation techniques.
-        """
+def with_error_propagation(
+    *derivative_args, units_func: t.Callable = None, **derivative_kwargs
+):
+    """Given derivatives for the arguments and keyword arguments, decorates a function to correctly
+    calculate the error using standard error propagation techniques.
+    """
+
     def _wrapper(func: t.Callable[..., mt.AnyNumber]):
 
         # work to get and cache the derviatives
         derivatives = {}
+
         def _get_derivative(arg: int | str) -> t.Callable[..., mt.AnyNumber]:
             if arg not in derivatives:
                 derivatives[arg] = None
@@ -46,10 +49,15 @@ def with_error_propagation(*derivative_args, units_func: t.Callable = None, **de
 
             for arg_pos, arg_value in itertools.chain(
                 ((idx, arg) for idx, arg in enumerate(args)),
-                ((name, arg) for name, arg in kwargs.items())
+                ((name, arg) for name, arg in kwargs.items()),
             ):
                 if mt.is_science_number(arg_value):
-                    linear_part.append((_get_derivative(arg_pos)(*nominal_args, **nominal_kwargs), arg_value.linear_combo))
+                    linear_part.append(
+                        (
+                            _get_derivative(arg_pos)(*nominal_args, **nominal_kwargs),
+                            arg_value.linear_combo,
+                        )
+                    )
             units = units_func(*args, **kwargs) if units_func else None
             if not linear_part:
                 return ScienceNumber(nv, 0, units=units)
@@ -57,17 +65,23 @@ def with_error_propagation(*derivative_args, units_func: t.Callable = None, **de
                 return ScienceNumber(nv, units=units, linear_combo=linear_part)
 
         return _call_with_derivatives
+
     return _wrapper
 
 
 class LinearCombination:
-    """ Represents a linear combination of results. """
+    """Represents a linear combination of results."""
 
-    def __init__(self, linear_combo: mt.ExpandedLinearCombination | mt.UnexpandedLinearCombination):
+    def __init__(
+        self,
+        linear_combo: mt.ExpandedLinearCombination | mt.UnexpandedLinearCombination,
+    ):
         self._linear_combo = linear_combo
 
     @property
-    def linear_combo(self) -> mt.ExpandedLinearCombination | mt.UnexpandedLinearCombination:
+    def linear_combo(
+        self,
+    ) -> mt.ExpandedLinearCombination | mt.UnexpandedLinearCombination:
         return self._linear_combo
 
     def expanded(self) -> mt.ExpandedLinearCombination:
@@ -77,29 +91,44 @@ class LinearCombination:
                 main_factor, expr = self._linear_combo.pop()
                 if isinstance(expr.linear_combo, dict):
                     for variable, factor in expr.linear_combo.items():
-                        coeff = basics.mul(_common.nominal_value(main_factor), _common.nominal_value(factor))
+                        coeff = basics.mul(
+                            _common.nominal_value(main_factor),
+                            _common.nominal_value(factor),
+                        )
                         if variable not in expansion:
                             expansion[variable] = coeff
                         else:
                             expansion[variable] += coeff
                 else:
                     for factor, sub_combo in expr.linear_combo:
-                        self._linear_combo.append((basics.mul(_common.nominal_value(factor), _common.nominal_value(main_factor)), sub_combo))
+                        self._linear_combo.append(
+                            (
+                                basics.mul(
+                                    _common.nominal_value(factor),
+                                    _common.nominal_value(main_factor),
+                                ),
+                                sub_combo,
+                            )
+                        )
             self._linear_combo = expansion
         return self._linear_combo
 
 
-
 class ScienceNumber:
-    """ A number with standard deviation and units. """
+    """A number with standard deviation and units."""
 
-    def __init__(self,
-                 value: mt.NonScienceNumber,
-                 std_dev: mt.NonScienceNumber | type[mt.Placeholder] = mt.Placeholder(),
-                 min_std_dev: mt.NonScienceNumber | None = None,
-                 units: str | None = None,
-                 tag: str | None = None,
-                 linear_combo: LinearCombination | mt.ExpandedLinearCombination | mt.UnexpandedLinearCombination | None = None):
+    def __init__(
+        self,
+        value: mt.NonScienceNumber,
+        std_dev: mt.NonScienceNumber | type[mt.Placeholder] = mt.Placeholder(),
+        min_std_dev: mt.NonScienceNumber | None = None,
+        units: str | None = None,
+        tag: str | None = None,
+        linear_combo: LinearCombination
+        | mt.ExpandedLinearCombination
+        | mt.UnexpandedLinearCombination
+        | None = None,
+    ):
         self._nominal: mt.NonScienceNumber = value
         self._sigma: mt.NonScienceNumber | type[mt.Placeholder] = std_dev
         self._min_sigma = min_std_dev
@@ -120,24 +149,14 @@ class ScienceNumber:
     def __repr__(self):
         return f"<ScienceNumber:{self._nominal} [sigma:{self.std_dev}] {self._units} >"
 
-    def is_compatible(self,
-                      x: mt.AnyNumber,
-                      c: mt.NonScienceNumber = 2) -> bool:
+    def is_compatible(self, x: mt.AnyNumber, c: mt.NonScienceNumber = 2) -> bool:
         if mt.is_science_number(x):
             return basics.test_compatibility(
-                x.nominal_value,
-                x.std_dev or 0,
-                self._nominal,
-                self.std_dev or 0,
-                c
+                x.nominal_value, x.std_dev or 0, self._nominal, self.std_dev or 0, c
             )
         else:
             return basics.test_compatibility(
-                t.cast(mt.NonScienceNumber, x),
-                0,
-                self._nominal,
-                self.std_dev or 0,
-                c
+                t.cast(mt.NonScienceNumber, x), 0, self._nominal, self.std_dev or 0, c
             )
 
     @property
@@ -155,11 +174,12 @@ class ScienceNumber:
     @property
     def std_dev(self) -> mt.NonScienceNumber:
         if self._sigma is mt.Placeholder and self.linear_combo is not None:
-            self._sigma = basics.sqrt(basics.sum_(
-                abs(basics.pow_(basics.mul(factor, (var.std_dev or 0)), 2))
-                for var, factor in
-                self.linear_combo.expanded().items()
-            ))
+            self._sigma = basics.sqrt(
+                basics.sum_(
+                    abs(basics.pow_(basics.mul(factor, (var.std_dev or 0)), 2))
+                    for var, factor in self.linear_combo.expanded().items()
+                )
+            )
         sd = t.cast(mt.NonScienceNumber, self._sigma)
         if self._min_sigma is not None:
             return t.cast(mt.NonScienceNumber, basics.max_(sd, self._min_sigma))
@@ -172,8 +192,8 @@ class ScienceNumber:
             x = str(self.nominal_value)
             if "." not in x:
                 return 0
-            integer_size = len(x[:x.find(".")])
-            decimal_size = len(x[x.find(".")+1:])
+            integer_size = len(x[: x.find(".")])
+            decimal_size = len(x[x.find(".") + 1 :])
             return min(12 - integer_size, decimal_size)
         else:
             return digits
@@ -187,7 +207,7 @@ class ScienceNumber:
         sigma_diff = basics.mul(sigma, self.std_dev)
         return (
             basics.sub(self.nominal_value, sigma_diff),
-            basics.add(self.nominal_value, sigma_diff)
+            basics.add(self.nominal_value, sigma_diff),
         )
 
     def copy_sign(self, other: mt.AnyNumber) -> ScienceNumber:
@@ -211,7 +231,9 @@ class ScienceNumber:
     def is_zero(self) -> bool:
         return _common.is_zero(self._nominal)
 
-    def to_chopped_value(self, ndigits: int | None = None, force_decimal: bool = False) -> ScienceNumber:
+    def to_chopped_value(
+        self, ndigits: int | None = None, force_decimal: bool = False
+    ) -> ScienceNumber:
         return ScienceNumber.chop_with_error(
             _common.nominal_value(self._nominal, to_float=not force_decimal),
             ndigits or 0,
@@ -222,7 +244,9 @@ class ScienceNumber:
             linear_combo=self._linear_combo,
         )
 
-    def to_rounded_value(self, ndigits: int | None = None, force_decimal: bool = False) -> ScienceNumber:
+    def to_rounded_value(
+        self, ndigits: int | None = None, force_decimal: bool = False
+    ) -> ScienceNumber:
         return ScienceNumber.round_with_error(
             _common.nominal_value(self._nominal, to_float=not force_decimal),
             ndigits or 0,
@@ -239,10 +263,12 @@ class ScienceNumber:
     def to_integral_value(self, force_decimal: bool = False) -> ScienceNumber:
         return self.to_rounded_value(force_decimal=force_decimal)
 
-    def is_close(self,
-                 other: mt.AnyNumber,
-                 rel_tol: mt.NonScienceNumber = _constants.DEFAULT_REL_TOL,
-                 abs_tol: mt.NonScienceNumber = _constants.DEFAULT_ABS_TOL) -> bool:
+    def is_close(
+        self,
+        other: mt.AnyNumber,
+        rel_tol: mt.NonScienceNumber = _constants.DEFAULT_REL_TOL,
+        abs_tol: mt.NonScienceNumber = _constants.DEFAULT_ABS_TOL,
+    ) -> bool:
         return basics.is_close(self, other, rel_tol=rel_tol, abs_tol=abs_tol)
 
     def ln(self) -> ScienceNumber:
@@ -376,7 +402,7 @@ class ScienceNumber:
             copy.copy(self._nominal),
             std_dev=copy.copy(self.std_dev),
             units=copy.copy(self._units),
-            tag=copy.copy(self._tag)
+            tag=copy.copy(self._tag),
         )
 
     @classmethod
@@ -386,9 +412,9 @@ class ScienceNumber:
     def __deepcopy__(self, _: t.Mapping) -> t.Self:
         return self.__copy__()  # already a deep copy
 
-    def set_min_error_if_worse(self,
-                               std_dev: mt.NonScienceNumber,
-                               is_relative: bool = False):
+    def set_min_error_if_worse(
+        self, std_dev: mt.NonScienceNumber, is_relative: bool = False
+    ):
         if is_relative:
             std_dev = basics.mul(std_dev, self._nominal)
         if self._min_sigma is None:
@@ -400,52 +426,60 @@ class ScienceNumber:
         if units is None or self._units is None or units == self._units:
             return self
         from medsutil.units.units import convert
+
         return convert(self, self._units, units)
 
     def set_units(self, units: str | None):
         self._units = units
 
     @classmethod
-    def from_decimal(cls,
-                     d: decimal.Decimal | str,
-                     std_dev: decimal.Decimal | str | None = None,
-                     **kwargs) -> ScienceNumber:
+    def from_decimal(
+        cls,
+        d: decimal.Decimal | str,
+        std_dev: decimal.Decimal | str | None = None,
+        **kwargs,
+    ) -> ScienceNumber:
         sn = cls(
             decimal.Decimal(d) if isinstance(d, str) else d,
-            (decimal.Decimal(std_dev) if isinstance(std_dev, str) else std_dev) if std_dev is not None else mt.Placeholder,
-            **kwargs
+            (decimal.Decimal(std_dev) if isinstance(std_dev, str) else std_dev)
+            if std_dev is not None
+            else mt.Placeholder,
+            **kwargs,
         )
         return sn
 
     @classmethod
-    def from_float(cls,
-                   f: float | int | str,
-                   std_dev: float | int | str | None = None,
-                   **kwargs) -> ScienceNumber:
+    def from_float(
+        cls, f: float | str, std_dev: float | str | None = None, **kwargs
+    ) -> ScienceNumber:
         sn = cls(
             float(f) if isinstance(f, str) else f,
-            (float(std_dev) if isinstance(std_dev, str) else std_dev) if std_dev is not None else mt.Placeholder,
+            (float(std_dev) if isinstance(std_dev, str) else std_dev)
+            if std_dev is not None
+            else mt.Placeholder,
             min_std_dev=_constants.FLOAT_ERROR,
-            **kwargs
+            **kwargs,
         )
         return sn
 
     @classmethod
-    def from_float32(cls,
-                   f: float | int | str,
-                   std_dev: float | int | str | None = None,
-                   **kwargs) -> ScienceNumber:
+    def from_float32(
+        cls, f: float | str, std_dev: float | str | None = None, **kwargs
+    ) -> ScienceNumber:
         sn = cls(
             float(f) if isinstance(f, str) else f,
-            (float(std_dev) if isinstance(std_dev, str) else std_dev) if std_dev is not None else mt.Placeholder,
+            (float(std_dev) if isinstance(std_dev, str) else std_dev)
+            if std_dev is not None
+            else mt.Placeholder,
             min_std_dev=_constants.FLOAT_ERROR * 2,
-            **kwargs
+            **kwargs,
         )
         return sn
+
     @classmethod
     def chop_with_error(cls, x: mt.BasicNumber, n: int = 0, **kwargs):
-        chopped = int(x * (10 ** n))
-        std_err = (10 ** n) / _common.sqrt(3)
+        chopped = int(x * (10**n))
+        std_err = (10**n) / _common.sqrt(3)
         chop_sn = cls(chopped, **kwargs)
         chop_sn.set_min_error_if_worse(std_err)
         return chop_sn
@@ -453,7 +487,7 @@ class ScienceNumber:
     @classmethod
     def round_with_error(cls, x: mt.BasicNumber, n: int = 0, **kwargs):
         rounded = round(x, n)
-        std_err = ((10 ** n) / 2.0) / _common.sqrt(3)
+        std_err = ((10**n) / 2.0) / _common.sqrt(3)
         round_sn = cls(rounded, **kwargs)
         round_sn.set_min_error_if_worse(std_err)
         return round_sn

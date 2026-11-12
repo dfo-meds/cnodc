@@ -1,33 +1,30 @@
 import pathlib
-from unittest import case
+import tkinter as tk
+import typing as t
+from tkinter import ttk
 
 from gcapp import i18n
 from pipeman_desktop.panes.base_pane import BasePane
-import tkinter as tk
-import tkinter.ttk as ttk
-import typing as t
-
 from pipeman_desktop.state import ApplicationState, DisplayChange
 
 
 class FileContentCodec(t.Protocol):
-    def decode(self, b: bytes) -> str:
-        ...
+    def decode(self, b: bytes) -> str: ...
 
-    def encode(self, b: str) -> bytes:
-        ...
+    def encode(self, b: str) -> bytes: ...
+
 
 class HexConverter:
-
     def decode(self, b: bytes) -> str:
         return b.hex(" ")
 
     def encode(self, b: str) -> bytes:
-        return bytes.fromhex(b.replace(" ", "").replace("\n", "").replace("\r", "").replace("\t", ""))
+        return bytes.fromhex(
+            b.replace(" ", "").replace("\n", "").replace("\r", "").replace("\t", "")
+        )
 
 
 class AsciiConverter:
-
     CONTROL_DISPLAY_START = 9216
     CONTROL_DELETE = 9249
 
@@ -43,7 +40,7 @@ class AsciiConverter:
             return chr(c)
 
         # unknown
-        return "\uFFFD"
+        return "\ufffd"
 
     def _ascii_encode(self, c: int) -> int | None:
         if self.CONTROL_DISPLAY_START <= c <= (self.CONTROL_DISPLAY_START + 32):
@@ -62,7 +59,6 @@ class AsciiConverter:
 
 
 class Utf8Converter:
-
     def decode(self, b: bytes) -> str:
         return b.decode("utf-8", errors="replace")
 
@@ -71,8 +67,7 @@ class Utf8Converter:
 
 
 class FileContentPane(BasePane):
-
-    OUTPUT_MODES: dict[str, FileContentCodec] = {
+    OUTPUT_MODES: t.ClassVar[dict[str, FileContentCodec]] = {
         "output.hex": HexConverter,
         "output.ascii": AsciiConverter,
         "output.utf8": Utf8Converter,
@@ -97,7 +92,9 @@ class FileContentPane(BasePane):
         self._frame.grid_rowconfigure(1, weight=0)
         self._output_view = tk.Text(self._frame, wrap="word", state="disabled")
         self._output_view.grid(row=0, column=0, sticky=tk.NSEW)
-        self._output_mode = ttk.Combobox(self._frame, values=[], textvariable=self._options_text_var)
+        self._output_mode = ttk.Combobox(
+            self._frame, values=[], textvariable=self._options_text_var
+        )
         self._output_mode.grid(row=1, column=0)
         self._update_output_mode_options()
 
@@ -107,10 +104,7 @@ class FileContentPane(BasePane):
             current_func = self._options_map[current]
         else:
             current_func = None
-        self._options_map = {
-            i18n.tr(x): y
-            for x, y in self.OUTPUT_MODES.items()
-        }
+        self._options_map = {i18n.tr(x): y for x, y in self.OUTPUT_MODES.items()}
         values = sorted(self._options_map.keys())
         if self._output_mode is not None:
             self._output_mode.config(values=values)
@@ -125,11 +119,11 @@ class FileContentPane(BasePane):
         if self._output_view is not None:
             if self.app.state.qc_mode == "decode" and self.app.state.qc_file_path:
                 output_mode = self._options_map[self._options_text_var.get()]
-                if self.app.state.qc_file_path != self._current_file_path or self._current_output_mode != output_mode:
-                    self._update_text(
-                        self.app.state.qc_file_path,
-                        output_mode
-                    )
+                if (
+                    self.app.state.qc_file_path != self._current_file_path
+                    or self._current_output_mode != output_mode
+                ):
+                    self._update_text(self.app.state.qc_file_path, output_mode)
                     self._current_output_mode = output_mode
                     self._current_file_path = self.app.state.qc_file_path
             else:

@@ -3,35 +3,43 @@ import json
 import pathlib
 import typing as t
 
+import requests
+import zirconium as zr
 import zrlog
 from autoinject import injector
-from requests import JSONDecodeError, HTTPError
+from requests import HTTPError, JSONDecodeError
 from zirconium import ApplicationConfig
 
 from gcapp.i18n.base import TranslatableError
+from medsutil import ocproc2
 from medsutil.awaretime import AwareDateTime
-from medsutil.datadict import DataDictObject
 from medsutil.exceptions import CodedError
-from medsutil.ocproc2 import QCResult, OCProc2Action
-from medsutil.ocproc2.codecs import OCProc2BinCodec
-from medsutil.byteseq import ByteSequenceReader
+from medsutil.ocproc2 import OCProc2Action
 from medsutil.web import request
 from nodb.observations import PlatformStatus
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.messenger import CrossThreadMessenger
-import zirconium as zr
-import requests
-import medsutil.ocproc2 as ocproc2
-from pipeman_desktop.util import build_local_record, build_default_actions, build_display
+from pipeman_desktop.util import (
+    build_default_actions,
+    build_display,
+    build_local_record,
+)
 
 
 class RemoteAPIError(CodedError):
+    def __init__(
+        self,
+        message: str,
+        remote_code: str | None = None,
+        local_code: int | None = None,
+    ):
+        super().__init__(
+            f"{remote_code or ''}: {message}", local_code, code_space="REMOTE"
+        )
 
-    def __init__(self, message: str, remote_code: str | None = None, local_code: int | None = None):
-        super().__init__(f"{remote_code or ''}: {message}", local_code, code_space="REMOTE")
 
-
-class LocalAPIError(TranslatableError): CODE_SPACE="API-LOCAL"
+class LocalAPIError(TranslatableError):
+    CODE_SPACE = "API-LOCAL"
 
 
 def with_remote_api_error_handling(cb: t.Callable) -> t.Callable:
@@ -42,66 +50,85 @@ def with_remote_api_error_handling(cb: t.Callable) -> t.Callable:
             raise LocalAPIError("error.invalid_json", 1000) from ex
         except HTTPError as ex:
             raise RemoteAPIError(f"{ex.errno}: {ex}", "HTTP", 1000) from ex
-    return _inner
 
+    return _inner
 
 
 @injector.injectable
 class WebAPIClient:
-
     config: zr.ApplicationConfig = None
     messenger: CrossThreadMessenger = None
 
     @injector.construct
     def __init__(self):
         import socket
+
         self.token = None
         self._app_id = socket.gethostname()
-        self._app_url = self.config.as_str(('medweb_api', 'app_url'), default='http://localhost:5000').rstrip('/ ')
-        self._log = zrlog.get_logger('pipeman.desktop.web_client')
+        self._app_url = self.config.as_str(
+            ("medweb_api", "app_url"), default="http://localhost:5000"
+        ).rstrip("/ ")
+        self._log = zrlog.get_logger("pipeman.desktop.web_client")
         self._session = requests.Session()
 
     @property
     def is_logged_in(self) -> bool:
         return self.token is not None
 
-    def _make_raw_request(self, endpoint: str, method: str, **kwargs: str) -> requests.Response:
-        full_url = f"{self._app_url.rstrip('/')}/{endpoint.lstrip('/')}" if not endpoint.startswith('http') else endpoint
+    def _make_raw_request(
+        self, endpoint: str, method: str, **kwargs: str
+    ) -> requests.Response:
+        full_url = (
+            f"{self._app_url.rstrip('/')}/{endpoint.lstrip('/')}"
+            if not endpoint.startswith("http")
+            else endpoint
+        )
         self._log.trace(f"Web request: {method} {full_url}")
         headers = {}
         if self.token is not None:
-            headers['Authorization'] = f'Bearer {self.token}'
-        return request(method, full_url, session=self._session, json=kwargs, headers=headers, check_for_response_error=False)
+            headers["Authorization"] = f"Bearer {self.token}"
+        return request(
+            method,
+            full_url,
+            session=self._session,
+            json=kwargs,
+            headers=headers,
+            check_for_response_error=False,
+        )
 
     @with_remote_api_error_handling
     def make_file_request(self, *args, save_path: pathlib.Path, **kwargs) -> dict:
         kwargs["app_id"] = self._app_id
         response = self._make_raw_request(*args, **kwargs)
-        if not response.headers.get('Content-Type', '').startswith('application/json'):
+        if not response.headers.get("Content-Type", "").startswith("application/json"):
             response.raise_for_status()
             with open(save_path, "wb") as h:
                 h.write(response.content)
         else:
             json_body = response.json()
-            if 'error' in json_body:
-                raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
+            if "error" in json_body:
+                raise RemoteAPIError(
+                    json_body["error"],
+                    json_body.get("code", None)
+                )
             raise LocalAPIError("Expected raw file, got JSON", 1300)
 
     @with_remote_api_error_handling
     def make_json_request(self, *args, **kwargs) -> dict:
         kwargs["app_id"] = self._app_id
         response = self._make_raw_request(*args, **kwargs)
-        if not response.headers.get('Content-Type', '').startswith('application/json'):
+        if not response.headers.get("Content-Type", "").startswith("application/json"):
             response.raise_for_status()
         json_body = response.json()
-        if 'error' in json_body:
-            raise RemoteAPIError(json_body['error'], json_body['code'] if 'code' in json_body else None)
+        if "error" in json_body:
+            raise RemoteAPIError(
+                json_body["error"], json_body.get("code", None)
+            )
         return json_body
 
 
 @injector.injectable
 class CNODCServerAPI:
-
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
     web_client: WebAPIClient = None
@@ -115,7 +142,7 @@ class CNODCServerAPI:
         self._current_queue_item = None
         self._username: str | None = None
         self._display_name: str | None = None
-        self._log = zrlog.get_logger('cnodc.desktop.api')
+        self._log = zrlog.get_logger("cnodc.desktop.api")
 
     @property
     def username(self) -> str | None:
@@ -129,42 +156,48 @@ class CNODCServerAPI:
     def services(self) -> list[str]:
         return list(self._service_list.keys()) if self._service_list else []
 
-    def make_service_json_request(self,
-                                  service_identifier: str,
-                                  method: str,
-                                  _service_list: dict[str, dict[str, t.Any]] | None = None,
-                                  **kwargs):
+    def make_service_json_request(
+        self,
+        service_identifier: str,
+        method: str,
+        _service_list: dict[str, dict[str, t.Any]] | None = None,
+        **kwargs,
+    ):
         endpoint, extra_kwargs = self.service_info(
-            service_list=_service_list if _service_list is not None else self._service_list,
-            service_identifier=service_identifier
+            service_list=_service_list
+            if _service_list is not None
+            else self._service_list,
+            service_identifier=service_identifier,
         )
         return self.web_client.make_json_request(
-            endpoint=endpoint,
-            method=method,
-            **kwargs,
-            **extra_kwargs
+            endpoint=endpoint, method=method, **kwargs, **extra_kwargs
         )
-    def make_service_file_request(self,
-                                  service_identifier: str,
-                                  method: str,
-                                  _service_list: dict[str, dict[str, t.Any]] | None = None,
-                                  **kwargs):
+
+    def make_service_file_request(
+        self,
+        service_identifier: str,
+        method: str,
+        _service_list: dict[str, dict[str, t.Any]] | None = None,
+        **kwargs,
+    ):
         endpoint, extra_kwargs = self.service_info(
-            service_list=_service_list if _service_list is not None else self._service_list,
-            service_identifier=service_identifier
+            service_list=_service_list
+            if _service_list is not None
+            else self._service_list,
+            service_identifier=service_identifier,
         )
         return self.web_client.make_file_request(
-            endpoint=endpoint,
-            method=method,
-            **kwargs,
-            **extra_kwargs
+            endpoint=endpoint, method=method, **kwargs, **extra_kwargs
         )
+
     @staticmethod
-    def service_info(service_list: dict[str, dict[str, t.Any]] | None, service_identifier: str) -> tuple[str, dict[str, t.Any]]:
+    def service_info(
+        service_list: dict[str, dict[str, t.Any]] | None, service_identifier: str
+    ) -> tuple[str, dict[str, t.Any]]:
         if service_list is not None and service_identifier in service_list:
             return (
                 service_list[service_identifier]["endpoint"],
-                service_list[service_identifier].get("kwargs", None) or {}
+                service_list[service_identifier].get("kwargs", None) or {},
             )
         else:
             err = LocalAPIError("error.no_access", 1100)
@@ -176,28 +209,28 @@ class CNODCServerAPI:
 
     def login(self, username: str, password: str) -> bool:
         response = self.web_client.make_json_request(
-            endpoint='api/create-access-token',
-            method='POST',
+            endpoint="api/create-access-token",
+            method="POST",
             username=username,
-            password=password
+            password=password,
         )
-        self.web_client.token = response['token']
-        self._expiry = AwareDateTime.fromisoformat(response['expiry'])
-        self._service_list = response['access']
-        self._username = response['username']
-        self._display_name = response['display']
-        self._log.info(f'User {self._username} logged in')
+        self.web_client.token = response["token"]
+        self._expiry = AwareDateTime.fromisoformat(response["expiry"])
+        self._service_list = response["access"]
+        self._username = response["username"]
+        self._display_name = response["display"]
+        self._log.info(f"User {self._username} logged in")
         return True
 
     def logout(self) -> bool:
         if self.web_client.is_logged_in:
             self.make_service_json_request(
-                service_identifier='user.logout',
-                method='POST',
-                token=self.web_client.token
+                service_identifier="user.logout",
+                method="POST",
+                token=self.web_client.token,
             )
             self._clear_user_info()
-            self._log.info(f'User logged out')
+            self._log.info("User logged out")
         return True
 
     def refresh(self) -> int:
@@ -206,17 +239,17 @@ class CNODCServerAPI:
             time_left = int((self._expiry - now).total_seconds())
             if time_left < 0:
                 self._clear_user_info()
-                self._log.info('User session expired')
+                self._log.info("User session expired")
                 return -1
             elif time_left < self._check_time:
-                self._log.debug('Renewing session')
+                self._log.debug("Renewing session")
                 response = self.make_service_json_request(
-                    service_identifier='user.renew',
-                    method='POST',
-                    token=self.web_client.token
+                    service_identifier="user.renew",
+                    method="POST",
+                    token=self.web_client.token,
                 )
-                self.web_client.token = response['token']
-                self._expiry = expiry = AwareDateTime.fromisoformat(response['expiry'])
+                self.web_client.token = response["token"]
+                self._expiry = expiry = AwareDateTime.fromisoformat(response["expiry"])
                 now = AwareDateTime.now()
                 return int((expiry - now).total_seconds()) - self._check_time
             else:
@@ -233,17 +266,18 @@ class CNODCServerAPI:
 
     def fetch_queue_ready_count(self) -> list[tuple[str, str | None, int, int]]:
         response = self.make_service_json_request(
-            service_identifier="desktop.queue_items_ready",
-            method="GET"
+            service_identifier="desktop.queue_items_ready", method="GET"
         )
         return response["ready"]
 
-    def open_batch(self, batch_service_name: str) -> tuple[list[str], str, str, t.Any] | None:
+    def open_batch(
+        self, batch_service_name: str
+    ) -> tuple[list[str], str, str, t.Any] | None:
         response = self.make_service_json_request(
             service_identifier=f"batch_qc.{batch_service_name}.open",
             method="POST",
         )
-        if "queue_uuid" in response and response["queue_uuid"]:
+        if response.get("queue_uuid"):
             self._current_queue_item = response
             error_mode = response.get("error_mode", "batch")
             if error_mode in ("decode", "merge"):
@@ -259,7 +293,14 @@ class CNODCServerAPI:
                 self._load_observations()
             else:
                 self._clear_observations()
-            return self._service_list[f"batch_qc.{batch_service_name}.open"].get("metadata", {}).get("allowed_qc_results", []), response.get("test_protocol", "nodb"), error_mode, custom
+            return (
+                self._service_list[f"batch_qc.{batch_service_name}.open"]
+                .get("metadata", {})
+                .get("allowed_qc_results", []),
+                response.get("test_protocol", "nodb"),
+                error_mode,
+                custom,
+            )
         else:
             self._current_queue_item = None
             return None
@@ -277,32 +318,38 @@ class CNODCServerAPI:
                 method="GET",
             )
             for working_info in response["data"]:
-                cur.insert('observations', {
-                    'record_uuid': working_info["obs_uuid"],
-                    'downloaded': 0,
-                    "received_date": working_info["received_date"],
-                    "actions": json.dumps(working_info["actions"]),
-                })
+                cur.insert(
+                    "observations",
+                    {
+                        "record_uuid": working_info["obs_uuid"],
+                        "downloaded": 0,
+                        "received_date": working_info["received_date"],
+                        "actions": json.dumps(working_info["actions"]),
+                    },
+                )
             cur.commit()
         with self.local_db.cursor() as cur:
-            cur.execute("SELECT record_uuid, actions FROM observations WHERE downloaded = 0")
+            cur.execute(
+                "SELECT record_uuid, actions FROM observations WHERE downloaded = 0"
+            )
             while row := cur.fetchone():
                 actions = json.loads(row[1])
                 response = self.make_service_json_request(
-                    "fetch",
-                    "GET",
-                    _service_list=actions
+                    "fetch", "GET", _service_list=actions
                 )
-                record = ocproc2.ParentRecord.build_from_mapping(copy.deepcopy(response["data"]))
+                record = ocproc2.ParentRecord.build_from_mapping(
+                    copy.deepcopy(response["data"])
+                )
 
                 with self.local_db.cursor() as cur2:
-                    cur2.update("records", {
-                        "record_content": json.dumps(response["data"]),
-                        "display": build_display(record, row[0])
-                    }, {
-                        "record_uuid": row[0]
-                    })
-
+                    cur2.update(
+                        "records",
+                        {
+                            "record_content": json.dumps(response["data"]),
+                            "display": build_display(record, row[0]),
+                        },
+                        {"record_uuid": row[0]},
+                    )
 
     def _clear_files(self):
         with self.local_db.cursor() as cur:
@@ -317,21 +364,34 @@ class CNODCServerAPI:
                 method="GET",
             )
             for file_data in response["data"]:
-                cur.execute("INSERT INTO files (source_uuid, filename, file_path, source, program, history, received_date, metadata, is_payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (
-                    file_data.get("source_uuid", ""),
-                    file_data.get("filename", ""),
-                    file_data.get("file_path", ""),
-                    file_data.get("source", ""),
-                    file_data.get("program", ""),
-                    json.dumps(file_data.get("history", [])),
-                    file_data.get("received_date", ""),
-                    json.dumps(file_data.get("metadata", {})),
-                    bool(file_data.get("is_payload", True)),
-                ))
+                cur.execute(
+                    "INSERT INTO files (source_uuid, filename, file_path, source, program, history, received_date, metadata, is_payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        file_data.get("source_uuid", ""),
+                        file_data.get("filename", ""),
+                        file_data.get("file_path", ""),
+                        file_data.get("source", ""),
+                        file_data.get("program", ""),
+                        json.dumps(file_data.get("history", [])),
+                        file_data.get("received_date", ""),
+                        json.dumps(file_data.get("metadata", {})),
+                        bool(file_data.get("is_payload", True)),
+                    ),
+                )
             cur.commit()
 
     def _load_file(self) -> str:
-        destination = pathlib.Path(str(self.config.as_str(("pipeman", "downloads"), default="~/pipeman_downloads"))).expanduser().absolute()
+        destination = (
+            pathlib.Path(
+                str(
+                    self.config.as_str(
+                        ("pipeman", "downloads"), default="~/pipeman_downloads"
+                    )
+                )
+            )
+            .expanduser()
+            .absolute()
+        )
         if not destination.exists():
             destination.mkdir(parents=True)
         file_path = destination / self._current_queue_item["queue_uuid"]
@@ -345,21 +405,21 @@ class CNODCServerAPI:
     def _load_batch(self):
         platform_load_list = set()
         with self.local_db.cursor() as cur:
-            response = self.make_batch_json_request(
-                action_name="stream",
-                method="GET"
-            )
-            cur.truncate_table('records')
-            cur.truncate_table('actions')
+            response = self.make_batch_json_request(action_name="stream", method="GET")
+            cur.truncate_table("records")
+            cur.truncate_table("actions")
             for working_info in response["data"]:
-                cur.insert('records', {
-                    'record_uuid': working_info["working_uuid"],
-                    'downloaded': 0,
-                    'platform_id': working_info["platform_uuid"],
-                    "source_uuid": working_info["source_file_uuid"],
-                    "received_date": working_info["received_date"],
-                    'actions': json.dumps(working_info["actions"]),
-                })
+                cur.insert(
+                    "records",
+                    {
+                        "record_uuid": working_info["working_uuid"],
+                        "downloaded": 0,
+                        "platform_id": working_info["platform_uuid"],
+                        "source_uuid": working_info["source_file_uuid"],
+                        "received_date": working_info["received_date"],
+                        "actions": json.dumps(working_info["actions"]),
+                    },
+                )
                 platform_load_list.add(working_info["platform_uuid"])
             cur.commit()
         with self.local_db.cursor() as cur:
@@ -367,18 +427,23 @@ class CNODCServerAPI:
             while row := cur.fetchone():
                 actions = json.loads(row[1])
                 response = self.make_service_json_request(
-                    "fetch",
-                    "GET",
-                    _service_list=actions
+                    "fetch", "GET", _service_list=actions
                 )
-                record = ocproc2.ParentRecord.build_from_mapping(copy.deepcopy(response["data"]))
+                record = ocproc2.ParentRecord.build_from_mapping(
+                    copy.deepcopy(response["data"])
+                )
 
                 if record.metadata.has_value("CNODCPlatformCandidates"):
-                    platform_load_list.update(record.metadata["CNODCPlatformCandidates"].value)
+                    platform_load_list.update(
+                        record.metadata["CNODCPlatformCandidates"].value
+                    )
 
                 is_saved = False
                 if response["proposed_actions"] is not None:
-                    proposed_actions = [OCProc2Action.import_from_map(x) for x in response["proposed_actions"]]
+                    proposed_actions = [
+                        OCProc2Action.import_from_map(x)
+                        for x in response["proposed_actions"]
+                    ]
                     is_saved = True
                 else:
                     proposed_actions = build_default_actions(record)
@@ -394,20 +459,21 @@ class CNODCServerAPI:
                         local_info["has_errors"] = 1
 
                 with self.local_db.cursor() as cur2:
-                    cur2.update("records", {
-                        "record_content": json.dumps(response["data"]),
-                        **local_info
-                    }, {
-                        "record_uuid": row[0]
-                    })
+                    cur2.update(
+                        "records",
+                        {"record_content": json.dumps(response["data"]), **local_info},
+                        {"record_uuid": row[0]},
+                    )
                     for action in proposed_actions:
-                        cur2.insert("actions", {
-                            "record_uuid": row[0],
-                            "action_text": json.dumps(action.export()),
-                            "is_saved": 1 if is_saved else 0,
-                        })
+                        cur2.insert(
+                            "actions",
+                            {
+                                "record_uuid": row[0],
+                                "action_text": json.dumps(action.export()),
+                                "is_saved": 1 if is_saved else 0,
+                            },
+                        )
         self.load_platforms(platform_load_list)
-
 
     def make_batch_json_request(self, action_name, method: str, **kwargs) -> dict:
         if not self._current_queue_item:
@@ -418,7 +484,7 @@ class CNODCServerAPI:
             action_name,
             method,
             _service_list=self._current_queue_item.get("actions", None),
-            **kwargs
+            **kwargs,
         )
 
     def make_batch_file_request(self, action_name, method: str, **kwargs) -> dict:
@@ -430,31 +496,29 @@ class CNODCServerAPI:
             action_name,
             method,
             _service_list=self._current_queue_item.get("actions", None),
-            **kwargs
+            **kwargs,
         )
+
     def renew_batch(self) -> bool:
-        response = self.make_batch_json_request(
-            action_name="renew",
-            method="POST"
-        )
+        response = self.make_batch_json_request(action_name="renew", method="POST")
         return "success" in response and response["success"]
 
     def close_batch(self, close_operation: str):
         response = self.make_batch_json_request(
-            action_name="close",
-            method="POST",
-            result=close_operation
+            action_name="close", method="POST", result=close_operation
         )
         self._current_queue_item = None
         return "success" in response and response["success"]
 
-    def search_platforms(self,
-                         wmo_id: str | None,
-                         wigos_id: str | None,
-                         platform_id: str | None,
-                         platform_name: str | None,
-                         time_frame: AwareDateTime | None,
-                         ship_code: str | None) -> list[str]:
+    def search_platforms(
+        self,
+        wmo_id: str | None,
+        wigos_id: str | None,
+        platform_id: str | None,
+        platform_name: str | None,
+        time_frame: AwareDateTime | None,
+        ship_code: str | None,
+    ) -> list[str]:
         response = self.make_service_json_request(
             service_identifier="desktop.search_platforms",
             method="POST",
@@ -465,29 +529,29 @@ class CNODCServerAPI:
             ship_code=ship_code or None,
             time_frame=time_frame.isoformat() if time_frame else None,
         )
-        return self.load_platforms(
-            x["platform_uuid"] for x in response["data"]
-        )
+        return self.load_platforms(x["platform_uuid"] for x in response["data"])
 
-    def create_platform(self,
-                        wmo_id: str | None,
-                        wigos_id: str | None,
-                        platform_name: str | None,
-                        platform_id: str | None,
-                        platform_type: str | None,
-                        start_date: AwareDateTime | None,
-                        end_date: AwareDateTime | None,
-                        status: PlatformStatus,
-                        embargo_data_days: int | None,
-                        meds_id: str | None,
-                        map_to_uuid: str | None,
-                        skip_speed_check: bool,
-                        skip_land_check: bool,
-                        mandatory_review: bool,
-                        dedupe_time_window: float | None,
-                        dedupe_distance_window: float | None,
-                        top_speed: str | None,
-                        ship_code: str | None) -> str | None:
+    def create_platform(
+        self,
+        wmo_id: str | None,
+        wigos_id: str | None,
+        platform_name: str | None,
+        platform_id: str | None,
+        platform_type: str | None,
+        start_date: AwareDateTime | None,
+        end_date: AwareDateTime | None,
+        status: PlatformStatus,
+        embargo_data_days: int | None,
+        meds_id: str | None,
+        map_to_uuid: str | None,
+        skip_speed_check: bool,
+        skip_land_check: bool,
+        mandatory_review: bool,
+        dedupe_time_window: float | None,
+        dedupe_distance_window: float | None,
+        top_speed: str | None,
+        ship_code: str | None,
+    ) -> str | None:
         response = self.make_service_json_request(
             service_identifier="desktop.create_platform",
             method="POST",
@@ -516,26 +580,28 @@ class CNODCServerAPI:
                 return load_result[0]
         return None
 
-    def update_platform(self,
-                        platform_uuid: str,
-                        wmo_id: str | None,
-                        wigos_id: str | None,
-                        platform_name: str | None,
-                        platform_id: str | None,
-                        meds_id: str | None,
-                        ship_code: str | None,
-                        platform_type: str | None,
-                        start_date: AwareDateTime | None,
-                        end_date: AwareDateTime | None,
-                        status: PlatformStatus,
-                        embargo_data_days: int | None,
-                        map_to_uuid: str | None,
-                        skip_speed_check: bool,
-                        skip_land_check: bool,
-                        mandatory_review: bool,
-                        dedupe_time_window: float | None,
-                        dedupe_distance_window: float | None,
-                        top_speed: str | None) -> bool:
+    def update_platform(
+        self,
+        platform_uuid: str,
+        wmo_id: str | None,
+        wigos_id: str | None,
+        platform_name: str | None,
+        platform_id: str | None,
+        meds_id: str | None,
+        ship_code: str | None,
+        platform_type: str | None,
+        start_date: AwareDateTime | None,
+        end_date: AwareDateTime | None,
+        status: PlatformStatus,
+        embargo_data_days: int | None,
+        map_to_uuid: str | None,
+        skip_speed_check: bool,
+        skip_land_check: bool,
+        mandatory_review: bool,
+        dedupe_time_window: float | None,
+        dedupe_distance_window: float | None,
+        top_speed: str | None,
+    ) -> bool:
         response = self.make_service_json_request(
             service_identifier="update",
             method="POST",
@@ -566,7 +632,10 @@ class CNODCServerAPI:
 
     def _platform_services(self, platform_uuid: str) -> dict:
         with self.local_db.cursor() as cur:
-            cur.execute("SELECT actions FROM platforms WHERE platform_uuid = ?", (platform_uuid,))
+            cur.execute(
+                "SELECT actions FROM platforms WHERE platform_uuid = ?",
+                (platform_uuid,),
+            )
             result = cur.fetchone()
             if not result:
                 return {}
@@ -591,28 +660,33 @@ class CNODCServerAPI:
         response = self.make_service_json_request(
             service_identifier="desktop.find_platform",
             platform_uuid=platform_uuid,
-            method="GET"
+            method="GET",
         )
         with self.local_db.cursor() as cur:
-            cur.execute("DELETE FROM platforms WHERE platform_uuid = ?", (platform_uuid,))
+            cur.execute(
+                "DELETE FROM platforms WHERE platform_uuid = ?", (platform_uuid,)
+            )
             if response["success"]:
-                cur.execute("INSERT INTO platforms (platform_uuid, meds_id, wmo_id, wigos_id, platform_name, platform_id, ship_code, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
-                    platform_uuid,
-                    response["data"].get("meds_id", None),
-                    response["data"].get("wmo_id", None),
-                    response["data"].get("wigos_id", None),
-                    response["data"].get("platform_name", None),
-                    response["data"].get("platform_id", None),
-                    response["data"].get("ship_code", None),
-                    response["data"].get("platform_type", None),
-                    response["data"].get("service_start_date", None),
-                    response["data"].get("service_end_date", None),
-                    json.dumps(response["data"].get("metadata", {})),
-                    response["data"].get("map_to_uuid", None),
-                    response["data"].get("status", None),
-                    response["data"].get("embargo_data_days", None),
-                    json.dumps(response["data"].get("actions", {})),
-                ))
+                cur.execute(
+                    "INSERT INTO platforms (platform_uuid, meds_id, wmo_id, wigos_id, platform_name, platform_id, ship_code, platform_type, service_start_date, service_end_date, metadata, map_to_uuid, status, embargo_data_days, actions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        platform_uuid,
+                        response["data"].get("meds_id", None),
+                        response["data"].get("wmo_id", None),
+                        response["data"].get("wigos_id", None),
+                        response["data"].get("platform_name", None),
+                        response["data"].get("platform_id", None),
+                        response["data"].get("ship_code", None),
+                        response["data"].get("platform_type", None),
+                        response["data"].get("service_start_date", None),
+                        response["data"].get("service_end_date", None),
+                        json.dumps(response["data"].get("metadata", {})),
+                        response["data"].get("map_to_uuid", None),
+                        response["data"].get("status", None),
+                        response["data"].get("embargo_data_days", None),
+                        json.dumps(response["data"].get("actions", {})),
+                    ),
+                )
                 cur.commit()
                 return True
             else:
@@ -628,27 +702,36 @@ class CNODCServerAPI:
 
     def _save_changes(self, record_uuid: str):
         with self.local_db.cursor() as cur:
-            cur.execute("SELECT actions FROM record WHERE record_uuid = ?", (record_uuid,))
+            cur.execute(
+                "SELECT actions FROM record WHERE record_uuid = ?", (record_uuid,)
+            )
             row = cur.fetchone()
             if row is None:
                 raise LocalAPIError("error.no_record_entry", 1300)
             record_actions = row[0]
             action_list = []
-            cur.execute("SELECT action_text FROM action WHERE record_uuid = ?", (record_uuid,))
+            cur.execute(
+                "SELECT action_text FROM action WHERE record_uuid = ?", (record_uuid,)
+            )
             for row in cur.fetchall():
                 action_list.append(row[0])
             response = self.make_service_json_request(
                 service_identifier="save",
                 method="POST",
                 _service_list=record_actions,
-                actions=action_list
+                actions=action_list,
             )
             if response["success"]:
-                cur.execute("UPDATE actions SET is_saved = 1 WHERE record_uuid = ?", (record_uuid,))
+                cur.execute(
+                    "UPDATE actions SET is_saved = 1 WHERE record_uuid = ?",
+                    (record_uuid,),
+                )
 
 
 @injector.inject
-def login(username: str, password: str, client: CNODCServerAPI = None) -> tuple[str | None, list[str]]:
+def login(
+    username: str, password: str, client: CNODCServerAPI = None
+) -> tuple[str | None, list[str]]:
     client.login(username, password)
     return client.display_name, client.services
 
@@ -664,7 +747,9 @@ def logout(client: CNODCServerAPI = None) -> bool:
 
 
 @injector.inject
-def fetch_queue_ready_count(client: CNODCServerAPI = None) -> list[tuple[str, str | None, int, int]]:
+def fetch_queue_ready_count(
+    client: CNODCServerAPI = None,
+) -> list[tuple[str, str | None, int, int]]:
     return client.fetch_queue_ready_count()
 
 
@@ -674,7 +759,9 @@ def save_changes(client: CNODCServerAPI = None) -> bool:
 
 
 @injector.inject
-def open_batch(batch_service_name: str, client: CNODCServerAPI = None) -> tuple[list[str], str, str, t.Any] | None:
+def open_batch(
+    batch_service_name: str, client: CNODCServerAPI = None
+) -> tuple[list[str], str, str, t.Any] | None:
     return client.open_batch(batch_service_name)
 
 
@@ -689,7 +776,9 @@ def reload_platforms(client: CNODCServerAPI = None) -> list[str]:
 
 
 @injector.inject
-def load_platforms(platform_uuids: t.Iterable[str], client: CNODCServerAPI = None) -> list[str]:
+def load_platforms(
+    platform_uuids: t.Iterable[str], client: CNODCServerAPI = None
+) -> list[str]:
     return client.load_platforms(platform_uuids)
 
 
@@ -699,7 +788,9 @@ def create_platform(client: CNODCServerAPI = None, **kwargs) -> str | None:
 
 
 @injector.inject
-def update_platform(platform_uuid: str, client: CNODCServerAPI = None, **kwargs) -> bool:
+def update_platform(
+    platform_uuid: str, client: CNODCServerAPI = None, **kwargs
+) -> bool:
     return client.update_platform(platform_uuid, **kwargs)
 
 

@@ -1,25 +1,21 @@
-import functools
+import pathlib
 import tkinter as tk
-
-from gcapp import i18n
-from pipeman_desktop.i18n import OCProc2Translator
-from pipeman_desktop.panes.base_pane import BasePane
-from pipeman_desktop.util import ReviewResult
-from pipeman_desktop.state import DisplayChange, ApplicationState
-import tkinter.ttk as ttk
 import typing as t
+from tkinter import ttk
+
+import numpy as np
+from autoinject import injector
+from PIL import Image, ImageTk
+
 from pipeman_desktop.components.choice_dialog import ask_choice
 from pipeman_desktop.components.tooltip import Tooltip
-import PIL.Image as Image
-import PIL.ImageTk as ImageTk
-import pathlib
-import numpy as np
-
-from autoinject import injector
+from pipeman_desktop.i18n import OCProc2Translator
+from pipeman_desktop.panes.base_pane import BasePane
+from pipeman_desktop.state import ApplicationState, DisplayChange
+from pipeman_desktop.util import ReviewResult
 
 
 class QCPane(BasePane):
-
     ocproc_tr: OCProc2Translator = None
 
     @injector.construct
@@ -27,8 +23,8 @@ class QCPane(BasePane):
         super().__init__(*args, **kwargs)
         self._buttons: dict[str, ttk.Button] = {}
         self._button_close_state: dict[str, ReviewResult] = {}
-        self._button_frame: t.Optional[ttk.Frame] = None
-        self._base_path = pathlib.Path(__file__).absolute().parent.parent / 'resources'
+        self._button_frame: ttk.Frame | None = None
+        self._base_path = pathlib.Path(__file__).absolute().parent.parent / "resources"
         self._images = {}
         self._last_choice = None
         self._load_next = tk.IntVar(value=1)
@@ -38,22 +34,31 @@ class QCPane(BasePane):
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.USER:
-            self.set_button_state('load_new', app_state.can_open_qc_batch())
+            self.set_button_state("load_new", app_state.can_open_qc_batch())
         if change_type & DisplayChange.ACTION:
-            self.set_button_state('save', app_state.can_save_changes())
-        if change_type & (DisplayChange.SAVING | DisplayChange.BATCH_STATE | DisplayChange.ACTION):
-            self.set_button_state('load_new', app_state.can_open_qc_batch())
-            self.set_button_state('save', app_state.can_save_changes())
+            self.set_button_state("save", app_state.can_save_changes())
+        if change_type & (
+            DisplayChange.SAVING | DisplayChange.BATCH_STATE | DisplayChange.ACTION
+        ):
+            self.set_button_state("load_new", app_state.can_open_qc_batch())
+            self.set_button_state("save", app_state.can_save_changes())
             for bn, close_op in self._button_close_state.items():
                 self.set_button_state(bn, app_state.can_close_current_batch(close_op))
-        if change_type & DisplayChange.RECORD:
-            if app_state.current_parent is not None:
-                for property in ["WMOID", "WIGOSID", "ShipCode", "PlatformName", "PlatformID"]:
-                    if app_state.current_parent.metadata.has_value(property):
-                        self._label.configure(text=f'{self.ocproc_tr.translate_element_name(property)} {app_state.current_parent.metadata.best(property, coerce=str)}')
-                        break
-                else:
-                    self._label.configure(text=app_state.current_working_uuid or '')
+        if change_type & DisplayChange.RECORD and app_state.current_parent is not None:
+            for property in [
+                "WMOID",
+                "WIGOSID",
+                "ShipCode",
+                "PlatformName",
+                "PlatformID",
+            ]:
+                if app_state.current_parent.metadata.has_value(property):
+                    self._label.configure(
+                        text=f"{self.ocproc_tr.translate_element_name(property)} {app_state.current_parent.metadata.best(property, coerce=str)}"
+                    )
+                    break
+            else:
+                self._label.configure(text=app_state.current_working_uuid or "")
 
     def set_button_state(self, key: str, is_enabled: bool):
         self._buttons[key].configure(state=(tk.NORMAL if is_enabled else tk.DISABLED))
@@ -65,91 +70,107 @@ class QCPane(BasePane):
         self._build_button(button_frame, "load_new", "load.png", self.next_item)
 
         self._build_button(button_frame, "save", "save.png", self.save)
-        self.app.root.bind('<Control-s>', self.save)
+        self.app.root.bind("<Control-s>", self.save)
 
         self._build_button(button_frame, "release", "release.png", self.release_item)
 
         self._build_button(button_frame, "report", "report.png", self.fail_item)
 
         self._build_button(button_frame, "submit", "submit.png", self.complete_item)
-        self.app.root.bind('<Control-n>', self.complete_item)
+        self.app.root.bind("<Control-n>", self.complete_item)
 
         self._build_button(button_frame, "recheck", "recheck.png", self.recheck_item)
 
         self._build_button(button_frame, "escalate", "calate.png", self.escalate_item)
 
-        self._build_button(button_frame, "descalate", "calate.png", self.descalate_item, rotate=True)
+        self._build_button(
+            button_frame, "descalate", "calate.png", self.descalate_item, rotate=True
+        )
 
         self._cb_off = tk.PhotoImage(width=50, height=25)
         self._cb_off.put(("black",), to=(0, 0, 24, 24))
         self._cb_on = tk.PhotoImage(width=50, height=25)
         self._cb_on.put(("green",), to=(25, 0, 49, 24))
-        self._checkbox = tk.Checkbutton(self.app.top,
-                                        offrelief="sunken",
-                                        variable=self._load_next,
-                                        image=self._cb_off,
-                                        selectimage=self._cb_on,
-                                        indicatoron=False,
-                                        onvalue=1,
-                                        offvalue=0)
+        self._checkbox = tk.Checkbutton(
+            self.app.top,
+            offrelief="sunken",
+            variable=self._load_next,
+            image=self._cb_off,
+            selectimage=self._cb_on,
+            indicatoron=False,
+            onvalue=1,
+            offvalue=0,
+        )
         self._checkbox.grid(row=0, column=len(self._buttons))
-        self.tts.append(Tooltip(self._checkbox, 'tooltip.toggle_autoload'))
+        self.tts.append(Tooltip(self._checkbox, "tooltip.toggle_autoload"))
         self.app.top.grid_columnconfigure(len(self._buttons), weight=0)
 
-        self._label = ttk.Label(self.app.top, text="", font=('', 18, 'bold'))
-        self._label.grid(row=0, column=len(self._buttons) + 1, ipadx=2, ipady=2, sticky='ew')
+        self._label = ttk.Label(self.app.top, text="", font=("", 18, "bold"))
+        self._label.grid(
+            row=0, column=len(self._buttons) + 1, ipadx=2, ipady=2, sticky="ew"
+        )
         self.app.top.grid_columnconfigure(len(self._buttons) + 1, weight=1)
 
         self.fetch_queue_ready_count()
 
-    def _build_button(self,
-                      button_frame: ttk.Frame,
-                      button_name: str,
-                      file_name: str,
-                      command: t.Callable,
-                      close_state: ReviewResult | None = None,
-                      rotate: bool = False):
+    def _build_button(
+        self,
+        button_frame: ttk.Frame,
+        button_name: str,
+        file_name: str,
+        command: t.Callable,
+        close_state: ReviewResult | None = None,
+        rotate: bool = False,
+    ):
         self._images[button_name] = self._build_button_image(
-            self._base_path / file_name,
-            self.app.top.master,
-            rotate
+            self._base_path / file_name, self.app.top.master, rotate
         )
         self._buttons[button_name] = ttk.Button(
             button_frame,
-            image=[self._images[button_name][0], 'disabled', self._images[button_name][1]],
+            image=[
+                self._images[button_name][0],
+                "disabled",
+                self._images[button_name][1],
+            ],
             command=command,
-            state=tk.DISABLED
+            state=tk.DISABLED,
         )
         if close_state is not None:
             self._button_close_state[button_name] = close_state
-        self._buttons[button_name].grid(row=0, column=len(self._buttons) - 1, ipadx=0, ipady=0, padx=0, pady=0)
+        self._buttons[button_name].grid(
+            row=0, column=len(self._buttons) - 1, ipadx=0, ipady=0, padx=0, pady=0
+        )
         self.app.top.grid_columnconfigure(len(self._buttons) - 1, weight=0)
-        self.tts.append(Tooltip(self._buttons[button_name], f'tooltip.{button_name}'))
+        self.tts.append(Tooltip(self._buttons[button_name], f"tooltip.{button_name}"))
 
-    def _build_button_image(self, path: pathlib.Path, master, rotate: bool = False, size: int = 30):
-        image = Image.open(str(path)).convert('RGBA').resize((size, size))
+    def _build_button_image(
+        self, path: pathlib.Path, master, rotate: bool = False, size: int = 30
+    ):
+        image = Image.open(str(path)).convert("RGBA").resize((size, size))
         if rotate:
             image = image.rotate(180)
         data = np.array(image)
-        red, green, blue, alpha = data.T
+        _, _, _, alpha = data.T
         alpha2 = np.reshape(alpha.T, (size * size))
         raw_values = []
         raw_values_disabled = []
-        for x in range(0, len(alpha2)):
+        for x in range(len(alpha2)):
             raw_values.extend([0, 0, 0, min(int(alpha2[x]) * 2, 255)])
             raw_values_disabled.extend([0, 0, 0, min(int(alpha2[x] / 2), 255)])
-        image = np.array(raw_values, dtype='u1')
+        image = np.array(raw_values, dtype="u1")
         image = np.resize(image, (size, size, 4))
-        image_dis = np.array(raw_values_disabled, dtype='u1')
+        image_dis = np.array(raw_values_disabled, dtype="u1")
         image_dis = np.resize(image_dis, (size, size, 4))
-        return ImageTk.PhotoImage(Image.fromarray(image), master=master), ImageTk.PhotoImage(Image.fromarray(image_dis), master=master)
+        return ImageTk.PhotoImage(
+            Image.fromarray(image), master=master
+        ), ImageTk.PhotoImage(Image.fromarray(image_dis), master=master)
 
     def fetch_queue_ready_count(self):
         if self.app.state.has_access("desktop.queue_items_ready"):
             self.app.dispatcher.submit_job(
                 "pipeman_desktop.client.api_client.get_queue_report",
                 on_success=self._fetch_queue_ready_count,
-                on_error=self.app.show_user_exception
+                on_error=self.app.show_user_exception,
             )
         else:
             self.app.after(5000, self.fetch_queue_ready_count)
@@ -172,7 +193,7 @@ class QCPane(BasePane):
         if len(choices) > 1:
             choice = ask_choice(self.app.root, choices)
         elif len(choices) == 1:
-            choice = list(choices.keys())[0]
+            choice = next(iter(choices.keys()))
         else:
             # TODO: warn that there are no QC batches available
             choice = None
@@ -181,34 +202,44 @@ class QCPane(BasePane):
         else:
             self.app.state.update_qc_state("empty")
 
-
     def recheck_item(self, e=None, load_next: bool | None = None):
         if load_next is None:
             load_next = self._load_next.get() > 0
-        self.app.state.close_current_batch(ReviewResult.RECHECK, self.next_item if load_next else None)
+        self.app.state.close_current_batch(
+            ReviewResult.RECHECK, self.next_item if load_next else None
+        )
 
     def complete_item(self, e=None, load_next: bool | None = None):
         if load_next is None:
             load_next = self._load_next.get() > 0
-        self.app.state.close_current_batch(ReviewResult.CONTINUE, self.next_item if load_next else None)
+        self.app.state.close_current_batch(
+            ReviewResult.CONTINUE, self.next_item if load_next else None
+        )
 
     def release_item(self, e=None, load_next: bool | None = None):
         if load_next is None:
             load_next = self._load_next.get() > 0
-        self.app.state.close_current_batch(ReviewResult.RELEASE, self.next_item if load_next else None)
+        self.app.state.close_current_batch(
+            ReviewResult.RELEASE, self.next_item if load_next else None
+        )
 
     def fail_item(self, e=None, load_next: bool | None = None):
         if load_next is None:
             load_next = self._load_next.get() > 0
-        self.app.state.close_current_batch(ReviewResult.ERROR, self.next_item if load_next else None)
+        self.app.state.close_current_batch(
+            ReviewResult.ERROR, self.next_item if load_next else None
+        )
 
     def escalate_item(self, e=None, load_next: bool | None = None):
         if load_next is None:
             load_next = self._load_next.get() > 0
-        self.app.state.close_current_batch(ReviewResult.ESCALATE, self.next_item if load_next else None)
+        self.app.state.close_current_batch(
+            ReviewResult.ESCALATE, self.next_item if load_next else None
+        )
 
     def descalate_item(self, e=None, load_next: bool | None = None):
         if load_next is None:
             load_next = self._load_next.get() > 0
-        self.app.state.close_current_batch(ReviewResult.DESCALATE, self.next_item if load_next else None)
-
+        self.app.state.close_current_batch(
+            ReviewResult.DESCALATE, self.next_item if load_next else None
+        )

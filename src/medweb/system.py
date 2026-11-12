@@ -1,6 +1,5 @@
-from gcflask.flasksystem import FlaskSystemMixin
 from gcclick.clicksystem import ClickSystemMixin
+from gcflask.flasksystem import FlaskSystemMixin
 
 
-class MedWebSystem(ClickSystemMixin, FlaskSystemMixin):
-    ...
+class MedWebSystem(ClickSystemMixin, FlaskSystemMixin): ...

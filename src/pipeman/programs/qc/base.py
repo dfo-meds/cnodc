@@ -7,52 +7,77 @@ import typing as t
 from types import EllipsisType
 
 import zrlog
+from autoinject import injector
 
 import medsutil.math as amath
 from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
 from medsutil.cached import CachedObjectMixin
 from medsutil.exceptions import CodedError
-from medsutil.math import _functions
-from medsutil.ocproc2 import OCProc2Action, MessageType
-from medsutil.ocproc2.operations import ChangeQuality, RecordProcessed, AddHistoryEntry
-from medsutil.ocproc2.refs import ElementType, AnyRef, ElementRef, SingleElementRef, MultiElementRef, \
-    RecordSetRef, RecordRef, ParentRecordRef, ChildRecordRef, RecordCrawler
-from medsutil.ocproc2.util import QualityError, CoordinateTracker, check_quality, RequiredQuality, check_any_of_quality
+from medsutil.ocproc2 import MessageType, OCProc2Action
+from medsutil.ocproc2.operations import AddHistoryEntry, ChangeQuality, RecordProcessed
+from medsutil.ocproc2.refs import (
+    AnyRef,
+    ChildRecordRef,
+    ElementRef,
+    ElementType,
+    MultiElementRef,
+    ParentRecordRef,
+    RecordCrawler,
+    RecordRef,
+    RecordSetRef,
+    SingleElementRef,
+)
+from medsutil.ocproc2.util import (
+    CoordinateTracker,
+    QualityError,
+    RequiredQuality,
+    check_any_of_quality,
+    check_quality,
+)
 from medsutil.ocproc_math import extract_parameter_value
 from medsutil.units import UnitConverter
-from autoinject import injector
-
 from nodb.interface import NODBInstance
-from nodb.observations import NODBPlatform, NODBWorkingRecord, NODBObservationData, NODBObservation, NODBSourceFile, \
-    QualityCheckFlags, DataMode
+from nodb.observations import (
+    DataMode,
+    NODBObservation,
+    NODBObservationData,
+    NODBPlatform,
+    NODBWorkingRecord,
+    QualityCheckFlags,
+)
 
 if t.TYPE_CHECKING:
-    from pipeman.programs.qc.references import ReferenceRange
     from medsutil.ocproc2.util import ObjectWithMetadata
-    class QCMethodProtocol[R: AnyRef](t.Protocol):
-        def __call__(_, self: QualityController, ref: R, *args, **kwargs) -> t.Any:
-            ...
+    from pipeman.programs.qc.references import ReferenceRange
 
+    class QCMethodProtocol[R: AnyRef](t.Protocol):
+        def __call__(_, self: QualityController, ref: R, *args, **kwargs) -> t.Any: ...
 
 
 class QCException(Exception): ...
 
+
 class QCComplete(QCException): ...
+
 
 class QCSkipReview(QCException): ...
 
+
 class QCSkipTest(QCException): ...
+
 
 class QCPassTest(QCException): ...
 
-class QCAssertionError(QCException):
 
-    def __init__(self,
-                 error_code: str,
-                 flag_number: int = None,
-                 ref_value: t.Any = None,
-                 subpath: t.Optional[str] = None):
+class QCAssertionError(QCException):
+    def __init__(
+        self,
+        error_code: str,
+        flag_number: int = None,
+        ref_value: t.Any = None,
+        subpath: str | None = None,
+    ):
         self.error_code = error_code
         self.flag_number = flag_number
         self.ref_value = ref_value
@@ -60,7 +85,6 @@ class QCAssertionError(QCException):
 
 
 class QualityController(abc.ABC):
-
     converter: UnitConverter = None
 
     ALLOW_NEW_QC_RESULT: dict[ocproc2.QCResult, set[ocproc2.QCResult]] = {
@@ -90,28 +114,32 @@ class QualityController(abc.ABC):
     }
 
     @injector.construct
-    def __init__(self,
-                 test_protocol: str,
-                 test_name: str,
-                 test_version: str,
-                 station_invariant: bool = False,
-                 working_sort: str | tuple[str, bool] | None = None,
-                 test_tags: list[str | None] | None = None,
-                 searcher_cls: type | None = None):
+    def __init__(
+        self,
+        test_protocol: str,
+        test_name: str,
+        test_version: str,
+        station_invariant: bool = False,
+        working_sort: str | tuple[str, bool] | None = None,
+        test_tags: list[str | None] | None = None,
+        searcher_cls: type | None = None,
+    ):
         self._default_allowed_protocols = ["nodb", test_protocol]
         self._test_protocol = test_protocol
         self._test_name = test_name
         self._station_invariant = station_invariant
         self._test_version = test_version
-        self._test_tags = set(x for x in test_tags if x is not None) if test_tags else set()
+        self._test_tags = (
+            set(x for x in test_tags if x is not None) if test_tags else set()
+        )
         self._working_sort = working_sort
         self._qc_messages: list[ocproc2.QCMessage] = []
         self._qc_result: ocproc2.QCResult = ocproc2.QCResult.PASS
         self._reviews_passed = 0
         self._reviews_failed = 0
         self._reviews_skipped = 0
-        self._current_record: t.Optional[ParentRecordRef] = None
-        self._coordinates: t.Optional[CoordinateTracker] = None
+        self._current_record: ParentRecordRef | None = None
+        self._coordinates: CoordinateTracker | None = None
         self._memory: dict | None = None
         self._rmemory: dict | None = None
         self._log = zrlog.get_logger(f"pipeman.qc_checker.{test_name}")
@@ -210,8 +238,8 @@ class QualityController(abc.ABC):
         current = self.current_record.record
         if require_good:
             self.require_quality(current.metadata.get("CNODCPlatform"))
-        if current.metadata.has_value('CNODCPlatform'):
-            platform = current.metadata['CNODCPlatform']
+        if current.metadata.has_value("CNODCPlatform"):
+            platform = current.metadata["CNODCPlatform"]
             if platform.is_empty() or platform.quality in (4, 9):
                 return None
             return platform.to_string()
@@ -224,14 +252,16 @@ class QualityController(abc.ABC):
         else:
             return self._db
 
-    def run_record_check(self,
-                         record: ocproc2.ParentRecord,
-                         db: NODBInstance,
-                         data_mode: DataMode = DataMode.UNKNOWN,
-                         qc_flags: int = 0,
-                         source_file_uuid: str | None = None,
-                         source_file_date: datetime.date | None = None,
-                         process_id: str | None = None) -> tuple[ocproc2.QCTestRunInfo, int]:
+    def run_record_check(
+        self,
+        record: ocproc2.ParentRecord,
+        db: NODBInstance,
+        data_mode: DataMode = DataMode.UNKNOWN,
+        qc_flags: int = 0,
+        source_file_uuid: str | None = None,
+        source_file_date: datetime.date | None = None,
+        process_id: str | None = None,
+    ) -> tuple[ocproc2.QCTestRunInfo, int]:
         self._source_file_uuid = source_file_uuid
         self._source_file_date = source_file_date
         self._process_id = process_id
@@ -249,19 +279,19 @@ class QualityController(abc.ABC):
                 self.update_qc_result(ocproc2.QCResult.MANUAL_REVIEW)
         except QCSkipTest as ex:
             self.update_qc_result(ocproc2.QCResult.SKIP)
-            self.add_note(f"test_skipped: {str(ex)}")
+            self.add_note(f"test_skipped: {ex!s}")
             self._log.debug("test skipped", exc_info=True)
-        except QCPassTest as ex:
+        except QCPassTest:
             self.update_qc_result(ocproc2.QCResult.PASS)
         except CodedError as ex:
             if ex.is_transient:
                 raise
             self.update_qc_result(ocproc2.QCResult.ERROR)
-            self.add_note(f"error cause: {ex.__class__.__name__}: {str(ex)}")
+            self.add_note(f"error cause: {ex.__class__.__name__}: {ex!s}")
             self._log.error("test error", exc_info=True)
         except Exception as ex:
             self.update_qc_result(ocproc2.QCResult.ERROR)
-            self.add_note(f"error cause: {ex.__class__.__name__}: {str(ex)}")
+            self.add_note(f"error cause: {ex.__class__.__name__}: {ex!s}")
             self._log.error("test error", exc_info=True)
         test_run_info = ocproc2.QCTestRunInfo(
             test_protocol=self._test_protocol,
@@ -310,16 +340,17 @@ class QualityController(abc.ABC):
             self._log.trace("review skipped outside of review block: %s", ex)
 
     @contextlib.contextmanager
-    def review_all(self,
-                   review_name: str,
-                   refs: t.Iterable[AnyRef],
-                   fail_flag: int | None = None,
-                   pass_flag: int | None = None,
-                   review_passes: bool = False,
-                   review_failures: bool = True,
-                   qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
-                   allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.Generator[
-        CheckerContext, None, None]:
+    def review_all(
+        self,
+        review_name: str,
+        refs: t.Iterable[AnyRef],
+        fail_flag: int | None = None,
+        pass_flag: int | None = None,
+        review_passes: bool = False,
+        review_failures: bool = True,
+        qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...,
+    ) -> t.Generator[CheckerContext]:
         ctx = CheckerContext(self, review_name, refs, allowed_protocols)
         try:
             yield ctx
@@ -333,7 +364,13 @@ class QualityController(abc.ABC):
             self.add_qc_message(str(ex), "", None, review_name)
             self._reviews_skipped += 1
         except QCAssertionError as ex:
-            self._log.info("review [%s] failed: [%s][ref: %s] on [%s]", review_name, ex.error_code, ex.ref_value, refs)
+            self._log.info(
+                "review [%s] failed: [%s][ref: %s] on [%s]",
+                review_name,
+                ex.error_code,
+                ex.ref_value,
+                refs,
+            )
             self._reviews_failed += 1
             ctx.recommend_for_review(
                 ex.flag_number if ex.flag_number is not None else fail_flag,
@@ -341,69 +378,111 @@ class QualityController(abc.ABC):
                 ex.ref_value,
                 qc_result,
                 ex.error_code,
-                review_failures
+                review_failures,
             )
 
     @contextlib.contextmanager
-    def review(self,
-               review_name: str,
-               ref: AnyRef,
-               fail_flag: int | None = None,
-               pass_flag: int | None = None,
-               review_passes: bool = False,
-               review_failures: bool = True,
-               qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
-               allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.Generator[
-        CheckerContext, None, None]:
-        with self.review_all(review_name, [ref], fail_flag, pass_flag, review_passes, review_failures, qc_result, allowed_protocols) as ctx:
+    def review(
+        self,
+        review_name: str,
+        ref: AnyRef,
+        fail_flag: int | None = None,
+        pass_flag: int | None = None,
+        review_passes: bool = False,
+        review_failures: bool = True,
+        qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...,
+    ) -> t.Generator[CheckerContext]:
+        with self.review_all(
+            review_name,
+            [ref],
+            fail_flag,
+            pass_flag,
+            review_passes,
+            review_failures,
+            qc_result,
+            allowed_protocols,
+        ) as ctx:
             yield ctx
 
-    def check_quality(self,
-                      element: ObjectWithMetadata | None,
-                      required_quality: RequiredQuality,
-                      msg: str | None = None,
-                      allowed_protocols: t.Iterable[str] | None | EllipsisType = ...):
+    def check_quality(
+        self,
+        element: ObjectWithMetadata | None,
+        required_quality: RequiredQuality,
+        msg: str | None = None,
+        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...,
+    ):
         try:
-            check_quality(element, required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
+            check_quality(
+                element,
+                required_quality,
+                allowed_protocols=self._allowed_protocols(allowed_protocols),
+            )
         except QualityError as ex:
             self.skip_review(msg or str(ex))
 
-    def _allowed_protocols(self, allowed: t.Iterable[str] | None | EllipsisType = ...) -> t.Iterable[str] | None:
+    def _allowed_protocols(
+        self, allowed: t.Iterable[str] | None | EllipsisType = ...
+    ) -> t.Iterable[str] | None:
         if allowed is ...:
             return self._default_allowed_protocols
         else:
             return t.cast(t.Iterable[str] | None, allowed)
 
-    def check_review_already_complete(self,
-                                      references: t.List[AnyRef] | AnyRef | ObjectWithMetadata,
-                                      required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE,
-                                      allowed_protocols: t.Iterable[str] | None | EllipsisType = ...):
+    def check_review_already_complete(
+        self,
+        references: list[AnyRef] | AnyRef | ObjectWithMetadata,
+        required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE,
+        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...,
+    ):
         try:
             if isinstance(references, list):
-                check_any_of_quality([r.ref_object for r in references], required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
+                check_any_of_quality(
+                    [r.ref_object for r in references],
+                    required_quality,
+                    allowed_protocols=self._allowed_protocols(allowed_protocols),
+                )
             elif isinstance(references, AnyRef):
-                check_quality(references.ref_object, required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
+                check_quality(
+                    references.ref_object,
+                    required_quality,
+                    allowed_protocols=self._allowed_protocols(allowed_protocols),
+                )
             else:
-                check_quality(references, required_quality, allowed_protocols=self._allowed_protocols(allowed_protocols))
+                check_quality(
+                    references,
+                    required_quality,
+                    allowed_protocols=self._allowed_protocols(allowed_protocols),
+                )
         except (QualityError, ExceptionGroup) as ex:
             self.skip_review(str(ex))
 
-    def recommend_for_review(self,
-                             specific_test_name: str,
-                             refs: AnyRef | t.Iterable[AnyRef],
-                             quality_flag: int | None = None,
-                             subpath: str = "",
-                             ref_value: t.Any = None,
-                             qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
-                             message: str | None = None,
-                             is_reviewable: bool = True):
+    def recommend_for_review(
+        self,
+        specific_test_name: str,
+        refs: AnyRef | t.Iterable[AnyRef],
+        quality_flag: int | None = None,
+        subpath: str = "",
+        ref_value: t.Any = None,
+        qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+        message: str | None = None,
+        is_reviewable: bool = True,
+    ):
         if not isinstance(refs, AnyRef):
             for e in refs:
-                self.recommend_for_review(specific_test_name, e, quality_flag, subpath, ref_value, qc_result, message)
+                self.recommend_for_review(
+                    specific_test_name,
+                    e,
+                    quality_flag,
+                    subpath,
+                    ref_value,
+                    qc_result,
+                    message,
+                )
         else:
             element_path = refs.path
             if subpath:
-                element_path = f"{refs.path.rstrip("/")}/{subpath.strip("/")}"
+                element_path = f"{refs.path.rstrip('/')}/{subpath.strip('/')}"
             if quality_flag is not None:
                 self.set_working_quality(quality_flag, element_path, is_reviewable)
             if message is not None:
@@ -411,10 +490,9 @@ class QualityController(abc.ABC):
             if qc_result is not None:
                 self.update_qc_result(qc_result)
 
-    def set_working_quality(self,
-                            working_quality: int,
-                            ref: AnyRef | str,
-                            is_reviewable: bool = True):
+    def set_working_quality(
+        self, working_quality: int, ref: AnyRef | str, is_reviewable: bool = True
+    ):
         action = ChangeQuality(
             path=ref.path if isinstance(ref, AnyRef) else ref,
             new_flag=working_quality,
@@ -428,27 +506,27 @@ class QualityController(abc.ABC):
         if new_result in self.ALLOW_NEW_QC_RESULT[self._qc_result]:
             self._qc_result = new_result
 
-    def add_qc_message(self,
-                       msg: str,
-                       path: str | list[str],
-                       ref_value: t.Any = None,
-                       specific_test_name: str | None = None):
+    def add_qc_message(
+        self,
+        msg: str,
+        path: str | list[str],
+        ref_value: t.Any = None,
+        specific_test_name: str | None = None,
+    ):
         # TODO: can we put specific_test_name into the message somewhere?
-        self._qc_messages.append(ocproc2.QCMessage(
-            msg,
-            path,
-            ref_value,
-            specific_test_name
-        ))
+        self._qc_messages.append(
+            ocproc2.QCMessage(msg, path, ref_value, specific_test_name)
+        )
 
-    def add_note(self,
-                 message: str,
-                 message_type: MessageType = MessageType.NOTE,
-                 is_reviewable: bool = False):
-        self.add_record_action(AddHistoryEntry(
-            message=message,
-            message_type=message_type
-        ), is_reviewable)
+    def add_note(
+        self,
+        message: str,
+        message_type: MessageType = MessageType.NOTE,
+        is_reviewable: bool = False,
+    ):
+        self.add_record_action(
+            AddHistoryEntry(message=message, message_type=message_type), is_reviewable
+        )
 
     def skip_entire_test(self, reason: str) -> t.NoReturn:
         raise QCSkipTest(reason)
@@ -459,40 +537,52 @@ class QualityController(abc.ABC):
     def qc_pass(self) -> t.NoReturn:
         raise QCPassTest()
 
-    def require_quality(self,
-                        value: ocproc2.AbstractElement | None,
-                        required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
-                        msg: str | None = None,
-                        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.TypeGuard[ocproc2.AbstractElement]:
+    def require_quality(
+        self,
+        value: ocproc2.AbstractElement | None,
+        required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+        msg: str | None = None,
+        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...,
+    ) -> t.TypeGuard[ocproc2.AbstractElement]:
         self.check_quality(value, required_quality, msg, allowed_protocols)
         return True
 
     @staticmethod
-    def review_cb(test_name: str,
-                  required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE,
-                  fail_flag: int | None = None,
-                  pass_flag: int | None = None,
-                  qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
-                  allowed_protocols: t.Iterable[str] | None | EllipsisType = ...) -> t.Callable[[QCMethodProtocol], QCMethodProtocol]:
+    def review_cb(
+        test_name: str,
+        required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE,
+        fail_flag: int | None = None,
+        pass_flag: int | None = None,
+        qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...,
+    ) -> t.Callable[[QCMethodProtocol], QCMethodProtocol]:
         def _outer(cb: QCMethodProtocol) -> QCMethodProtocol:
             @functools.wraps(cb)
             def _inner(self: QualityController, ref: AnyRef, *args, **kwargs) -> t.Any:
-                with self.review(test_name, ref, fail_flag=fail_flag, pass_flag=pass_flag, qc_result=qc_result, allowed_protocols=allowed_protocols) as ctx:
+                with self.review(
+                    test_name,
+                    ref,
+                    fail_flag=fail_flag,
+                    pass_flag=pass_flag,
+                    qc_result=qc_result,
+                    allowed_protocols=allowed_protocols,
+                ) as ctx:
                     ctx.check_review_already_complete(required_quality)
                     return cb(self, ref, *args, **kwargs)
+
             return _inner
+
         return _outer
 
-    def report_qc_error(self,
-                        msg: str,
-                        flag: int | None = None,
-                        subpath: t.Optional[str] = None,
-                        ref_value: t.Any = None):
+    def report_qc_error(
+        self,
+        msg: str,
+        flag: int | None = None,
+        subpath: str | None = None,
+        ref_value: t.Any = None,
+    ):
         err = QCAssertionError(
-            error_code=msg,
-            flag_number=flag,
-            subpath=subpath,
-            ref_value=ref_value
+            error_code=msg, flag_number=flag, subpath=subpath, ref_value=ref_value
         )
         if ref_value is not None:
             err.add_note(f"Reference value: {ref_value}")
@@ -500,7 +590,9 @@ class QualityController(abc.ABC):
             err.add_note(f"Path: {subpath}")
         raise err
 
-    def extract_all_keyed_parameters(self, *records: RecordRef, include_parameters: t.Container[str] | None = None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
+    def extract_all_keyed_parameters(
+        self, *records: RecordRef, include_parameters: t.Container[str] | None = None
+    ) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
         param_names = set()
         for record in records:
             if include_parameters is not None:
@@ -513,55 +605,72 @@ class QualityController(abc.ABC):
                 param_names.update(record.record.parameters.keys())
         for param_name in param_names:
             yield from self.group_by_sensor_rank(
-                *(
-                    record.record.parameters.get(param_name, None)
-                    for record in records
-                )
+                *(record.record.parameters.get(param_name, None) for record in records)
             )
 
-    def group_by_sensor_rank(self,
-                             *elements: SingleElementRef | MultiElementRef | None) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
+    def group_by_sensor_rank(
+        self, *elements: SingleElementRef | MultiElementRef | None
+    ) -> t.Iterable[tuple[SingleElementRef | None, ...]]:
         keyed_elements = []
         keys = set()
         for element in elements:
-            keyed = element.values_keyed_for_sensor_rank() if element is not None else {}
+            keyed = (
+                element.values_keyed_for_sensor_rank() if element is not None else {}
+            )
             keyed_elements.append(keyed)
             keys.update(keyed.keys())
         for key in keys:
             yield tuple(
-                by_key[key] if key in by_key else None
-                for by_key in keyed_elements
+                by_key[key] if key in by_key else None for by_key in keyed_elements
             )
 
-
-    def extract_good_values(self,
-                            element_ref: SingleElementRef | MultiElementRef | None,
-                            required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> t.Iterable[SingleElementRef]:
+    def extract_good_values(
+        self,
+        element_ref: SingleElementRef | MultiElementRef | None,
+        required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+    ) -> t.Iterable[SingleElementRef]:
         if element_ref is not None:
             for element_sref in element_ref.single_element_refs():
                 try:
-                    self.require_quality(element_sref.element, required_quality=required_quality)
+                    self.require_quality(
+                        element_sref.element, required_quality=required_quality
+                    )
                     yield element_sref
                 except QCSkipReview:
                     ...
 
-    def extract_parameter_values(self, *elements: SingleElementRef, units: str | None = None, required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE) -> tuple[amath.AnyNumber | None, ...]:
+    def extract_parameter_values(
+        self,
+        *elements: SingleElementRef,
+        units: str | None = None,
+        required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+    ) -> tuple[amath.AnyNumber | None, ...]:
         for element in elements:
             if units is None:
                 units = element.element.metadata.best("Units", coerce=str, default=None)
             if units is not None:
                 break
         return tuple(
-            self.extract_parameter_value(element, units, required_quality, self.current_time)
+            self.extract_parameter_value(
+                element, units, required_quality, self.current_time
+            )
             for element in elements
         )
 
-    def extract_parameter_value(self,
-                                ref: SingleElementRef,
-                                units: str | None = None,
-                                required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
-                                obs_date: AwareDateTime | None = None) -> amath.AnyNumber | None:
-        return extract_parameter_value(ref.element_name, ref.element, units, required_quality, obs_date if obs_date is not None else self.current_time)
+    def extract_parameter_value(
+        self,
+        ref: SingleElementRef,
+        units: str | None = None,
+        required_quality: RequiredQuality = RequiredQuality.GOOD_VALUE,
+        obs_date: AwareDateTime | None = None,
+    ) -> amath.AnyNumber | None:
+        return extract_parameter_value(
+            ref.element_name,
+            ref.element,
+            units,
+            required_quality,
+            obs_date if obs_date is not None else self.current_time,
+        )
 
     def assert_true(self, a: t.Any, msg: str | None = None, **kwargs) -> bool:
         if not a:
@@ -573,53 +682,87 @@ class QualityController(abc.ABC):
             self.report_qc_error(msg or "not_false", **kwargs)
         return True
 
-    def assert_is_none(self, a: t.Any, msg:str | None = None, **kwargs) -> t.TypeGuard[None]:
+    def assert_is_none(
+        self, a: t.Any, msg: str | None = None, **kwargs
+    ) -> t.TypeGuard[None]:
         if a is not None:
             self.report_qc_error(msg or "not_none", **kwargs)
         return True
 
-    def assert_is_not_none[T](self, a: T | None, msg: str | None = None, **kwargs) -> t.TypeGuard[T]:
+    def assert_is_not_none[T](
+        self, a: T | None, msg: str | None = None, **kwargs
+    ) -> t.TypeGuard[T]:
         if a is None:
             self.report_qc_error(msg or "is_none", **kwargs)
         return True
 
-    def assert_element_not_empty(self, element: ocproc2.SingleElement, msg: str | None = None, **kwargs):
+    def assert_element_not_empty(
+        self, element: ocproc2.SingleElement, msg: str | None = None, **kwargs
+    ):
         if element.is_empty():
             self.report_qc_error(msg or "is_empty", **kwargs)
 
-    def assert_element_is_number(self, element: ocproc2.SingleElement, msg: str | None = None, **kwargs):
+    def assert_element_is_number(
+        self, element: ocproc2.SingleElement, msg: str | None = None, **kwargs
+    ):
         if not element.is_numeric():
             self.report_qc_error(msg or "not_numeric", **kwargs)
 
-    def assert_in_reference_range(self, element: ocproc2.SingleElement, ref_range: ReferenceRange, msg: str | None = None, **kwargs):
+    def assert_in_reference_range(
+        self,
+        element: ocproc2.SingleElement,
+        ref_range: ReferenceRange,
+        msg: str | None = None,
+        **kwargs,
+    ):
         if ref_range.minimum is None and ref_range.maximum is None:
             return
         number = element.to_numeric(ref_range.units)
         if ref_range.maximum is None:
-            self.assert_greater_or_close(number, t.cast(amath.AnyNumber, ref_range.minimum), msg=msg or "outside_ref_range", **kwargs)
+            self.assert_greater_or_close(
+                number,
+                t.cast(amath.AnyNumber, ref_range.minimum),
+                msg=msg or "outside_ref_range",
+                **kwargs,
+            )
         elif ref_range.minimum is None:
-            self.assert_less_or_close(number, t.cast(amath.AnyNumber, ref_range.maximum), msg=msg or "outside_ref_range", **kwargs)
+            self.assert_less_or_close(
+                number,
+                t.cast(amath.AnyNumber, ref_range.maximum),
+                msg=msg or "outside_ref_range",
+                **kwargs,
+            )
         else:
-            self.assert_between(number, t.cast(amath.AnyNumber, ref_range.minimum), t.cast(amath.AnyNumber, ref_range.maximum), msg=msg or "outside_ref_range", **kwargs)
+            self.assert_between(
+                number,
+                t.cast(amath.AnyNumber, ref_range.minimum),
+                t.cast(amath.AnyNumber, ref_range.maximum),
+                msg=msg or "outside_ref_range",
+                **kwargs,
+            )
 
-    def assert_between(self,
-                       a: amath.AnyNumber,
-                       min_value: amath.AnyNumber,
-                       max_value: amath.AnyNumber,
-                       msg: str | None = None,
-                       add_ref: bool = True,
-                       **kwargs):
+    def assert_between(
+        self,
+        a: amath.AnyNumber,
+        min_value: amath.AnyNumber,
+        max_value: amath.AnyNumber,
+        msg: str | None = None,
+        add_ref: bool = True,
+        **kwargs,
+    ):
         if not amath.between(min_value, a, max_value):
             if add_ref and not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = f"{min_value} TO {max_value}"
             self.report_qc_error(msg or "not_between", **kwargs)
 
-    def assert_in(self,
-                  element: t.Any,
-                  collection: collections.abc.Container,
-                  msg: str | None = None,
-                  add_ref: bool = False,
-                  **kwargs) -> bool:
+    def assert_in(
+        self,
+        element: t.Any,
+        collection: collections.abc.Container,
+        msg: str | None = None,
+        add_ref: bool = False,
+        **kwargs,
+    ) -> bool:
         if element not in collection:
             if add_ref and isinstance(collection, t.Iterable):
                 if not kwargs.get("ref_value", None):
@@ -627,33 +770,43 @@ class QualityController(abc.ABC):
             self.report_qc_error(msg or "not_in", **kwargs)
         return True
 
-    def assert_is_instance(self, v: t.Any, types: tuple[type, ...] | type, msg: str | None = None, **kwargs) -> bool:
+    def assert_is_instance(
+        self, v: t.Any, types: tuple[type, ...] | type, msg: str | None = None, **kwargs
+    ) -> bool:
         if not isinstance(v, types):
             if not kwargs.get("ref_value", None):
                 if isinstance(types, tuple):
-                    kwargs['ref_value'] = ";".join(str(x.__name__ for x in types))
+                    kwargs["ref_value"] = ";".join(str(x.__name__ for x in types))
                 else:
-                    kwargs['ref_value'] = str(types.__name__)
+                    kwargs["ref_value"] = str(types.__name__)
             self.report_qc_error(msg or "is_not_type", **kwargs)
         return True
 
-    def assert_is_not_instance(self, v: t.Any, types: tuple[type, ...] | type, msg: str | None = None, **kwargs):
+    def assert_is_not_instance(
+        self, v: t.Any, types: tuple[type, ...] | type, msg: str | None = None, **kwargs
+    ):
         if isinstance(v, types):
             if not kwargs.get("ref_value", None):
                 if isinstance(types, tuple):
-                    kwargs['ref_value'] = kwargs.get('ref_value', ";".join(str(x.__name__ for x in types)))
+                    kwargs["ref_value"] = kwargs.get(
+                        "ref_value", ";".join(str(x.__name__ for x in types))
+                    )
                 else:
-                    kwargs['ref_value'] = kwargs.get('ref_value', ";".join(str(types.__name__)))
+                    kwargs["ref_value"] = kwargs.get(
+                        "ref_value", ";".join(str(types.__name__))
+                    )
             self.report_qc_error(msg or "is_type", **kwargs)
         return True
 
-    def assert_greater_or_close(self,
-                                a: amath.AnyNumber,
-                                b: amath.AnyNumber,
-                                msg: str | None = None,
-                                rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
-                                abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
-                                **kwargs):
+    def assert_greater_or_close(
+        self,
+        a: amath.AnyNumber,
+        b: amath.AnyNumber,
+        msg: str | None = None,
+        rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+        abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
+        **kwargs,
+    ):
         if not amath.gte(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
@@ -661,63 +814,73 @@ class QualityController(abc.ABC):
 
     def assert_not_nan(self, a: amath.AnyNumber, msg: str | None = None, **kwargs):
         if amath.is_nan(a):
-            self.report_qc_error(msg or 'is_nan', **kwargs)
+            self.report_qc_error(msg or "is_nan", **kwargs)
 
-    def assert_less_or_close(self,
-                             a: amath.AnyNumber,
-                             b: amath.AnyNumber,
-                             msg: str | None = None,
-                             rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
-                             abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
-                             **kwargs):
+    def assert_less_or_close(
+        self,
+        a: amath.AnyNumber,
+        b: amath.AnyNumber,
+        msg: str | None = None,
+        rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+        abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
+        **kwargs,
+    ):
         if not amath.lte(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_less_or_close", **kwargs)
 
-    def assert_greater(self,
-                       a: amath.AnyNumber,
-                       b: amath.AnyNumber,
-                       msg: str | None = None,
-                       rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
-                       abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
-                       **kwargs):
+    def assert_greater(
+        self,
+        a: amath.AnyNumber,
+        b: amath.AnyNumber,
+        msg: str | None = None,
+        rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+        abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
+        **kwargs,
+    ):
         if not amath.gt(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_greater_or_close", **kwargs)
 
-    def assert_less(self,
-                    a: amath.AnyNumber,
-                    b: amath.AnyNumber,
-                    msg: str | None = None,
-                    rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
-                    abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
-                    **kwargs):
+    def assert_less(
+        self,
+        a: amath.AnyNumber,
+        b: amath.AnyNumber,
+        msg: str | None = None,
+        rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+        abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
+        **kwargs,
+    ):
         if not amath.lt(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_less_or_close", **kwargs)
 
-    def assert_close(self,
-                     a: amath.AnyNumber,
-                     b: amath.AnyNumber,
-                     msg: str | None = None,
-                     rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
-                     abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
-                     **kwargs):
+    def assert_close(
+        self,
+        a: amath.AnyNumber,
+        b: amath.AnyNumber,
+        msg: str | None = None,
+        rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+        abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
+        **kwargs,
+    ):
         if not amath.is_close(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_close", **kwargs)
 
-    def assert_not_close(self,
-                         a: amath.AnyNumber,
-                         b: amath.AnyNumber,
-                         msg: str | None = None,
-                         rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
-                         abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
-                         **kwargs):
+    def assert_not_close(
+        self,
+        a: amath.AnyNumber,
+        b: amath.AnyNumber,
+        msg: str | None = None,
+        rel_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_REL_TOL,
+        abs_tol: amath.BasicNumber | amath.NumberString = amath.DEFAULT_ABS_TOL,
+        **kwargs,
+    ):
         if amath.is_close(a, b, rel_tol=rel_tol, abs_tol=abs_tol):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
@@ -735,7 +898,14 @@ class QualityController(abc.ABC):
                 kwargs["ref_value"] = str(b)
             self.report_qc_error(msg or "not_equal", **kwargs)
 
-    def assert_compatible(self, a: amath.AnyNumber, b: amath.ScienceNumber, k: int = 2, msg: str | None = None, **kwargs):
+    def assert_compatible(
+        self,
+        a: amath.AnyNumber,
+        b: amath.ScienceNumber,
+        k: int = 2,
+        msg: str | None = None,
+        **kwargs,
+    ):
         if not b.is_compatible(a, k):
             if not kwargs.get("ref_value", None):
                 kwargs["ref_value"] = str(b)
@@ -743,7 +913,6 @@ class QualityController(abc.ABC):
 
 
 class DeepDiveChecker(QualityController):
-
     LIMIT_SUBRECORD_TYPES: t.Container[str] | None = None
     LIMIT_ELEMENT_TYPES: ElementType | None = None
     TRACK_COORDINATES: bool = False
@@ -767,7 +936,7 @@ class DeepDiveChecker(QualityController):
             record_cb=self._wrap_record_callback(self.record_check),
             recordset_cb=self._wrap_callback(self.recordset_check),
             limit_element_types=self.LIMIT_ELEMENT_TYPES,
-            limit_subrecord_types=self.LIMIT_SUBRECORD_TYPES
+            limit_subrecord_types=self.LIMIT_SUBRECORD_TYPES,
         )
         crawler.crawl_record(self.current_record)
 
@@ -776,6 +945,7 @@ class DeepDiveChecker(QualityController):
         if cb is None:
             return None
         elif skip is not None:
+
             @functools.wraps(cb)
             def _inner(ref: ElementRef, *args, **kwargs):
                 # Never validate these
@@ -783,6 +953,7 @@ class DeepDiveChecker(QualityController):
                     return None
                 with self.skip_review_blocker():
                     return cb(ref, *args, **kwargs)
+
             return _inner
         else:
             return self._wrap_callback(cb)
@@ -791,11 +962,13 @@ class DeepDiveChecker(QualityController):
         if not self.TRACK_COORDINATES:
             return self._wrap_callback(cb)
         elif cb is not None:
+
             @functools.wraps(cb)
             def _inner(ref, *args, **kwargs):
                 self._update_coordinates(ref)
                 with self.skip_review_blocker():
                     return cb(ref, *args, **kwargs)
+
             return _inner
         else:
             return self._update_coordinates
@@ -806,48 +979,51 @@ class DeepDiveChecker(QualityController):
     def _wrap_callback(self, cb):
         if cb is None:
             return cb
+
         @functools.wraps(cb)
         def _inner(*args, **kwargs):
             with self.skip_review_blocker():
                 return cb(*args, **kwargs)
+
         return _inner
-
-
 
 
 review = QualityController.review_cb
 
 
 class CheckerContext:
-
-    def __init__(self,
-                 checker: QualityController,
-                 specific_test_name: str,
-                 references: t.Iterable[AnyRef],
-                 allowed_protocols: t.Iterable[str] | None | EllipsisType = ...):
+    def __init__(
+        self,
+        checker: QualityController,
+        specific_test_name: str,
+        references: t.Iterable[AnyRef],
+        allowed_protocols: t.Iterable[str] | None | EllipsisType = ...,
+    ):
         self.checker: QualityController = checker
         self.specific_test_name = specific_test_name
         self.references = list(references)
         self._protocols = allowed_protocols
 
-    def check_review_already_complete(self, required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE):
+    def check_review_already_complete(
+        self, required_quality: RequiredQuality = RequiredQuality.QC_INCOMPLETE
+    ):
         self.checker.check_review_already_complete(
-            self.references,
-            required_quality,
-            allowed_protocols=self._protocols
+            self.references, required_quality, allowed_protocols=self._protocols
         )
 
     def set_working_quality(self, working_quality: int, is_reviewable: bool = True):
         for reference in self.references:
             self.checker.set_working_quality(working_quality, reference, is_reviewable)
 
-    def recommend_for_review(self,
-                             quality_flag: int | None = None,
-                             subpath: str = "",
-                             ref_value: t.Any = None,
-                             qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
-                             message: str | None = None,
-                             is_reviewable: bool = True):
+    def recommend_for_review(
+        self,
+        quality_flag: int | None = None,
+        subpath: str = "",
+        ref_value: t.Any = None,
+        qc_result: ocproc2.QCResult | None = ocproc2.QCResult.MANUAL_REVIEW,
+        message: str | None = None,
+        is_reviewable: bool = True,
+    ):
         self.checker.recommend_for_review(
             self.specific_test_name,
             self.references,
@@ -856,12 +1032,11 @@ class CheckerContext:
             ref_value,
             qc_result,
             message,
-            is_reviewable=is_reviewable
+            is_reviewable=is_reviewable,
         )
 
 
 class ProfileChecker(DeepDiveChecker):
-
     LIMIT_SUBRECORD_TYPES: set[str] = {"PROFILE"}
 
     def __init__(self, *args, **kwargs):
@@ -877,7 +1052,7 @@ class ProfileChecker(DeepDiveChecker):
     def recordset_check(self, ref: RecordSetRef):
         if ref.recordset_type != "PROFILE":
             return
-        profile = [ record_ref for record_ref in ref.record_refs() ]
+        profile = [record_ref for record_ref in ref.record_refs()]
         try:
             with self.skip_review_blocker():
                 self.profile_check(profile, ref)
@@ -890,67 +1065,65 @@ class ProfileChecker(DeepDiveChecker):
             with self.skip_review_blocker():
                 self.level_check(ref)
 
-    def level_check(self, ref: ChildRecordRef):
-        ...
+    def level_check(self, ref: ChildRecordRef): ...
 
 
 class SearchEngine(t.Protocol):
-
     def __init__(self, db: NODBInstance): ...
 
-    def load_platform(self, platform_uuid: str) -> NODBPlatform | None:
-        ...
+    def load_platform(self, platform_uuid: str) -> NODBPlatform | None: ...
 
-    def search_platforms(self,
-               *,
-               platform_id: str | None = None,
-               platform_name: str | None = None,
-               wigos_id: str | None = None,
-               wmo_id: str | None = None,
-               in_service_time: AwareDateTime | None = None,
-               ship_code: str | None = None) -> t.Iterable[NODBPlatform]:
-        ...
+    def search_platforms(
+        self,
+        *,
+        platform_id: str | None = None,
+        platform_name: str | None = None,
+        wigos_id: str | None = None,
+        wmo_id: str | None = None,
+        in_service_time: AwareDateTime | None = None,
+        ship_code: str | None = None,
+    ) -> t.Iterable[NODBPlatform]: ...
 
-    def related_working_records(self,
-                                *,
-                                observation_identifier: str) -> t.Iterable[NODBWorkingRecord]:
-        ...
+    def related_working_records(
+        self, *, observation_identifier: str
+    ) -> t.Iterable[NODBWorkingRecord]: ...
 
-    def related_observations(self,
-                                *,
-                                observation_identifier: str) -> t.Iterable[NODBObservationData]:
-        ...
+    def related_observations(
+        self, *, observation_identifier: str
+    ) -> t.Iterable[NODBObservationData]: ...
 
-    def geosearch_working_records(self, *,
-                                  platform_uuid: str | None = None,
-                                  start_time: AwareDateTime | None = None,
-                                  end_time: AwareDateTime | None = None,
-                                  min_latitude: amath.BasicNumber | None = None,
-                                  max_latitude: amath.BasicNumber | None = None,
-                                  min_longitude: amath.BasicNumber | None = None,
-                                  max_longitude: amath.BasicNumber | None = None,
-                                  quality_checks: QualityCheckFlags | int | None = None,
-                                  data_mode: DataMode | None = None) -> t.Iterable[NODBWorkingRecord]:
-        ...
+    def geosearch_working_records(
+        self,
+        *,
+        platform_uuid: str | None = None,
+        start_time: AwareDateTime | None = None,
+        end_time: AwareDateTime | None = None,
+        min_latitude: amath.BasicNumber | None = None,
+        max_latitude: amath.BasicNumber | None = None,
+        min_longitude: amath.BasicNumber | None = None,
+        max_longitude: amath.BasicNumber | None = None,
+        quality_checks: QualityCheckFlags | int | None = None,
+        data_mode: DataMode | None = None,
+    ) -> t.Iterable[NODBWorkingRecord]: ...
 
-    def geosearch_observations(self, *,
-                               platform_uuid: str | None = None,
-                               start_time: AwareDateTime | None = None,
-                               end_time: AwareDateTime | None = None,
-                               min_latitude: amath.BasicNumber | None = None,
-                               max_latitude: amath.BasicNumber | None = None,
-                               min_longitude: amath.BasicNumber | None = None,
-                               max_longitude: amath.BasicNumber | None = None,
-                               quality_checks: QualityCheckFlags | int | None = None,
-                               data_mode: DataMode | None = None) -> t.Iterable[NODBObservationData]:
-        ...
+    def geosearch_observations(
+        self,
+        *,
+        platform_uuid: str | None = None,
+        start_time: AwareDateTime | None = None,
+        end_time: AwareDateTime | None = None,
+        min_latitude: amath.BasicNumber | None = None,
+        max_latitude: amath.BasicNumber | None = None,
+        min_longitude: amath.BasicNumber | None = None,
+        max_longitude: amath.BasicNumber | None = None,
+        quality_checks: QualityCheckFlags | int | None = None,
+        data_mode: DataMode | None = None,
+    ) -> t.Iterable[NODBObservationData]: ...
 
-    def record_exists(self, obs_date: str, obs_uuid: str) -> bool:
-        ...
+    def record_exists(self, obs_date: str, obs_uuid: str) -> bool: ...
 
 
 class RealSearchEngine(CachedObjectMixin):
-
     def __init__(self, db: NODBInstance):
         self._db = db
         super().__init__()
@@ -967,19 +1140,34 @@ class RealSearchEngine(CachedObjectMixin):
             if obs_data is not None:
                 yield obs_data
 
-    def related_working_records(self, *, observation_identifier: str) -> t.Iterable[NODBWorkingRecord]:
-        yield from NODBWorkingRecord.find_by_observation_identifier(self._db, observation_identifier)
+    def related_working_records(
+        self, *, observation_identifier: str
+    ) -> t.Iterable[NODBWorkingRecord]:
+        yield from NODBWorkingRecord.find_by_observation_identifier(
+            self._db, observation_identifier
+        )
 
-    def related_observations(self, *, observation_identifier: str) -> t.Iterable[NODBObservationData]:
-        yield from NODBObservationData.find_by_observation_identifier(self._db, observation_identifier)
+    def related_observations(
+        self, *, observation_identifier: str
+    ) -> t.Iterable[NODBObservationData]:
+        yield from NODBObservationData.find_by_observation_identifier(
+            self._db, observation_identifier
+        )
 
     def load_platform(self, platform_uuid: str) -> NODBPlatform | None:
         return NODBPlatform.find_by_uuid(self._db, platform_uuid)
 
     def record_exists(self, obs_date: str, obs_uuid: str) -> bool:
-        if NODBObservationData.find_by_uuid(self._db, obs_uuid, obs_date, key_only=True) is not None:
+        if (
+            NODBObservationData.find_by_uuid(
+                self._db, obs_uuid, obs_date, key_only=True
+            )
+            is not None
+        ):
             return True
-        if NODBWorkingRecord.find_by_uuid(self._db, obs_uuid, key_only=True) is not None:
+        if (
+            NODBWorkingRecord.find_by_uuid(self._db, obs_uuid, key_only=True)
+            is not None
+        ):
             return True
         return False
-

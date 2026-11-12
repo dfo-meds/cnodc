@@ -1,16 +1,16 @@
 """OCPROC2 history and test results"""
+
+import datetime
+import enum
+import typing as t
 from _hashlib import HASH
 
 import medsutil.types as ct
-import typing as t
-import datetime
-import enum
-
 from medsutil.ocproc2.util import normalize_ocproc_path
 
 if t.TYPE_CHECKING:
-    from medsutil.ocproc2.util import SupportedStorage
     from medsutil.ocproc2.operations import OCProc2Action
+    from medsutil.ocproc2.util import SupportedStorage
 
 
 class MessageType(enum.Enum):
@@ -20,39 +20,39 @@ class MessageType(enum.Enum):
     NOTE = "N"
     WARNING = "W"
     ERROR = "E"
-    ACTION = 'A'
+    ACTION = "A"
 
 
 class ActionType(enum.Enum):
-    CHANGE_QUALITY = 'ChangeQuality'
-    CHANGE_VALUE = 'ChangeValue'
-    PROCESS = 'Process'
-    MERGE = 'Merge'
+    CHANGE_QUALITY = "ChangeQuality"
+    CHANGE_VALUE = "ChangeValue"
+    PROCESS = "Process"
+    MERGE = "Merge"
     CREATE = "Create"
 
     ASSIGN_CRUISE = "ChangeCruise"
-    CHANGE_PLATFORM = 'ChangePlatform'
-    UPDATE_QC_RESULT = 'UpdateQCResult'
+    CHANGE_PLATFORM = "ChangePlatform"
+    UPDATE_QC_RESULT = "UpdateQCResult"
 
 
 class QCResult(enum.Enum):
     """Defines the outcome of the quality control test"""
 
-    PASS = 'P'      # nosec: B105 # is not a password
-    MANUAL_PASS = 'RP'
+    PASS = "P"  # nosec: B105 # is not a password
+    MANUAL_PASS = "RP"
 
-    FAIL = 'F'
-    MANUAL_FAIL = 'RF'
+    FAIL = "F"
+    MANUAL_FAIL = "RF"
 
-    SKIP = 'S'
-    MANUAL_SKIP = 'RS'
+    SKIP = "S"
+    MANUAL_SKIP = "RS"
 
-    ERROR = 'E'
-    MANUAL_REVIEW = 'R'
+    ERROR = "E"
+    MANUAL_REVIEW = "R"
 
 
 class Organization(enum.Enum):
-    CNODC = 'CA-CNODC'
+    CNODC = "CA-CNODC"
     BSH = "DE-BSH"
     JMA = "JP-JMA"
     CSIRO = "AU-CSIRO"
@@ -67,8 +67,15 @@ class HistoryEntry:
     """An entry in the history of the record."""
 
     __slots__ = (
-        'message', 'timestamp', 'source_name', 'source_version', 'source_instance', 'message_type',
-        'action_type', 'organization', 'affected_path'
+        "action_type",
+        "affected_path",
+        "message",
+        "message_type",
+        "organization",
+        "source_instance",
+        "source_name",
+        "source_version",
+        "timestamp",
     )
 
     class Export(t.TypedDict):
@@ -80,20 +87,25 @@ class HistoryEntry:
         _organization: str
         _affected: str | None
 
-
-    def __init__(self,
-                 message: str,
-                 timestamp: datetime.datetime | str,
-                 source_name: str,
-                 source_version: str,
-                 source_instance: str,
-                 message_type: MessageType,
-                 action_type: ActionType | None = None,
-                 affected_path: str | None = None,
-                 previous_value: float | int | None = None,
-                 organization: Organization = Organization.CNODC):
+    def __init__(
+        self,
+        message: str,
+        timestamp: datetime.datetime | str,
+        source_name: str,
+        source_version: str,
+        source_instance: str,
+        message_type: MessageType,
+        action_type: ActionType | None = None,
+        affected_path: str | None = None,
+        previous_value: float | None = None,
+        organization: Organization = Organization.CNODC,
+    ):
         self.message: str = message
-        self.timestamp: str = timestamp.isoformat() if isinstance(timestamp, datetime.datetime) else timestamp
+        self.timestamp: str = (
+            timestamp.isoformat()
+            if isinstance(timestamp, datetime.datetime)
+            else timestamp
+        )
         self.source_name: str = source_name
         self.source_version: str = source_version
         self.source_instance: str = source_instance
@@ -105,45 +117,61 @@ class HistoryEntry:
     def to_mapping(self) -> Export:
         """Convert this history entry to a map."""
         return {
-            '_message': self.message,
-            '_timestamp': self.timestamp,
-            '_source': [self.source_name, self.source_version, self.source_instance],
-            '_message_type': self.message_type.value,
-            '_action_type': self.action_type.value if self.action_type is not None else None,
-            '_organization': self.organization.value,
-            '_affected': self.affected_path,
+            "_message": self.message,
+            "_timestamp": self.timestamp,
+            "_source": [self.source_name, self.source_version, self.source_instance],
+            "_message_type": self.message_type.value,
+            "_action_type": self.action_type.value
+            if self.action_type is not None
+            else None,
+            "_organization": self.organization.value,
+            "_affected": self.affected_path,
         }
 
     def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         """Update a hash with the unique values of this history entry."""
-        h.update(self.message.encode('utf-8', 'replace'))
-        h.update(self.timestamp.encode('utf-8', 'replace'))
-        h.update(self.source_name.encode('utf-8', 'replace'))
-        h.update(self.source_version.encode('utf-8', 'replace'))
-        h.update(self.source_instance.encode('utf-8', 'replace'))
-        h.update(self.message_type.value.encode('utf-8', 'replace'))
-        h.update(self.action_type.value.encode('utf-8', 'replace') if self.action_type is not None else b'\x00')
-        h.update(self.organization.value.encode('utf-8', 'replace'))
-        h.update(self.affected_path.encode('utf-8', 'replace') if self.affected_path is not None else b'\x00')
+        h.update(self.message.encode("utf-8", "replace"))
+        h.update(self.timestamp.encode("utf-8", "replace"))
+        h.update(self.source_name.encode("utf-8", "replace"))
+        h.update(self.source_version.encode("utf-8", "replace"))
+        h.update(self.source_instance.encode("utf-8", "replace"))
+        h.update(self.message_type.value.encode("utf-8", "replace"))
+        h.update(
+            self.action_type.value.encode("utf-8", "replace")
+            if self.action_type is not None
+            else b"\x00"
+        )
+        h.update(self.organization.value.encode("utf-8", "replace"))
+        h.update(
+            self.affected_path.encode("utf-8", "replace")
+            if self.affected_path is not None
+            else b"\x00"
+        )
 
     @staticmethod
     def from_mapping(map_: Export) -> HistoryEntry:
         """Convert a map back to a history entry."""
         return HistoryEntry(
-            map_['_message'],
-            map_['_timestamp'],
-            *map_['_source'],
-            message_type=MessageType(map_['_message_type']),
-            action_type=ActionType(map_['_action_type']) if '_action_type' in map_ and map_['_action_type'] is not None else None,
-            organization=Organization(map_['_organization']) if '_organization' in map_ else Organization.CNODC,
-            affected_path=map_['_affected'] if '_affected' in map_ and map_['_affected'] else None,
+            map_["_message"],
+            map_["_timestamp"],
+            *map_["_source"],
+            message_type=MessageType(map_["_message_type"]),
+            action_type=ActionType(map_["_action_type"])
+            if "_action_type" in map_ and map_["_action_type"] is not None
+            else None,
+            organization=Organization(map_["_organization"])
+            if "_organization" in map_
+            else Organization.CNODC,
+            affected_path=map_["_affected"]
+            if map_.get("_affected")
+            else None,
         )
 
 
 class QCMessage:
     """Records the failure of a QC test for an individual element."""
 
-    __slots__ = ('code', 'record_path', 'ref_value', 'review_name')
+    __slots__ = ("code", "record_path", "ref_value", "review_name")
 
     class Export(t.TypedDict, total=False):
         _code: t.Required[str]
@@ -151,11 +179,13 @@ class QCMessage:
         _ref: SupportedStorage | None
         _review: str | None
 
-    def __init__(self,
-                 code: str,
-                 record_path: str | list[str],
-                 ref_value: SupportedStorage = None,
-                 review_name: str | None = None):
+    def __init__(
+        self,
+        code: str,
+        record_path: str | list[str],
+        ref_value: SupportedStorage = None,
+        review_name: str | None = None,
+    ):
         self.code = code
         self.record_path = normalize_ocproc_path(record_path)
         self.ref_value = ref_value
@@ -169,54 +199,69 @@ class QCMessage:
 
     def update_hash(self, h):
         """Update a hash with the unique values of this message."""
-        h.update(self.code.encode('utf-8', 'replace'))
-        h.update(self.record_path.encode('utf-8', 'replace'))
+        h.update(self.code.encode("utf-8", "replace"))
+        h.update(self.record_path.encode("utf-8", "replace"))
         if self.ref_value is not None:
-            h.update(str(self.ref_value).encode('utf-8', 'replace'))
+            h.update(str(self.ref_value).encode("utf-8", "replace"))
 
     def to_mapping(self) -> Export:
         """Convert this message to a map."""
         return {
-            '_code': self.code,
-            '_path': self.record_path,
-            '_ref': self.ref_value,
-            '_review': self.review_name
+            "_code": self.code,
+            "_path": self.record_path,
+            "_ref": self.ref_value,
+            "_review": self.review_name,
         }
 
     @staticmethod
     def from_mapping(map_: Export) -> QCMessage:
         """Rebuild the message from a map."""
         return QCMessage(
-            map_['_code'],
-            map_['_path'],
-            map_['_ref'] if '_ref' in map_ else None,
-            map_['_review'] if '_review' in map_ else None
+            map_["_code"],
+            map_["_path"],
+            map_["_ref"] if "_ref" in map_ else None,
+            map_["_review"] if "_review" in map_ else None,
         )
 
 
 class QCTestRunInfo:
     """Records the outcome of a QC test run."""
 
-    __slots__ = ('test_name', 'test_tags', 'test_version', 'test_date', 'test_protocol',
-                 'result', 'messages', 'notes', 'is_stale', 'proposed_actions', 'applied_actions')
+    __slots__ = (
+        "applied_actions",
+        "is_stale",
+        "messages",
+        "notes",
+        "proposed_actions",
+        "result",
+        "test_date",
+        "test_name",
+        "test_protocol",
+        "test_tags",
+        "test_version",
+    )
 
-    def __init__(self,
-                 test_protocol: str,
-                 test_name: str,
-                 test_version: str,
-                 test_date: t.Union[datetime.datetime, str],
-                 result: QCResult,
-                 messages: list[QCMessage] = None,
-                 notes: str = None,
-                 is_stale: bool = False,
-                 test_tags: t.Optional[list[str]] = None,
-                 proposed_actions: list[OCProc2Action] | None = None,
-                 applied_actions: list[OCProc2Action] | None = None):
+    def __init__(
+        self,
+        test_protocol: str,
+        test_name: str,
+        test_version: str,
+        test_date: datetime.datetime | str,
+        result: QCResult,
+        messages: list[QCMessage] = None,
+        notes: str = None,
+        is_stale: bool = False,
+        test_tags: list[str] | None = None,
+        proposed_actions: list[OCProc2Action] | None = None,
+        applied_actions: list[OCProc2Action] | None = None,
+    ):
         self.test_protocol = test_protocol
         self.test_name = test_name
         self.test_tags = test_tags or []
         self.test_version = test_version
-        self.test_date = test_date.isoformat() if isinstance(test_date, datetime.date) else test_date
+        self.test_date = (
+            test_date.isoformat() if isinstance(test_date, datetime.date) else test_date
+        )
         self.result = result
         self.messages = messages or []
         self.notes = notes
@@ -245,56 +290,60 @@ class QCTestRunInfo:
 
     def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         """Update a hash with the unique values for this test run."""
-        h.update(self.test_protocol.encode('utf-8', 'replace'))
-        h.update(self.test_name.encode('utf-8', 'replace'))
+        h.update(self.test_protocol.encode("utf-8", "replace"))
+        h.update(self.test_name.encode("utf-8", "replace"))
         if self.test_tags:
-            h.update(str(self.test_tags).encode('utf-8', 'replace'))
-        h.update(self.test_version.encode('utf-8', 'replace'))
-        h.update(self.test_date.encode('utf-8', 'replace'))
-        h.update(self.result.value.encode('utf-8', 'replace'))
+            h.update(str(self.test_tags).encode("utf-8", "replace"))
+        h.update(self.test_version.encode("utf-8", "replace"))
+        h.update(self.test_date.encode("utf-8", "replace"))
+        h.update(self.result.value.encode("utf-8", "replace"))
         if self.notes is not None:
-            h.update(self.notes.encode('utf-8', 'replace'))
-        h.update(b'\x01' if self.is_stale else b'\x02')
+            h.update(self.notes.encode("utf-8", "replace"))
+        h.update(b"\x01" if self.is_stale else b"\x02")
         for m in self.messages:
             m.update_hash(h)
 
     def to_mapping(self) -> Export:
         """Convert the QC test run to a map."""
         return {
-            '_protocol': self.test_protocol,
-            '_name': self.test_name,
-            '_version': self.test_version,
-            '_date': self.test_date,
-            '_messages': [m.to_mapping() for m in self.messages],
-            '_result': self.result.value,
-            '_notes': self.notes,
-            '_stale': self.is_stale,
-            '_tags': self.test_tags,
-            '_proposed': [x.export_for_ocproc2() for x in self.proposed_actions],
-            '_applied': [x.export_for_ocproc2() for x in self.applied_actions],
+            "_protocol": self.test_protocol,
+            "_name": self.test_name,
+            "_version": self.test_version,
+            "_date": self.test_date,
+            "_messages": [m.to_mapping() for m in self.messages],
+            "_result": self.result.value,
+            "_notes": self.notes,
+            "_stale": self.is_stale,
+            "_tags": self.test_tags,
+            "_proposed": [x.export_for_ocproc2() for x in self.proposed_actions],
+            "_applied": [x.export_for_ocproc2() for x in self.applied_actions],
         }
 
     @staticmethod
     def from_mapping(map_: Export):
         """Rebuild the QC test run from a map."""
         from medsutil.ocproc2.operations import OCProc2Action
+
         return QCTestRunInfo(
-            map_['_protocol'] if '_protocol' in map_ else 'unknown',
-            map_['_name'],
-            map_['_version'],
-            map_['_date'],
-            QCResult(map_['_result']),
-            [QCMessage.from_mapping(x) for x in map_['_messages']],
-            map_['_notes'],
-            map_['_stale'] if '_stale' in map_ else False,
-            map_['_tags'] if '_tags' in map_ else None,
-            proposed_actions = [
+            map_["_protocol"] if "_protocol" in map_ else "unknown",
+            map_["_name"],
+            map_["_version"],
+            map_["_date"],
+            QCResult(map_["_result"]),
+            [QCMessage.from_mapping(x) for x in map_["_messages"]],
+            map_["_notes"],
+            map_["_stale"] if "_stale" in map_ else False,
+            map_["_tags"] if "_tags" in map_ else None,
+            proposed_actions=[
                 OCProc2Action.import_from_ocproc2(x)
-                for x in t.cast(list[dict], map_['_proposed'])
-            ] if '_proposed' in map_ and map_['_proposed'] else None,
+                for x in t.cast(list[dict], map_["_proposed"])
+            ]
+            if map_.get("_proposed")
+            else None,
             applied_actions=[
                 OCProc2Action.import_from_ocproc2(x)
-                for x in t.cast(list[dict], map_['_applied'])
-            ] if '_applied' in map_ and map_['_applied'] else None,
+                for x in t.cast(list[dict], map_["_applied"])
+            ]
+            if map_.get("_applied")
+            else None,
         )
-

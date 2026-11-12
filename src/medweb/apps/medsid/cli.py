@@ -1,7 +1,7 @@
 import getpass
 
 import click
-from autoinject import injector, auto
+from autoinject import auto, injector
 
 from medweb.apps.medsid.controller import AccessController
 
@@ -17,14 +17,18 @@ def access(): ...
 @click.option("--email", default=None)
 @click.argument("username")
 @injector.inject
-def create_user(username: str,
-           email: str,
-           display: str = "",
-           password: str | None = None,
-           entry_mode: str = "input",
-           ac: AccessController = auto()):
+def create_user(
+    username: str,
+    email: str,
+    display: str = "",
+    password: str | None = None,
+    entry_mode: str = "input",
+    ac: AccessController = auto(),
+):
     """Create a user account."""
-    ac.create_user(username, _get_password(entry_mode, password), email, display or username)
+    ac.create_user(
+        username, _get_password(entry_mode, password), email, display or username
+    )
 
 
 @access.command
@@ -34,65 +38,49 @@ def create_user(username: str,
 @click.option("--email", default=None)
 @click.argument("username")
 @injector.inject
-def reset_password(username: str,
-                   password: str | None = None,
-                   entry_mode: str = "input",
-                   ac: AccessController = auto()):
+def reset_password(
+    username: str,
+    password: str | None = None,
+    entry_mode: str = "input",
+    ac: AccessController = auto(),
+):
     """Create a user account."""
-    ac.update_user(
-        username=username,
-        password=_get_password(entry_mode, password)
-    )
+    ac.update_user(username=username, password=_get_password(entry_mode, password))
 
 
 @access.command
 @click.argument("username")
 @injector.inject
 def unlock_user(username: str, ac: AccessController = auto()):
-    ac.update_user(
-        username=username,
-        locked_time=None
-    )
+    ac.update_user(username=username, locked_time=None)
 
 
 @access.command
 @click.argument("username")
 @injector.inject
 def enable_api_access(username: str, ac: AccessController = auto()):
-    ac.update_user(
-        username=username,
-        api_access=True
-    )
+    ac.update_user(username=username, api_access=True)
 
 
 @access.command
 @click.argument("username")
 @injector.inject
 def enable_api_access(username: str, ac: AccessController = auto()):
-    ac.update_user(
-        username=username,
-        api_access=False
-    )
+    ac.update_user(username=username, api_access=False)
 
 
 @access.command
 @click.argument("username")
 @injector.inject
 def enable(username: str, ac: AccessController = auto()):
-    ac.update_user(
-        username=username,
-        enabled=True
-    )
+    ac.update_user(username=username, enabled=True)
 
 
 @access.command
 @click.argument("username")
 @injector.inject
 def disable(username: str, ac: AccessController = auto()):
-    ac.update_user(
-        username=username,
-        enabled=False
-    )
+    ac.update_user(username=username, enabled=False)
 
 
 @access.command
@@ -100,7 +88,9 @@ def disable(username: str, ac: AccessController = auto()):
 @click.argument("identifier")
 @click.argument("expiry_days", type=click.INT)
 @injector.inject
-def create_api_key(username: str, identifier: str, expiry_days: int, ac: AccessController = auto()):
+def create_api_key(
+    username: str, identifier: str, expiry_days: int, ac: AccessController = auto()
+):
     key = ac.create_api_key(username, identifier, expiry_days)
     print(f"Access Key: {key}")
 
@@ -111,7 +101,13 @@ def create_api_key(username: str, identifier: str, expiry_days: int, ac: AccessC
 @click.argument("expiry_days", type=click.INT)
 @click.argument("leave_old_active_days", type=click.INT)
 @injector.inject
-def rotate_api_key(username: str, identifier: str, expiry_days: int, leave_old_active_days: int, ac: AccessController = auto()):
+def rotate_api_key(
+    username: str,
+    identifier: str,
+    expiry_days: int,
+    leave_old_active_days: int,
+    ac: AccessController = auto(),
+):
     key = ac.rotate_api_key(username, identifier, expiry_days, leave_old_active_days)
     print(f"Access Key: {key}")
 
@@ -147,11 +143,14 @@ def assign_role(username: str, role_name: str, ac: AccessController = auto()):
 def unassign_role(username: str, role_name: str, ac: AccessController = auto()):
     ac.unassign_role(username, role_name)
 
+
 @access.command
 @click.argument("role_name")
 @click.argument("permission_name")
 @injector.inject
-def grant_permission(permission_name: str, role_name: str, ac: AccessController = auto()):
+def grant_permission(
+    permission_name: str, role_name: str, ac: AccessController = auto()
+):
     ac.grant_permission(role_name, permission_name)
 
 
@@ -159,7 +158,9 @@ def grant_permission(permission_name: str, role_name: str, ac: AccessController 
 @click.argument("role_name")
 @click.argument("permission_name")
 @injector.inject
-def remove_permission(permission_name: str, role_name: str, ac: AccessController = auto()):
+def remove_permission(
+    permission_name: str, role_name: str, ac: AccessController = auto()
+):
     ac.remove_permission(role_name, permission_name)
 
 
@@ -177,9 +178,9 @@ def _get_password(entry_mode: str, password: str | None = None) -> str | None:
     -------
     A password to use for the user.
     """
-    if entry_mode == "random":  # noqa: S105
+    if entry_mode == "random":
         return None
-    elif entry_mode == "input":  # noqa: S105
+    elif entry_mode == "input":
         pw_test = getpass.getpass("Password: ")
         pw_test2 = getpass.getpass("Retype Password: ")
         while not pw_test == pw_test2:

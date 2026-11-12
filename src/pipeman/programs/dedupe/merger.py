@@ -7,46 +7,65 @@ from autoinject import injector
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 from medsutil.math import ScienceNumber
-from medsutil.ocproc2 import ParentRecord, ElementMap, AbstractElement, ChildRecord, SingleElement, MultiElement
+from medsutil.ocproc2 import (
+    AbstractElement,
+    ChildRecord,
+    ElementMap,
+    MultiElement,
+    ParentRecord,
+    SingleElement,
+)
 from medsutil.ocproc2.codecs import OCProc2JsonCodec
 from medsutil.ocproc2.history import ActionType
-from medsutil.ocproc2.refs import ParentRecordRef, RecordRef, ElementRef, RecordSetRef, ChildRecordRef
-from medsutil.ocproc2.util import pair_up_records, pair_up_recordsets, pair_up_single_elements
-from medsutil.storage import StorageController, FilePath
+from medsutil.ocproc2.refs import (
+    ChildRecordRef,
+    ElementRef,
+    ParentRecordRef,
+    RecordRef,
+    RecordSetRef,
+)
+from medsutil.ocproc2.util import (
+    pair_up_records,
+    pair_up_recordsets,
+    pair_up_single_elements,
+)
+from medsutil.storage import FilePath, StorageController
+from nodb.observations import NODBObservation, NODBObservationData
 from nodb.queue import NODBQueueItem
-from pipeman.processing.payloads import FilePayload, MergedFilePayload
+from pipeman.processing.payloads import MergedFilePayload
 from pipeman.processing.queue_worker import QueueItemResult, QueueWorker
 
-from nodb.observations import NODBObservation, NODBObservationData
 
-
-class MergeError(CodedError): CODE_SPACE = "NODB-MERGE"
+class MergeError(CodedError):
+    CODE_SPACE = "NODB-MERGE"
 
 
 class NODBDuplicateMergeWorker(QueueWorker):
-
     storage: StorageController = None
 
     @injector.construct
     def __init__(self, **kwargs):
-        super().__init__(
-            process_name="merger",
-            process_version="1.0",
-            **kwargs
+        super().__init__(process_name="merger", process_version="1.0", **kwargs)
+        self.set_defaults(
+            {
+                "queue_name": "nodb_merge",
+                "review_queue": "nodb_merge_review",
+                "finish_queue": "workflow_continue",
+                "error_queue": "nodb_merge_errors",
+                "merge_directory": None,
+                "review_all": False,
+            }
         )
-        self.set_defaults({
-            'queue_name': 'nodb_merge',
-            'review_queue': 'nodb_merge_review',
-            'finish_queue': 'workflow_continue',
-            'error_queue': 'nodb_merge_errors',
-            'merge_directory': None,
-            'review_all': False,
-        })
 
     def merge_directory(self) -> FilePath:
-        return t.cast(FilePath, self.storage.get_filepath(self.get_config('merge_directory'), self._halt_flag, True))
+        return t.cast(
+            FilePath,
+            self.storage.get_filepath(
+                self.get_config("merge_directory"), self._halt_flag, True
+            ),
+        )
 
-    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: NODBQueueItem) -> QueueItemResult | None:
         if "current_uuid" not in item.data:
             raise MergeError("Missing current_uuid", 1000)
         if "current_date" not in item.data:
@@ -60,20 +79,29 @@ class NODBDuplicateMergeWorker(QueueWorker):
             str(item.data["current_date"]),
             str(item.data["workflow_name"]),
             list(item.data["others"]),
-            item
+            item,
         )
 
-    def merge_items(self,
-                    current_uuid: str,
-                    current_date: str,
-                    workflow_name: str,
-                    others: list[tuple[str, str]],
-                    item: NODBQueueItem):
+    def merge_items(
+        self,
+        current_uuid: str,
+        current_date: str,
+        workflow_name: str,
+        others: list[tuple[str, str]],
+        item: NODBQueueItem,
+    ):
         with self.merge_directory() as merge_dir:
             merge_dir.mkdir(0o664, parents=True)
 
-            obs_datas_to_merge = [x for x in self.load_observation_data((current_uuid, current_date), *others)]
-            merger = ObservationDataMerger(obs_datas_to_merge, bool(self.get_config('review_all', False)))
+            obs_datas_to_merge = [
+                x
+                for x in self.load_observation_data(
+                    (current_uuid, current_date), *others
+                )
+            ]
+            merger = ObservationDataMerger(
+                obs_datas_to_merge, bool(self.get_config("review_all", False))
+            )
             new_record, should_review = merger.merge()
             new_record.add_history_action(
                 message="created",
@@ -85,47 +113,53 @@ class NODBDuplicateMergeWorker(QueueWorker):
 
             json_codec = OCProc2JsonCodec()
             now_ = AwareDateTime.now()
-            file_handle = merge_dir.child(f"{now_.year}{now_.month}{now_.day}_{uuid.uuid4()}")
+            file_handle = merge_dir.child(
+                f"{now_.year}{now_.month}{now_.day}_{uuid.uuid4()}"
+            )
             k = 0
             while file_handle.exists():
                 k += 1
                 if k > 5:
                     raise MergeError(f"File {file_handle} already exists", 2001)
-                file_handle = merge_dir.child(f"{now_.year}{now_.month}{now_.day}_{uuid.uuid4()}")
+                file_handle = merge_dir.child(
+                    f"{now_.year}{now_.month}{now_.day}_{uuid.uuid4()}"
+                )
 
             file_handle.upload(json_codec.encode_records([new_record]))
 
             sf = obs_datas_to_merge[0].find_source_file(self.db)
             payload = MergedFilePayload(
                 file_path=str(file_handle.path()),
-                filename=sf.file_name if sf is not None else 'merged.json',
+                filename=sf.file_name if sf is not None else "merged.json",
                 is_gzipped=False,
                 last_modified_date=AwareDateTime.now(),
-                merged_from=[
-                    (x.obs_uuid, x.received_date)
-                    for x in obs_datas_to_merge
-                ]
+                merged_from=[(x.obs_uuid, x.received_date) for x in obs_datas_to_merge],
             )
             payload.correlation_id = item.correlation_id
             payload._tag = item.tag
-            payload.metadata.update({
-                'source-name': sf.source_name if sf is not None else '',
-                'program-name': sf.program_name if sf is not None else '',
-
-            })
+            payload.metadata.update(
+                {
+                    "source-name": sf.source_name if sf is not None else "",
+                    "program-name": sf.program_name if sf is not None else "",
+                }
+            )
             payload.workflow_name = workflow_name
 
             if should_review:
-                payload.set_metadata('error-mode', 'merge')
-                payload.set_metadata('next-queue', self.get_config("finish_queue"))
-                payload.set_metadata('error-queue', self.get_config("error_queue"))
+                payload.set_metadata("error-mode", "merge")
+                payload.set_metadata("next-queue", self.get_config("finish_queue"))
+                payload.set_metadata("error-queue", self.get_config("error_queue"))
                 payload.enqueue(self.db, self.get_config("review_queue"))
             else:
-                payload.enqueue(self.db, self.get_config('finish_queue'))
+                payload.enqueue(self.db, self.get_config("finish_queue"))
 
-    def load_observation_data(self, *items: tuple[str, str]) -> t.Iterable[NODBObservationData]:
+    def load_observation_data(
+        self, *items: tuple[str, str]
+    ) -> t.Iterable[NODBObservationData]:
         for obs_uuid, obs_date in items:
-            obs = NODBObservation.find_by_uuid(self.db, obs_uuid, obs_date, key_only=True)
+            obs = NODBObservation.find_by_uuid(
+                self.db, obs_uuid, obs_date, key_only=True
+            )
             if obs is None:
                 raise MergeError("Missing observation", 1200, is_transient=True)
             obs_data = obs.find_observation_data(self.db)
@@ -135,7 +169,6 @@ class NODBDuplicateMergeWorker(QueueWorker):
 
 
 class ObservationDataMerger:
-
     def __init__(self, items: list[NODBObservationData], review_all: bool = False):
         self._is_reviewable: bool = review_all
         self._items: list[NODBObservationData] = items
@@ -147,14 +180,10 @@ class ObservationDataMerger:
     def _attempt_automerge(self) -> ParentRecord:
         new_record = ParentRecord()
         new_record.metadata["CNODCMergedFrom"] = [
-            [x.obs_uuid, x.received_date.isoformat()]
-            for x in self._items
+            [x.obs_uuid, x.received_date.isoformat()] for x in self._items
         ]
         new_record_ref = ParentRecordRef(new_record)
-        refs = [
-            ParentRecordRef(t.cast(ParentRecord, x.record))
-            for x in self._items
-        ]
+        refs = [ParentRecordRef(t.cast(ParentRecord, x.record)) for x in self._items]
         self._merge_parent_records(new_record_ref, *refs)
         return new_record
 
@@ -172,40 +201,44 @@ class ObservationDataMerger:
             c_keys.update(ref.record.coordinates.keys())
             s_keys.update(ref.record.subrecords.keys())
         for p_key in p_keys:
-            self._merge_element(new_ref.record.parameters, p_key, *(
-                ref.parameter_ref(p_key)
-                for ref in refs
-            ))
+            self._merge_element(
+                new_ref.record.parameters,
+                p_key,
+                *(ref.parameter_ref(p_key) for ref in refs),
+            )
         for m_key in m_keys:
-            self._merge_element(new_ref.record.metadata, m_key, *(
-                ref.metadata_ref(m_key)
-                for ref in refs
-            ))
+            self._merge_element(
+                new_ref.record.metadata,
+                m_key,
+                *(ref.metadata_ref(m_key) for ref in refs),
+            )
         for c_key in c_keys:
-            self._merge_element(new_ref.record.coordinates, c_key, *(
-                ref.parameter_ref(c_key)
-                for ref in refs
-            ))
+            self._merge_element(
+                new_ref.record.coordinates,
+                c_key,
+                *(ref.parameter_ref(c_key) for ref in refs),
+            )
         for s_key in s_keys:
             self._merge_recordsets(new_ref, *refs, recordset_type=s_key)
 
-    def _merge_recordsets(self, new_ref: RecordRef, *refs: RecordRef, recordset_type: str):
+    def _merge_recordsets(
+        self, new_ref: RecordRef, *refs: RecordRef, recordset_type: str
+    ):
         recordsets_by_ref: list[list[RecordSetRef]] = [
-            [x for x in ref.recordset_refs([recordset_type])]
-            for ref in refs
+            [x for x in ref.recordset_refs([recordset_type])] for ref in refs
         ]
         # if we have more than one recordset of a given type
         # we will review the merging of them one way or another
         for paired_refs in self.pair_up_recordsets(*recordsets_by_ref):
             # this indicates we relied on a comparison that was less than certain
-            if any(not(x is None or math.isclose(x, 1)) for _, x in paired_refs):
+            if any(not (x is None or math.isclose(x, 1)) for _, x in paired_refs):
                 self._is_reviewable = True
             rs = new_ref.record.subrecords.new_recordset(recordset_type)
             rs_ref = RecordSetRef(
                 f"{new_ref.path.rstrip('/')}/{recordset_type}/{len(new_ref.record.subrecords[recordset_type]) - 1}",
                 rs,
                 recordset_type,
-                new_ref
+                new_ref,
             )
             self._merge_recordset(rs_ref, *(x[0] for x in paired_refs))
 
@@ -217,16 +250,24 @@ class ObservationDataMerger:
             m_keys.update(ref.recordset.metadata.keys())
             record_refs = [x for x in ref.record_refs()]
             records_by_ref.append(record_refs)
-            if len(record_refs) > max_len_records:
-                max_len_records = len(record_refs)
+            max_len_records = max(max_len_records, len(record_refs))
         for m_key in m_keys:
-            self._merge_element(new_ref.recordset.metadata, m_key, *(ref.metadata_ref(m_key) for ref in refs))
+            self._merge_element(
+                new_ref.recordset.metadata,
+                m_key,
+                *(ref.metadata_ref(m_key) for ref in refs),
+            )
         for idx, record_refs in enumerate(self.pair_up_records(*records_by_ref)):
             # this indicates we relied on a comparison that was less than certain
-            if any(not(x is None or math.isclose(x, 1)) for _, x in record_refs):
+            if any(not (x is None or math.isclose(x, 1)) for _, x in record_refs):
                 self._is_reviewable = True
             new_record = ChildRecord()
-            child_ref = ChildRecordRef(f"{new_ref.path.rstrip("/")}/{idx}", new_record, new_ref.recordset_type, new_ref)
+            child_ref = ChildRecordRef(
+                f"{new_ref.path.rstrip('/')}/{idx}",
+                new_record,
+                new_ref.recordset_type,
+                new_ref,
+            )
             self._merge_records(child_ref, *(x[0] for x in record_refs))
             new_ref.recordset.records.append(new_record)
         # if we found more records than the largest recordset, this is somewhat suspicious
@@ -242,26 +283,35 @@ class ObservationDataMerger:
         else:
             em[key] = self._assess_better(*(x.element for x in non_none))
 
-    def pair_up_records(self, *record_refs: list[RecordRef]) -> t.Iterable[tuple[tuple[RecordRef | None, float | None], ...]]:
+    def pair_up_records(
+        self, *record_refs: list[RecordRef]
+    ) -> t.Iterable[tuple[tuple[RecordRef | None, float | None], ...]]:
         yield from pair_up_records(*record_refs)
 
-    def pair_up_recordsets(self, *recordset_refs: list[RecordSetRef]) -> t.Iterable[tuple[tuple[RecordSetRef | None, float | None], ...]]:
+    def pair_up_recordsets(
+        self, *recordset_refs: list[RecordSetRef]
+    ) -> t.Iterable[tuple[tuple[RecordSetRef | None, float | None], ...]]:
         yield from pair_up_recordsets(*recordset_refs)
 
-    def pair_up_elements(self, *elements: list[SingleElement]) -> t.Iterable[tuple[tuple[SingleElement | None, float | None], ...]]:
+    def pair_up_elements(
+        self, *elements: list[SingleElement]
+    ) -> t.Iterable[tuple[tuple[SingleElement | None, float | None], ...]]:
         yield from pair_up_single_elements(*elements)
 
     def _assess_better(self, *elements: AbstractElement) -> AbstractElement:
         new_elements = []
-        max_len = max([len([y for y in x.all_values() if not y.is_empty()]) for x in elements])
-        for element_refs in self.pair_up_elements(*[
-            [x for x in e.all_values()]
-            for e in elements
-        ]):
+        max_len = max(
+            [len([y for y in x.all_values() if not y.is_empty()]) for x in elements]
+        )
+        for element_refs in self.pair_up_elements(
+            *[[x for x in e.all_values()] for e in elements]
+        ):
             # this indicates we relied on a comparison that was less than certain
-            if any(not(x is None or math.isclose(x, 1)) for _, x in element_refs):
+            if any(not (x is None or math.isclose(x, 1)) for _, x in element_refs):
                 self._is_reviewable = True
-            new_elements.extend(self._merge_single_elements(*(x for x, _ in element_refs)))
+            new_elements.extend(
+                self._merge_single_elements(*(x for x, _ in element_refs))
+            )
         if len(new_elements) == 0:
             if max_len != 0:
                 self._is_reviewable = True
@@ -275,8 +325,14 @@ class ObservationDataMerger:
                 self._is_reviewable = True
             return MultiElement(new_elements)
 
-    def _merge_single_elements(self, *elements: SingleElement | None) -> t.Iterable[SingleElement]:
-        non_none: list[SingleElement] = [t.cast(SingleElement, x) for x in elements if not (x is None or x.is_empty())]
+    def _merge_single_elements(
+        self, *elements: SingleElement | None
+    ) -> t.Iterable[SingleElement]:
+        non_none: list[SingleElement] = [
+            t.cast(SingleElement, x)
+            for x in elements
+            if not (x is None or x.is_empty())
+        ]
         if len(non_none) == 0:
             ...
         elif len(non_none) == 1:
@@ -298,7 +354,9 @@ class ObservationDataMerger:
                 diff = dt.uncertainty.total_seconds()
             else:
                 self._is_reviewable = True
-                diff = 3600 * 24 # assume day is accurate if we didn't specify otherwise, but we really should!
+                diff = (
+                    3600 * 24
+                )  # assume day is accurate if we didn't specify otherwise, but we really should!
             if best_time is None or best_time > diff:
                 best_time = diff
                 best_idx = idx
@@ -318,12 +376,3 @@ class ObservationDataMerger:
                 best_idx = idx
                 best_num = sn
         return elements[t.cast(int, best_idx)]
-
-
-
-
-
-
-
-
-

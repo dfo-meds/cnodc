@@ -1,7 +1,7 @@
 import datetime
 import typing as t
 
-from autoinject import injector, auto
+from autoinject import auto, injector
 
 from medsutil.awaretime import AwareDateTime
 from nodb import NODB
@@ -10,21 +10,22 @@ from nodb.observations import NODBPlatform, PlatformStatus
 
 
 class PlatformInfo:
-
-    def __init__(self,
-                 wmo_id: str | None = None,
-                 platform_name: str | None = None,
-                 platform_id: str | None = None,
-                 imo_number: str | None = None,
-                 mmsi: str | None = None,
-                 ship_code: str | None = None,
-                 wigos_id: str | None = None,
-                 platform_type: str | None = None,
-                 registry_ca: str | None = None,
-                 country: str | None = None,
-                 start_date: str | datetime.date | None = None,
-                 end_date: str | datetime.date | None = None,
-                 metadata: dict[str, t.Any] | None = None):
+    def __init__(
+        self,
+        wmo_id: str | None = None,
+        platform_name: str | None = None,
+        platform_id: str | None = None,
+        imo_number: str | None = None,
+        mmsi: str | None = None,
+        ship_code: str | None = None,
+        wigos_id: str | None = None,
+        platform_type: str | None = None,
+        registry_ca: str | None = None,
+        country: str | None = None,
+        start_date: str | datetime.date | None = None,
+        end_date: str | datetime.date | None = None,
+        metadata: dict[str, t.Any] | None = None,
+    ):
         self.platform_type = platform_type
         self.wigos_id = wigos_id
         self.platform_id = platform_id
@@ -43,9 +44,11 @@ class PlatformInfo:
         self.mmsi = mmsi
         self.registry_ca = registry_ca
         self.country = country
-        self.metadata = {
-            x: y for x, y in metadata.items() if y is not None and y != ""
-        } if metadata else {}
+        self.metadata = (
+            {x: y for x, y in metadata.items() if y is not None and y != ""}
+            if metadata
+            else {}
+        )
 
     def search_kwargs(self) -> dict[str, t.Any]:
         search_kwargs = {}
@@ -95,13 +98,14 @@ class PlatformInfo:
         if d == "":
             return None
         elif len(d) == 4 and d.isdigit():
-            return datetime.date(int(d), 12, 31) if is_end else datetime.date(int(d), 1, 1)
+            return (
+                datetime.date(int(d), 12, 31) if is_end else datetime.date(int(d), 1, 1)
+            )
         else:
             return datetime.datetime.fromisoformat(d)
 
 
 class PlatformManager:
-
     nodb: NODB = auto()
 
     @injector.construct
@@ -120,20 +124,25 @@ class PlatformManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._db.__exit__(exc_type, exc_val, exc_tb)
-        pass
 
     def save_platform(self, info: PlatformInfo):
         search_kwargs = info.search_kwargs()
         if not search_kwargs:
             print("invalid platform, no identifiers, skipping")
             return
-        platforms = [x for x in NODBPlatform.search(self.db, **search_kwargs) if self.service_overlaps(x, info)]
+        platforms = [
+            x
+            for x in NODBPlatform.search(self.db, **search_kwargs)
+            if self.service_overlaps(x, info)
+        ]
         if not platforms:
             self.create_platform(info)
         elif len(platforms) == 1:
             self.update_platform(platforms[0], info)
         else:
-            raise RuntimeError(f"Error saving platform, multiple options found for {search_kwargs}")
+            raise RuntimeError(
+                f"Error saving platform, multiple options found for {search_kwargs}"
+            )
 
     def service_overlaps(self, platform: NODBPlatform, info: PlatformInfo) -> bool:
         if info.end_date is not None and platform.service_start_date is not None:

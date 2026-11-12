@@ -1,13 +1,14 @@
+import datetime
 import enum
 import math
 import tkinter as tk
-import tkinter.ttk as ttk
-import tkinter.simpledialog as tksd
 import tkinter.messagebox as tkmb
-import typing as t
-import gcapp.i18n.base as i18n
+import tkinter.simpledialog as tksd
+from tkinter import ttk
+
 import tkcalendar as tkc
-import datetime
+
+import gcapp.i18n.base as i18n
 
 
 def ask_date(*args, **kwargs):
@@ -26,24 +27,24 @@ def ask_time(*args, **kwargs):
 
 
 class _DateTimeDialogMode(enum.Enum):
-
     DATE_ONLY = 1
     TIME_ONLY = 2
     DATE_TIME = 3
 
 
 class DateTimeDialog(tksd.Dialog):
-
-    def __init__(self,
-                 parent,
-                 mode: _DateTimeDialogMode,
-                 default: t.Optional[t.Union[datetime.datetime, datetime.date, datetime.time]] = None,
-                 title: t.Optional[str] = None,
-                 prompt: t.Optional[str] = None):
+    def __init__(
+        self,
+        parent,
+        mode: _DateTimeDialogMode,
+        default: datetime.datetime | datetime.date | datetime.time | None = None,
+        title: str | None = None,
+        prompt: str | None = None,
+    ):
         self._mode = mode
         self._default = default
         self._prompt = prompt
-        self._date_control: t.Optional[tkc.DateEntry] = None
+        self._date_control: tkc.DateEntry | None = None
         self._hour = tk.StringVar()
         self._minute = tk.StringVar()
         self._second = tk.StringVar()
@@ -52,7 +53,9 @@ class DateTimeDialog(tksd.Dialog):
         if isinstance(self._default, (datetime.time, datetime.datetime)):
             self._hour.set(str(self._default.hour))
             self._minute.set(str(self._default.minute))
-            self._second.set(str(self._default.second + (self._default.microsecond / 1000000)))
+            self._second.set(
+                str(self._default.second + (self._default.microsecond / 1000000))
+            )
         else:
             self._hour.set("0")
             self._minute.set("0")
@@ -67,28 +70,50 @@ class DateTimeDialog(tksd.Dialog):
 
         if self._prompt is not None:
             label = ttk.Label(parent, text=self._prompt, wraplength=300, justify="left")
-            label.grid(row=0, column=0, sticky='NSEW', columnspan=4)
+            label.grid(row=0, column=0, sticky="NSEW", columnspan=4)
         first = None
         if self._mode in (_DateTimeDialogMode.DATE_TIME, _DateTimeDialogMode.DATE_ONLY):
             self._date_control = tkc.DateEntry(parent, width=5)
-            self._date_control.grid(row=1, column=0, sticky='NSEW', columnspan=4, padx=2, pady=2)
+            self._date_control.grid(
+                row=1, column=0, sticky="NSEW", columnspan=4, padx=2, pady=2
+            )
             if isinstance(self._default, (datetime.datetime, datetime.date)):
                 self._date_control.set_date(self._default)
             first = self._date_control
         if self._mode in (_DateTimeDialogMode.DATE_TIME, _DateTimeDialogMode.TIME_ONLY):
-            ttk.Label(parent, text=i18n.tr('hour')).grid(row=2, column=0, sticky='NSEW', padx=2, pady=2)
-            ttk.Label(parent, text=i18n.tr('minute')).grid(row=2, column=1, sticky='NSEW', padx=2, pady=2)
-            ttk.Label(parent, text=i18n.tr('second')).grid(row=2, column=2, sticky='NSEW', padx=2, pady=2)
-            ttk.Label(parent, text=i18n.tr('timezone')).grid(row=2, column=3, sticky='NSEW', padx=2, pady=2)
-            hour = ttk.Combobox(parent, textvariable=self._hour, values=[str(x) for x in range(0, 24)], width=5)
-            hour.grid(row=3, column=0, sticky='NSEW', padx=2, pady=2)
-            minute = ttk.Combobox(parent, textvariable=self._minute, values=[str(x) for x in range(0, 60)], width=5)
-            minute.grid(row=3, column=1, sticky='NSEW', padx=2, pady=2)
+            ttk.Label(parent, text=i18n.tr("hour")).grid(
+                row=2, column=0, sticky="NSEW", padx=2, pady=2
+            )
+            ttk.Label(parent, text=i18n.tr("minute")).grid(
+                row=2, column=1, sticky="NSEW", padx=2, pady=2
+            )
+            ttk.Label(parent, text=i18n.tr("second")).grid(
+                row=2, column=2, sticky="NSEW", padx=2, pady=2
+            )
+            ttk.Label(parent, text=i18n.tr("timezone")).grid(
+                row=2, column=3, sticky="NSEW", padx=2, pady=2
+            )
+            hour = ttk.Combobox(
+                parent,
+                textvariable=self._hour,
+                values=[str(x) for x in range(24)],
+                width=5,
+            )
+            hour.grid(row=3, column=0, sticky="NSEW", padx=2, pady=2)
+            minute = ttk.Combobox(
+                parent,
+                textvariable=self._minute,
+                values=[str(x) for x in range(60)],
+                width=5,
+            )
+            minute.grid(row=3, column=1, sticky="NSEW", padx=2, pady=2)
             second = ttk.Entry(parent, textvariable=self._second, width=5)
-            second.grid(row=3, column=2, sticky='NSEW', padx=2, pady=2)
-            tz = ttk.Combobox(parent, textvariable=self._timezone, values=['UTC'], width=5)
+            second.grid(row=3, column=2, sticky="NSEW", padx=2, pady=2)
+            tz = ttk.Combobox(
+                parent, textvariable=self._timezone, values=["UTC"], width=5
+            )
             tz.current(0)
-            tz.grid(row=3, column=3, sticky='NSEW', padx=2, pady=2)
+            tz.grid(row=3, column=3, sticky="NSEW", padx=2, pady=2)
         return first
 
     def validate(self):
@@ -96,12 +121,12 @@ class DateTimeDialog(tksd.Dialog):
         try:
             if self._mode == _DateTimeDialogMode.DATE_TIME:
                 dt = self._date_control.get_date()
-                full_seconds = float(self._second.get() or '0')
+                full_seconds = float(self._second.get() or "0")
                 if full_seconds < 0:
-                    raise ValueError('Seconds must be zero or more')
+                    raise ValueError("Seconds must be zero or more")
                 elif full_seconds >= 60:
-                    raise ValueError('Seconds must be less than 60')
-                seconds = int(math.floor(full_seconds))
+                    raise ValueError("Seconds must be less than 60")
+                seconds = math.floor(full_seconds)
                 microseconds = int((full_seconds - seconds) * 1000000)
                 self.result = datetime.datetime(
                     year=dt.year,
@@ -111,30 +136,26 @@ class DateTimeDialog(tksd.Dialog):
                     minute=int(self._minute.get()),
                     second=seconds,
                     microsecond=microseconds,
-                    tzinfo=datetime.timezone.utc
+                    tzinfo=datetime.UTC,
                 )
             elif self._mode == _DateTimeDialogMode.DATE_ONLY:
                 self.result = self._date_control.get_date()
             elif self._mode == _DateTimeDialogMode.TIME_ONLY:
-                full_seconds = float(self._second.get() or '0')
+                full_seconds = float(self._second.get() or "0")
                 if full_seconds < 0:
-                    raise ValueError('Seconds must be zero or more')
+                    raise ValueError("Seconds must be zero or more")
                 elif full_seconds >= 60:
-                    raise ValueError('Seconds must be less than 60')
-                seconds = int(math.floor(full_seconds))
+                    raise ValueError("Seconds must be less than 60")
+                seconds = math.floor(full_seconds)
                 microseconds = int((full_seconds - seconds) * 1000000)
                 self.result = datetime.time(
                     hour=int(self._hour.get()),
                     minute=int(self._minute.get()),
                     second=seconds,
                     microsecond=microseconds,
-                    tzinfo=datetime.timezone.utc
+                    tzinfo=datetime.UTC,
                 )
             return True
-        except (ValueError, TypeError) as ex:
-            tkmb.showwarning('Invalid', 'Invalid time or date')
+        except (ValueError, TypeError):
+            tkmb.showwarning("Invalid", "Invalid time or date")
             return False
-
-
-
-

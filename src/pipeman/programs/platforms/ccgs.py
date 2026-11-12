@@ -32,7 +32,7 @@ def get_vessel_urls(content):
             if headers:
                 continue
             cells = row.find_all("td")
-            yield f"{CCGS_PREFIX}{cells[0].find_all("a")[0].get("href")}"
+            yield f"{CCGS_PREFIX}{cells[0].find_all('a')[0].get('href')}"
 
 
 def get_platform_info(content):
@@ -57,34 +57,38 @@ def get_platform_info(content):
             kwargs["imo"] = _clean_na(line.strip())
             nxt = False
     nxt = False
-    for line in _clean_block(soup.find("label", {"for": "vesselConstruction.yearInService"})):
+    for line in _clean_block(
+        soup.find("label", {"for": "vesselConstruction.yearInService"})
+    ):
         if line.startswith("Year in Service:"):
             nxt = True
         elif nxt:
             kwargs["start_date"] = _clean_na(line.strip())
     nxt = False
-    for line in _clean_block(soup.find("label", {"for": "vesselConstruction.yearDisposed"})):
+    for line in _clean_block(
+        soup.find("label", {"for": "vesselConstruction.yearDisposed"})
+    ):
         if line.startswith("Year Disposed:"):
             nxt = True
         elif nxt:
             kwargs["end_date"] = _clean_na(line.strip())
     nxt = False
-    for line in _clean_block(soup.find("label", {"for": "vesselSpecification.speedMax"})):
+    for line in _clean_block(
+        soup.find("label", {"for": "vesselSpecification.speedMax"})
+    ):
         if line.startswith("Maximum Speed (kts):"):
             nxt = True
         elif nxt:
             kwargs["metadata"]["top_speed"] = _clean_na(line.strip(), " kts")
     return PlatformInfo(**kwargs, platform_type="ship")
 
+
 def _clean_na(txt: str, suffix: str = "") -> str | None:
-    if txt.lower() == "not applicable":
-        return None
-    elif txt.lower() == "no":
-        return None
-    elif not txt:
+    if txt.lower() == "not applicable" or txt.lower() == "no" or not txt:
         return None
     else:
         return f"{txt}{suffix}"
+
 
 def _clean_block(block: BeautifulSoup | None) -> list[str]:
     if not block:
@@ -95,8 +99,4 @@ def _clean_block(block: BeautifulSoup | None) -> list[str]:
     while "  " in txt:
         txt = txt.replace("  ", " ")
     txt = txt.strip()
-    return [
-        x.strip()
-        for x in txt.split("\n")
-        if x.strip()
-    ]
+    return [x.strip() for x in txt.split("\n") if x.strip()]

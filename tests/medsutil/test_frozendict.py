@@ -3,7 +3,6 @@ from tests.helpers.base_test_case import BaseTestCase, sub_tests
 
 
 class TestFrozenDict(BaseTestCase):
-
     def test_initial_dict_and_contains(self):
         x = FrozenDict({"foo": "bar"})
         self.assertTrue("foo" in x)
@@ -16,7 +15,7 @@ class TestFrozenDict(BaseTestCase):
         self.assertTrue(x == y)
 
     def test_not_equals(self):
-        x =  FrozenDict({"foo": "bar"})
+        x = FrozenDict({"foo": "bar"})
         y = FrozenDict({"foo": "bar2"})
         self.assertTrue(x != y)
 
@@ -44,10 +43,12 @@ class TestFrozenDict(BaseTestCase):
         with self.assertRaises(KeyError):
             x.get("foo3")
 
-    @sub_tests([
-        ("foo", ["bar"]),
-        (["bar"], "foo"),
-    ])
+    @sub_tests(
+        [
+            ("foo", ["bar"]),
+            (["bar"], "foo"),
+        ]
+    )
     def test_cannot_add_non_hashable(self, key, value):
         with self.assertRaises(TypeError):
             x = {}

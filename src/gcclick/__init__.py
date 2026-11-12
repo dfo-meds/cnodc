@@ -1,1 +1,1 @@
-""" Provides a common structure for click-based applications using the gcapp framework. """
+"""Provides a common structure for click-based applications using the gcapp framework."""

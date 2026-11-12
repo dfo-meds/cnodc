@@ -1,19 +1,22 @@
-import os
-import time
-import sqlite3
-import threading
-import requests
-import sys
 import math
-from PIL import Image, UnidentifiedImageError
+import os
+import sqlite3
+import sys
+import threading
+import time
 
-from .utility_functions import decimal_to_osm, osm_to_decimal
+import requests
+from PIL import UnidentifiedImageError
+
+from .utility_functions import decimal_to_osm
 
 
 class OfflineLoader:
     def __init__(self, path=None, tile_server=None, max_zoom=19):
         if path is None:
-            self.db_path = os.path.join(os.path.abspath(os.getcwd()), "offline_tiles.db")
+            self.db_path = os.path.join(
+                os.path.abspath(os.getcwd()), "offline_tiles.db"
+            )
         else:
             self.db_path = path
 
@@ -41,7 +44,7 @@ class OfflineLoader:
         for section in db_cursor.fetchall():
             print(section)
 
-        print("", end="\n\n")
+        print(end="\n\n")
 
     def save_offline_tiles_thread(self):
         db_connection = sqlite3.connect(self.db_path, timeout=10)
@@ -54,9 +57,11 @@ class OfflineLoader:
                 self.lock.release()
                 zoom, x, y = task[0], task[1], task[2]
 
-                check_existence_cmd = f"""SELECT t.zoom, t.x, t.y FROM tiles t WHERE t.zoom=? AND t.x=? AND t.y=? AND server=?;"""
+                check_existence_cmd = """SELECT t.zoom, t.x, t.y FROM tiles t WHERE t.zoom=? AND t.x=? AND t.y=? AND server=?;"""
                 try:
-                    db_cursor.execute(check_existence_cmd, (zoom, x, y, self.tile_server))
+                    db_cursor.execute(
+                        check_existence_cmd, (zoom, x, y, self.tile_server)
+                    )
                 except sqlite3.OperationalError:
                     self.lock.acquire()
                     self.task_queue.append(task)
@@ -65,13 +70,20 @@ class OfflineLoader:
 
                 result = db_cursor.fetchall()
                 if len(result) == 0:
-
                     try:
-                        url = self.tile_server.replace("{x}", str(x)).replace("{y}", str(y)).replace("{z}", str(zoom))
-                        image_data = requests.get(url, stream=True, headers={"User-Agent": "TkinterMapView"}).content
+                        url = (
+                            self.tile_server.replace("{x}", str(x))
+                            .replace("{y}", str(y))
+                            .replace("{z}", str(zoom))
+                        )
+                        image_data = requests.get(
+                            url, stream=True, headers={"User-Agent": "TkinterMapView"}
+                        ).content
 
                         self.lock.acquire()
-                        self.result_queue.append((zoom, x, y, self.tile_server, image_data))
+                        self.result_queue.append(
+                            (zoom, x, y, self.tile_server, image_data)
+                        )
                         self.lock.release()
 
                     except sqlite3.OperationalError:
@@ -134,8 +146,10 @@ class OfflineLoader:
         db_connection.commit()
 
         # check if section is already in database
-        db_cursor.execute("SELECT * FROM sections s WHERE s.position_a=? AND s.position_b=? AND s.zoom_a=? AND zoom_b=? AND server=?;",
-                          (str(position_b), str(position_b), zoom_a, zoom_b, self.tile_server))
+        db_cursor.execute(
+            "SELECT * FROM sections s WHERE s.position_a=? AND s.position_b=? AND s.zoom_a=? AND zoom_b=? AND server=?;",
+            (str(position_b), str(position_b), zoom_a, zoom_b, self.tile_server),
+        )
         if len(db_cursor.fetchall()) != 0:
             print("[save_offline_tiles] section is already in database", end="\n\n")
             db_connection.close()
@@ -144,12 +158,17 @@ class OfflineLoader:
         # insert tile_server if not in database
         db_cursor.execute(f"SELECT * FROM server s WHERE s.url='{self.tile_server}';")
         if len(db_cursor.fetchall()) == 0:
-            db_cursor.execute(f"INSERT INTO server (url, max_zoom) VALUES (?, ?);", (self.tile_server, self.max_zoom))
+            db_cursor.execute(
+                "INSERT INTO server (url, max_zoom) VALUES (?, ?);",
+                (self.tile_server, self.max_zoom),
+            )
             db_connection.commit()
 
         # create threads
         for i in range(self.number_of_threads):
-            thread = threading.Thread(daemon=True, target=self.save_offline_tiles_thread, args=())
+            thread = threading.Thread(
+                daemon=True, target=self.save_offline_tiles_thread, args=()
+            )
             self.thread_pool.append(thread)
 
         # start threads
@@ -162,19 +181,27 @@ class OfflineLoader:
             lower_right_tile_pos = decimal_to_osm(*position_b, zoom)
 
             self.lock.acquire()
-            for x in range(math.floor(upper_left_tile_pos[0]), math.ceil(lower_right_tile_pos[0]) + 1):
-                for y in range(math.floor(upper_left_tile_pos[1]), math.ceil(lower_right_tile_pos[1]) + 1):
+            for x in range(
+                math.floor(upper_left_tile_pos[0]),
+                math.ceil(lower_right_tile_pos[0]) + 1,
+            ):
+                for y in range(
+                    math.floor(upper_left_tile_pos[1]),
+                    math.ceil(lower_right_tile_pos[1]) + 1,
+                ):
                     self.task_queue.append((zoom, x, y))
             number_of_tasks = len(self.task_queue)
             self.lock.release()
 
-            print(f"[save_offline_tiles] zoom: {zoom:<2}  tiles: {number_of_tasks:<8}  storage: {math.ceil(number_of_tasks * 8 / 1024):>6} MB", end="")
-            print(f"  progress: ", end="")
+            print(
+                f"[save_offline_tiles] zoom: {zoom:<2}  tiles: {number_of_tasks:<8}  storage: {math.ceil(number_of_tasks * 8 / 1024):>6} MB",
+                end="",
+            )
+            print("  progress: ", end="")
 
             result_counter = 0
             loading_bar_length = 0
             while result_counter < number_of_tasks:
-
                 self.lock.acquire()
                 if len(self.result_queue) > 0:
                     loading_result = self.result_queue.pop()
@@ -197,11 +224,13 @@ class OfflineLoader:
 
             print(f" {result_counter:>8} tiles loaded")
 
-        print("", end="\n\n")
+        print(end="\n\n")
 
         # insert loading section in database
-        db_cursor.execute(f"INSERT INTO sections (position_a, position_b, zoom_a, zoom_b, server) VALUES (?, ?, ?, ?, ?);",
-                          (str(position_b), str(position_b), zoom_a, zoom_b, self.tile_server))
+        db_cursor.execute(
+            "INSERT INTO sections (position_a, position_b, zoom_a, zoom_b, server) VALUES (?, ?, ?, ?, ?);",
+            (str(position_b), str(position_b), zoom_a, zoom_b, self.tile_server),
+        )
         db_connection.commit()
 
         db_connection.close()

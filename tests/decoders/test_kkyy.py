@@ -1,34 +1,77 @@
-import itertools
-import json
 
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import ParentRecord, BaseRecord, ElementMap, ChildRecord
+from medsutil.ocproc2 import ChildRecord, ParentRecord
 from medsutil.ocproc2.codecs import GtsCodec
 from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestFM64X(BaseTestCase):
-
     def test_decode(self):
         decoder = GtsCodec()
         with open(self.data_file_path("ascii/fm64-x.txt"), "rb") as h:
             ascii_content = h.read()
-        records = [x for x in decoder.load(ascii_content, received_date=AwareDateTime(2026, 7, 10, 10, 28, 0, tzinfo="Etc/UTC"))]
+        records = [
+            x
+            for x in decoder.load(
+                ascii_content,
+                received_date=AwareDateTime(2026, 7, 10, 10, 28, 0, tzinfo="Etc/UTC"),
+            )
+        ]
         self.assertEqual(1, len(records))
         record = records[0]
         self.assertIsInstance(record, ParentRecord)
         self.assert_element_equals(record.metadata, "GTSHeader", "SSVX06 LFVW 092258")
-        self.assert_element_equals(record.metadata, "GTSHeaderFullDate", "2026-07-09T22:58:00+00:00")
+        self.assert_element_equals(
+            record.metadata, "GTSHeaderFullDate", "2026-07-09T22:58:00+00:00"
+        )
         self.assert_element_equals(record.metadata, "CNODCDataMode", "RT")
         self.assert_element_equals(record.metadata, "CNODCIsBroadcast", 1)
         self.assert_element_equals(record.metadata, "WMOAsciiCodeForm", "KKYY")
-        self.assert_element_equals(record.coordinates, "Time", "2025-02-01T12:23:00+00:00", DatePrecision="minute")
-        self.assert_element_equals(record.coordinates, "Latitude", "-12.345", Units="degrees_north", Uncertainty=(0.0005, {"UncertaintyType": "uniform"}))
-        self.assert_element_equals(record.coordinates, "Longitude", "-23.456", Units="degrees_east", Uncertainty=(0.0005, {"UncertaintyType": "uniform"}))
+        self.assert_element_equals(
+            record.coordinates,
+            "Time",
+            "2025-02-01T12:23:00+00:00",
+            DatePrecision="minute",
+        )
+        self.assert_element_equals(
+            record.coordinates,
+            "Latitude",
+            "-12.345",
+            Units="degrees_north",
+            Uncertainty=(0.0005, {"UncertaintyType": "uniform"}),
+        )
+        self.assert_element_equals(
+            record.coordinates,
+            "Longitude",
+            "-23.456",
+            Units="degrees_east",
+            Uncertainty=(0.0005, {"UncertaintyType": "uniform"}),
+        )
 
-        self.assert_element_equals(record.parameters, "WindDirection", "120", Units="degrees", Uncertainty=(5, {"UncertaintyType": "uniform"}), WMOWindInstrumentType="1")
-        self.assert_element_equals(record.parameters, "WindSpeed", "23", Units="knots", Uncertainty=(0.5, {"UncertaintyType": "uniform"}), WMOWindInstrumentType="1")
-        self.assert_element_equals(record.parameters, "AirTemperature", "12.3", Units="degrees_C", Uncertainty=(0.05, {"UncertaintyType": "uniform"}), TemperatureScale="ITS-90")
+        self.assert_element_equals(
+            record.parameters,
+            "WindDirection",
+            "120",
+            Units="degrees",
+            Uncertainty=(5, {"UncertaintyType": "uniform"}),
+            WMOWindInstrumentType="1",
+        )
+        self.assert_element_equals(
+            record.parameters,
+            "WindSpeed",
+            "23",
+            Units="knots",
+            Uncertainty=(0.5, {"UncertaintyType": "uniform"}),
+            WMOWindInstrumentType="1",
+        )
+        self.assert_element_equals(
+            record.parameters,
+            "AirTemperature",
+            "12.3",
+            Units="degrees_C",
+            Uncertainty=(0.05, {"UncertaintyType": "uniform"}),
+            TemperatureScale="ITS-90",
+        )
 
         self.assertIn("PROFILE", record.subrecords)
         self.assertEqual(2, len(record.subrecords["PROFILE"]))
@@ -46,9 +89,33 @@ class TestFM64X(BaseTestCase):
         ]:
             subrecord = record.subrecords["PROFILE"][0].records[idx]
             self.assertIsInstance(subrecord, ChildRecord)
-            self.assert_element_equals(subrecord.coordinates, "Depth", d, Units="m", Uncertainty=(0.5, {"UncertaintyType": "uniform"}))
-            self.assert_element_equals(subrecord.parameters, "Temperature", t, Units="degrees_C", Uncertainty=(0.005, {"UncertaintyType": "uniform"}), TemperatureScale="ITS-90", WMOProfileInstrumentType="123", WMOProfileRecorderType="45")
-            self.assert_element_equals(subrecord.parameters, "PracticalSalinity", ps, Units="1e-3", Uncertainty=(0.005, {"UncertaintyType": "uniform"}), WMOProfileInstrumentType="123", WMOProfileRecorderType="45", WMOSalinityDepthMeasurementMethod="2")
+            self.assert_element_equals(
+                subrecord.coordinates,
+                "Depth",
+                d,
+                Units="m",
+                Uncertainty=(0.5, {"UncertaintyType": "uniform"}),
+            )
+            self.assert_element_equals(
+                subrecord.parameters,
+                "Temperature",
+                t,
+                Units="degrees_C",
+                Uncertainty=(0.005, {"UncertaintyType": "uniform"}),
+                TemperatureScale="ITS-90",
+                WMOProfileInstrumentType="123",
+                WMOProfileRecorderType="45",
+            )
+            self.assert_element_equals(
+                subrecord.parameters,
+                "PracticalSalinity",
+                ps,
+                Units="1e-3",
+                Uncertainty=(0.005, {"UncertaintyType": "uniform"}),
+                WMOProfileInstrumentType="123",
+                WMOProfileRecorderType="45",
+                WMOSalinityDepthMeasurementMethod="2",
+            )
 
         self.assertIn(1, record.subrecords["PROFILE"])
         for idx, d, cd, cs in [
@@ -59,15 +126,38 @@ class TestFM64X(BaseTestCase):
         ]:
             subrecord = record.subrecords["PROFILE"][1].records[idx]
             self.assertIsInstance(subrecord, ChildRecord)
-            self.assert_element_equals(subrecord.coordinates, "Depth", d, Units="m", Uncertainty=(0.5, {"UncertaintyType": "uniform"}))
-            self.assert_element_equals(subrecord.parameters, "CurrentDirection", cd, Units="degrees", Uncertainty=(5, {"UncertaintyType": "uniform"}))
-            self.assert_element_equals(subrecord.parameters, "CurrentSpeed", cs, Units="cm s-1", Uncertainty=(0.5, {"UncertaintyType": "uniform"}))
-        self.assert_element_equals(record.subrecords["PROFILE"][0].metadata, "DigitizationMethod", "inflection_points")
-        self.assert_element_equals(record.parameters, "SeaDepth", "300", Units="m", Uncertainty=(0.5, {"UncertaintyType": "uniform"}))
+            self.assert_element_equals(
+                subrecord.coordinates,
+                "Depth",
+                d,
+                Units="m",
+                Uncertainty=(0.5, {"UncertaintyType": "uniform"}),
+            )
+            self.assert_element_equals(
+                subrecord.parameters,
+                "CurrentDirection",
+                cd,
+                Units="degrees",
+                Uncertainty=(5, {"UncertaintyType": "uniform"}),
+            )
+            self.assert_element_equals(
+                subrecord.parameters,
+                "CurrentSpeed",
+                cs,
+                Units="cm s-1",
+                Uncertainty=(0.5, {"UncertaintyType": "uniform"}),
+            )
+        self.assert_element_equals(
+            record.subrecords["PROFILE"][0].metadata,
+            "DigitizationMethod",
+            "inflection_points",
+        )
+        self.assert_element_equals(
+            record.parameters,
+            "SeaDepth",
+            "300",
+            Units="m",
+            Uncertainty=(0.5, {"UncertaintyType": "uniform"}),
+        )
         self.assert_element_equals(record.metadata, "WMOID", "1200345")
         self.assert_element_equals(record.metadata, "PlatformID", None)
-
-
-
-
-

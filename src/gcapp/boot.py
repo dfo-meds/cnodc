@@ -1,13 +1,16 @@
-""" Provides a framework for booting (with configuration loading and logging setup) """
-import pathlib
-import typing as t
-import os
+"""Provides a framework for booting (with configuration loading and logging setup)"""
+
 import logging
+import os
+import pathlib
 import sys
+import typing as t
 
 
-def _config_paths(extra_paths: t.Sequence[str] | None = None) -> t.Generator[pathlib.Path, None, None]:
-    """ Retrieves configuration directories.
+def _config_paths(
+    extra_paths: t.Sequence[str] | None = None,
+) -> t.Generator[pathlib.Path]:
+    """Retrieves configuration directories.
 
     These include:
     - The current working directory
@@ -35,8 +38,10 @@ def _config_paths(extra_paths: t.Sequence[str] | None = None) -> t.Generator[pat
                 yield p
 
 
-def _expand_environment_placeholders(variables: dict[str, str | list[str] | tuple[str]]) -> dict[str, str | list[str] | tuple[str]]:
-    """ Expands a map of environment variables to configuration keys.
+def _expand_environment_placeholders(
+    variables: dict[str, str | list[str] | tuple[str]],
+) -> dict[str, str | list[str] | tuple[str]]:
+    """Expands a map of environment variables to configuration keys.
 
     The keys may contain the text "$1", and the values should as well. Where the key contains $1, the following happens:
     - Any environment variable that starts with the text preceding and ends with the text following "$1" is found
@@ -50,34 +55,36 @@ def _expand_environment_placeholders(variables: dict[str, str | list[str] | tupl
     env_var_map = {}
     existing_env_vars = list(os.environ.keys())
     for key in variables:
-        if '$1' in key:
-            pos = key.find('$1')
+        if "$1" in key:
+            pos = key.find("$1")
             prefix = key[:pos]
-            suffix = key[pos+2:]
+            suffix = key[pos + 2 :]
             for env_var in existing_env_vars:
                 if env_var.startswith(prefix) and env_var.endswith(suffix):
-                    dollar1 = env_var[len(prefix):-len(suffix)]
+                    dollar1 = env_var[len(prefix) : -len(suffix)]
                     if isinstance(variables[key], str):
                         env_var_map[env_var] = variables[key].replace("$1", dollar1)
                     else:
-                        env_var_map[env_var] = [x.replace("$1", dollar1) for x in variables[key]]
+                        env_var_map[env_var] = [
+                            x.replace("$1", dollar1) for x in variables[key]
+                        ]
         else:
             env_var_map[key] = variables[key]
     return env_var_map
 
 
 def boot(
-        app_name: str,
-        app_components: t.Sequence[str] | None = None,
-        manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
-        individual_log_levels: dict[str, int] | None = None,
-        extra_config_paths: list[str] | None = None,
-        version_no: str | None = None,
-        env_map_files: list[pathlib.Path] | None = None,
-        boot_log_level: int = logging.WARNING,
-        default_config: dict[str, t.Any] | None = None
+    app_name: str,
+    app_components: t.Sequence[str] | None = None,
+    manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
+    individual_log_levels: dict[str, int] | None = None,
+    extra_config_paths: list[str] | None = None,
+    version_no: str | None = None,
+    env_map_files: list[pathlib.Path] | None = None,
+    boot_log_level: int = logging.WARNING,
+    default_config: dict[str, t.Any] | None = None,
 ):
-    """ Boots an application from a configuration file.
+    """Boots an application from a configuration file.
 
     Note that this is a very low-level boot.  It just performs these tasks:
 
@@ -110,37 +117,45 @@ def boot(
 
     # Set up configuration files
     import zirconium as zr
+
     @zr.configure
     def configure_extra_files(config: zr.ApplicationConfig):
         if default_config is not None:
             config.set_defaults(default_config)
         config_paths = [x for x in _config_paths(extra_config_paths)]
-        logging.getLogger("gcapp.boot").info(f"Config Search Paths: {';'.join(str(x) for x in config_paths)}")
+        logging.getLogger("gcapp.boot").info(
+            f"Config Search Paths: {';'.join(str(x) for x in config_paths)}"
+        )
         for path in config_paths:
             config.register_default_file(path / f".{app_name}.defaults.toml")
             config.register_file(path / f".{app_name}.toml")
             if app_components:
                 for name in app_components:
                     config.register_file(path / f".{app_name}.{name}.toml")
-                    config.register_default_file(path / f".{app_name}.{name}.defaults.toml")
+                    config.register_default_file(
+                        path / f".{app_name}.{name}.defaults.toml"
+                    )
 
         import yaml
+
         if env_map_files:
             for file in env_map_files:
                 if file.exists():
-                    with open(file, 'r', encoding='utf-8') as h:
+                    with open(file, "r", encoding="utf-8") as h:
                         d = yaml.safe_load(h)
                         if not isinstance(d, dict):
                             continue
                         config.register_environ_map(_expand_environment_placeholders(d))
 
     # Initialize system logging and autoinject overrides
-    from gcapp.boot_util import init_system_logging, init_overrides
+    from gcapp.boot_util import init_overrides, init_system_logging
+
     init_overrides(manual_overrides)
     init_system_logging(version_no)
 
     # Configure custom logging levels
     import importlib
+
     if individual_log_levels:
         for log_obj, log_level in individual_log_levels.items():
             module_name, obj_name = log_obj.rsplit(".", 1)
@@ -149,19 +164,22 @@ def boot(
                 logger = getattr(mod, obj_name)
                 logger.setLevel(log_level)
             except AttributeError:
-                logging.getLogger().exception("Could not find logger for %s or it is not a logger", log_obj)
+                logging.getLogger().exception(
+                    "Could not find logger for %s or it is not a logger", log_obj
+                )
+
 
 def boot_system(
-        app_name: str,
-        app_components: t.Sequence[str] | None = None,
-        manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
-        init_hooks: t.Sequence[str | t.Callable] | None = None,
-        system_cls: type | str | None = None,
-        enable_metrics: bool = False,
-        is_multiprocessing: bool = False,
-        **kwargs
+    app_name: str,
+    app_components: t.Sequence[str] | None = None,
+    manual_overrides: dict[str | type, str | type | t.Callable] | None = None,
+    init_hooks: t.Sequence[str | t.Callable] | None = None,
+    system_cls: type | str | None = None,
+    enable_metrics: bool = False,
+    is_multiprocessing: bool = False,
+    **kwargs,
 ):
-    """ Boots the system.
+    """Boots the system.
 
     A system-level boot is more work than the lower level boot(). This makes an actual system object, has a plugin
     framework, setup functions, etc. It's far more extensive but far more powerful.
@@ -193,10 +211,11 @@ def boot_system(
         app_name=app_name,
         app_components=app_components,
         manual_overrides=manual_overrides,
-        **kwargs
+        **kwargs,
     )
 
-    from autoinject import injector, auto
+    from autoinject import auto, injector
+
     from gcapp.system import System
 
     @injector.inject

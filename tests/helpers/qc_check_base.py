@@ -5,13 +5,14 @@ from tests.helpers.base_test_case import BaseTestCase
 
 
 class QCCheckerTestCase(BaseTestCase):
-
     @contextmanager
     def assertPassesQC(self):
         try:
             yield {}
         except QCAssertionError as ex:
-            raise self.failureException(f"Test unexpectedly failed: {ex.error_code}") from ex
+            raise self.failureException(
+                f"Test unexpectedly failed: {ex.error_code}"
+            ) from ex
 
     @contextmanager
     def assertFailsQC(self, error_code: str | None = None):
@@ -24,10 +25,8 @@ class QCCheckerTestCase(BaseTestCase):
     def assertSkipsReview(self):
         with self.assertRaises(QCSkipReview) as h:
             yield h
-        pass
 
     @contextmanager
     def assertSkipsTest(self):
         with self.assertRaises(QCSkipTest) as h:
             yield h
-        pass

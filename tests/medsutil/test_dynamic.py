@@ -1,28 +1,28 @@
 from medsutil.awaretime import AwareDateTime
-from medsutil.dynamic import dynamic_name, DynamicObjectLoadError
+from medsutil.dynamic import DynamicObjectLoadError, dynamic_name, dynamic_object
 from tests.helpers.base_test_case import BaseTestCase
-from medsutil.dynamic import dynamic_object
 
 
 class TestDynamicLoad(BaseTestCase):
-
     def test_builtin_name(self):
-        self.assertEqual(dynamic_name(str), 'str')
+        self.assertEqual(dynamic_name(str), "str")
 
     def test_object_name(self):
-        self.assertEqual(dynamic_name(AwareDateTime), 'medsutil.awaretime.AwareDateTime')
+        self.assertEqual(
+            dynamic_name(AwareDateTime), "medsutil.awaretime.AwareDateTime"
+        )
 
     def test_bad(self):
         with self.assertRaises(DynamicObjectLoadError):
-            dynamic_object('hello_world')
+            dynamic_object("hello_world")
 
     def test_function(self):
         obj = dynamic_object(dynamic_name(test_function))
-        self.assertEqual('test_function', obj.__name__)
+        self.assertEqual("test_function", obj.__name__)
 
     def test_class(self):
         obj = dynamic_object(dynamic_name(TestClass))
-        self.assertEqual('TestClass', obj.__name__)
+        self.assertEqual("TestClass", obj.__name__)
 
     def test_bad_module(self):
         with self.assertRaises(DynamicObjectLoadError):
@@ -35,6 +35,7 @@ class TestDynamicLoad(BaseTestCase):
 
 def test_function():
     pass
+
 
 class TestClass:
     pass

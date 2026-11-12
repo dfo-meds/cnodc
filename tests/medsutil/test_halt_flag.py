@@ -1,13 +1,18 @@
 import gzip
 import threading
 
-from medsutil.halts import HaltFlag, HaltInterrupt, copy_with_halt, gzip_with_halt, ungzip_with_halt
+from medsutil.halts import (
+    DummyHaltFlag,
+    HaltFlag,
+    HaltInterrupt,
+    copy_with_halt,
+    gzip_with_halt,
+    ungzip_with_halt,
+)
 from tests.helpers.base_test_case import BaseTestCase
-from medsutil.halts import DummyHaltFlag
 
 
 class TestHaltFlag(BaseTestCase):
-
     def test_halt_flag(self):
         e = threading.Event()
         hf = HaltFlag(e)
@@ -17,7 +22,7 @@ class TestHaltFlag(BaseTestCase):
         try:
             self.assertIsNone(hf.breakpoint())
         except HaltInterrupt:
-            self.assertFalse(True, msg='Halt interrupt raised when it should not be')
+            self.assertFalse(True, msg="Halt interrupt raised when it should not be")
         e.set()
         self.assertFalse(hf._should_continue())
         self.assertFalse(hf.check_continue(False))
@@ -55,6 +60,7 @@ class TestHaltFlag(BaseTestCase):
                 new_items.append(item)
                 if item == 3:
                     halt_flag.event.set()
+
         chf = DummyHaltFlag()
         items = [1, 2, 3, 4, 5]
         new_items = []
@@ -64,16 +70,14 @@ class TestHaltFlag(BaseTestCase):
 
 
 class TestHaltableIO(BaseTestCase):
-
     def test_halt_flag(self):
         f1 = self.temp_dir / "test1"
         with open(f1, "w") as h:
             h.write("foobar")
         f2 = self.temp_dir / "test2"
         hf = DummyHaltFlag()
-        with open(f1, "rb") as in_:
-            with open(f2, "wb") as out_:
-                copy_with_halt(in_, out_, halt_flag=hf)
+        with open(f1, "rb") as in_, open(f2, "wb") as out_:
+            copy_with_halt(in_, out_, halt_flag=hf)
         self.assertTrue(f2.exists())
 
     def test_halt_flag_binary(self):
@@ -82,9 +86,8 @@ class TestHaltableIO(BaseTestCase):
             h.write("foobar")
         f2 = self.temp_dir / "test2"
         hf = DummyHaltFlag()
-        with open(f1, "rb") as in_:
-            with open(f2, "wb") as out_:
-                copy_with_halt(in_, out_, halt_flag=hf)
+        with open(f1, "rb") as in_, open(f2, "wb") as out_:
+            copy_with_halt(in_, out_, halt_flag=hf)
         self.assertTrue(f2.exists())
 
     def test_no_halt_flag(self):
@@ -92,9 +95,8 @@ class TestHaltableIO(BaseTestCase):
         with open(f1, "w") as h:
             h.write("foobar")
         f2 = self.temp_dir / "test2"
-        with open(f1, "rb") as in_:
-            with open(f2, "wb") as out_:
-                copy_with_halt(in_, out_)
+        with open(f1, "rb") as in_, open(f2, "wb") as out_:
+            copy_with_halt(in_, out_)
         self.assertTrue(f2.exists())
 
     def test_no_halt_flag_binary(self):
@@ -102,9 +104,8 @@ class TestHaltableIO(BaseTestCase):
         with open(f1, "w") as h:
             h.write("foobar")
         f2 = self.temp_dir / "test2"
-        with open(f1, "rb") as in_:
-            with open(f2, "wb") as out_:
-                copy_with_halt(in_, out_)
+        with open(f1, "rb") as in_, open(f2, "wb") as out_:
+            copy_with_halt(in_, out_)
         self.assertTrue(f2.exists())
 
     def test_gzip_handle_interrupt(self):
@@ -128,10 +129,3 @@ class TestHaltableIO(BaseTestCase):
         with self.assertRaises(HaltInterrupt):
             ungzip_with_halt(f1, f2, 2, halt_flag=hf)
         self.assertFalse(f2.exists())
-
-
-
-
-
-
-

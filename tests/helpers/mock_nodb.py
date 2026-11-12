@@ -2,14 +2,13 @@ import datetime
 import typing as t
 import uuid
 
-from gcapp.queries import SqlCondition, And, Or, Equals
+from gcapp.queries import And, Equals, Or, SqlCondition
 from medsutil.awaretime import AwareDateTime
+from medsutil.sanitize import coerce
+from nodb import interface
+from nodb.base import NODBBaseObject
 from nodb.interface import QueueStatus, ScannedFileStatus
 from nodb.queue import NODBQueueItem
-import nodb.interface as interface
-
-from medsutil.sanitize import coerce
-from nodb.base import NODBBaseObject
 
 
 class PreparedInsert:
@@ -25,8 +24,8 @@ class PreparedInsert:
     def __enter__(self): ...
     def __exit__(self, exc_type, exc_val, exc_tb): ...
 
-class DatabaseMock:
 
+class DatabaseMock:
     def __init__(self):
         self.tables: dict[str, list[NODBBaseObject]] = {}
         self._process_info: dict[str, dict[str, t.Any]] = {}
@@ -57,59 +56,69 @@ class DatabaseMock:
         if tbl_name not in self._lookups:
             self._lookups[tbl_name] = {}
         for index_keys in obj.get_mock_index_keys():
-            index_name = '__'.join(index_keys)
+            index_name = "__".join(index_keys)
             if index_name not in self._lookups[tbl_name]:
                 self._lookups[tbl_name][index_name] = {}
-            value = '__'.join(str(coerce.as_json_safe(obj.get_for_db(x))) for x in index_keys)
+            value = "__".join(
+                str(coerce.as_json_safe(obj.get_for_db(x))) for x in index_keys
+            )
             if value not in self._lookups[tbl_name][index_name]:
                 self._lookups[tbl_name][index_name][value] = []
             self._lookups[tbl_name][index_name][value].append(index)
 
-    def scanned_file_status(self, file_path: str, mod_time: t.Optional[datetime.datetime] = None):
+    def scanned_file_status(
+        self, file_path: str, mod_time: datetime.datetime | None = None
+    ):
         file_path = str(file_path).replace("\\", "/")
         for x in self._scanned_files:
-            if x['file_path'] == file_path and x['modified_date'] == mod_time:
-                if x['was_processed']:
+            if x["file_path"] == file_path and x["modified_date"] == mod_time:
+                if x["was_processed"]:
                     return ScannedFileStatus.PROCESSED
-                elif x['was_errored']:
+                elif x["was_errored"]:
                     return ScannedFileStatus.ERRORED
                 else:
                     return ScannedFileStatus.UNPROCESSED
         return ScannedFileStatus.NOT_PRESENT
 
-    def note_scanned_file(self, file_path: str, mod_time: t.Optional[datetime.datetime] = None):
+    def note_scanned_file(
+        self, file_path: str, mod_time: datetime.datetime | None = None
+    ):
         file_path = str(file_path).replace("\\", "/")
-        self._scanned_files.append({
-            'file_path': str(file_path),
-            'was_processed': False,
-            'was_errored': False,
-            'modified_date': mod_time
-        })
+        self._scanned_files.append(
+            {
+                "file_path": str(file_path),
+                "was_processed": False,
+                "was_errored": False,
+                "modified_date": mod_time,
+            }
+        )
 
     def load_queue_items(self) -> t.Iterable[tuple[str, str, str]]:
         for item in self.table(NODBQueueItem):
             yield item.queue_name, item.queue_uuid, item.status.value
 
-    def upsert_process_info(self,
-                            server_name: str,
-                            process_id: str,
-                            process_name: str,
-                            process_version: str,
-                            info: dict[str, t.Any]):
+    def upsert_process_info(
+        self,
+        server_name: str,
+        process_id: str,
+        process_name: str,
+        process_version: str,
+        info: dict[str, t.Any],
+    ):
         key = f"{server_name}\x04{process_id}"
         if key in self._process_info:
-            created_date = self._process_info[key]['db_created_date']
+            created_date = self._process_info[key]["db_created_date"]
         else:
             created_date = AwareDateTime.now()
         self._process_info[key] = {
-            'server_name': server_name,
-            'process_id': process_id,
-            'process_name': process_name,
-            'process_version': process_version,
-            'db_created_date': created_date,
-            'db_modified_date': AwareDateTime.now(),
-            'exited': 'N',
-            **info
+            "server_name": server_name,
+            "process_id": process_id,
+            "process_name": process_name,
+            "process_version": process_version,
+            "db_created_date": created_date,
+            "db_modified_date": AwareDateTime.now(),
+            "exited": "N",
+            **info,
         }
 
     def assign_user_role(self, user_id: int, role_name: str):
@@ -132,50 +141,57 @@ class DatabaseMock:
     def clear_process_info_for_server(self, server_name: str):
         for key in self._process_info:
             if key.startswith(f"{server_name}\x04"):
-                self._process_info[key]['exited'] = 'Y'
+                self._process_info[key]["exited"] = "Y"
 
     def clear_process_info(self, server_name: str, process_id: str):
         key = f"{server_name}\x04{process_id}"
         if key in self._process_info:
-            self._process_info[key]['exited'] = 'Y'
+            self._process_info[key]["exited"] = "Y"
 
     def fetch_processes(self) -> t.Iterable[dict[str, t.Any]]:
         yield from self._process_info.values()
 
-    def mark_scanned_item_success(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
+    def mark_scanned_item_success(
+        self, file_path: str, mod_date: datetime.date | None = None
+    ):
         file_path = str(file_path).replace("\\", "/")
         if mod_date is None:
             for x in self._scanned_files:
-                if x['file_path'] == file_path and x['modified_date'] is None:
-                    x['was_processed'] = True
+                if x["file_path"] == file_path and x["modified_date"] is None:
+                    x["was_processed"] = True
         else:
             found_exact = False
             for x in self._scanned_files:
-                if x['file_path'] == file_path:
-                    if x['modified_date'] is None or x['modified_date'] <= mod_date:
-                        x['was_processed'] = True
-                    if x['modified_date'] == mod_date:
+                if x["file_path"] == file_path:
+                    if x["modified_date"] is None or x["modified_date"] <= mod_date:
+                        x["was_processed"] = True
+                    if x["modified_date"] == mod_date:
                         found_exact = True
             if not found_exact:
-                self._scanned_files.append({
-                    'file_path': str(file_path),
-                    'was_processed': True,
-                    'modified_date': mod_date,
-                    'was_errored': False,
-                })
+                self._scanned_files.append(
+                    {
+                        "file_path": str(file_path),
+                        "was_processed": True,
+                        "modified_date": mod_date,
+                        "was_errored": False,
+                    }
+                )
 
     # TODO: update to match test container code
-    def mark_scanned_item_failed(self, file_path: str, mod_date: t.Optional[datetime.date] = None):
+    def mark_scanned_item_failed(
+        self, file_path: str, mod_date: datetime.date | None = None
+    ):
         file_path = str(file_path).replace("\\", "/")
-        remove_indices = set()
         for idx, x in enumerate(self._scanned_files):
-            if x['file_path'] == file_path:
-                if x['was_processed']:
+            if x["file_path"] == file_path:
+                if x["was_processed"]:
                     continue
-                if x['modified_date'] is None and mod_date is None:
-                    self._scanned_files[idx]['was_errored'] = True
-                elif x['modified_date'] is not None and mod_date is not None and x['modified_date'] <= mod_date:
-                    self._scanned_files[idx]['was_errored'] = True
+                if x["modified_date"] is None and mod_date is None or (
+                    x["modified_date"] is not None
+                    and mod_date is not None
+                    and x["modified_date"] <= mod_date
+                ):
+                    self._scanned_files[idx]["was_errored"] = True
 
     def grant_permission(self, role_name, perm_name):
         if role_name not in self._permissions:
@@ -202,27 +218,44 @@ class DatabaseMock:
         self._lookups.clear()
         self._user_roles.clear()
 
-    def prepared_insert(self, object_type: interface.NODBObjectType, name: str, data_map: dict[str, str]):
+    def prepared_insert(
+        self, object_type: interface.NODBObjectType, name: str, data_map: dict[str, str]
+    ):
         return PreparedInsert(self)
 
     def table[T](self, table_name: type[T] | str) -> list[T]:
-        tn = table_name.get_table_name() if not isinstance(table_name, str) else table_name
+        tn = (
+            table_name.get_table_name()
+            if not isinstance(table_name, str)
+            else table_name
+        )
         if tn not in self.tables:
             self.tables[tn] = []
         return self.tables[tn]
 
     def fast_renew_queue_item(self, queue_uuid):
-        renew = datetime.datetime.now(datetime.timezone.utc)
+        renew = datetime.datetime.now(datetime.UTC)
         return renew
 
-    def fast_update_queue_status(self, queue_uuid, new_status, release_at, reduce_priority, escalation_level, is_closed: bool = False, require_locked: bool = True) -> datetime.datetime | None:
+    def fast_update_queue_status(
+        self,
+        queue_uuid,
+        new_status,
+        release_at,
+        reduce_priority,
+        escalation_level,
+        is_closed: bool = False,
+        require_locked: bool = True,
+    ) -> datetime.datetime | None:
         return AwareDateTime.now() if is_closed else None
 
-    def run_maintenance(self,
-                        lock_expiry_seconds: int = interface.LOCK_EXPIRY_TIME,
-                        completed_lifetime_seconds: int = interface.COMPLETED_QUEUE_ITEM_LIFETIME,
-                        error_lifetime_seconds: int = interface.ERRORED_QUEUE_ITEM_LIFETIME,
-                        process_expiry_seconds: int = interface.PROCESS_EXPIRY_TIME):
+    def run_maintenance(
+        self,
+        lock_expiry_seconds: int = interface.LOCK_EXPIRY_TIME,
+        completed_lifetime_seconds: int = interface.COMPLETED_QUEUE_ITEM_LIFETIME,
+        error_lifetime_seconds: int = interface.ERRORED_QUEUE_ITEM_LIFETIME,
+        process_expiry_seconds: int = interface.PROCESS_EXPIRY_TIME,
+    ):
         pass
         # TODO: we could replicate this for testing
 
@@ -234,11 +267,15 @@ class DatabaseMock:
         for idx in self._find_object_indexes(obj_cls.TABLE_NAME, **kwargs):
             yield self.tables[obj_cls.TABLE_NAME][idx].export()
 
-    def count_objects(self, obj_cls, filters: dict | SqlCondition | None = None, **kwargs):
+    def count_objects(
+        self, obj_cls, filters: dict | SqlCondition | None = None, **kwargs
+    ):
         return sum(1 for _ in self._find_object_indexes(obj_cls.TABLE_NAME, filters))
 
     def bulk_update_objects(self, cls, updates, key_field, key_values):
-        for obj in self.stream_objects(cls, filters={key_field: (key_values, 'IN', False)}):
+        for obj in self.stream_objects(
+            cls, filters={key_field: (key_values, "IN", False)}
+        ):
             for name in updates:
                 setattr(obj, name, updates[name])
 
@@ -247,12 +284,12 @@ class DatabaseMock:
 
     def insert_object(self, obj):
         for key in obj.get_primary_keys():
-            if 'uuid' in key and getattr(obj, key) is None:
+            if "uuid" in key and getattr(obj, key) is None:
                 setattr(obj, key, str(uuid.uuid4()))
         _tbl = self.table(obj)
         index = len(_tbl)
         _tbl.append(obj)
-        self._update_indices(obj ,index)
+        self._update_indices(obj, index)
 
     def upsert_object(self, obj):
         if obj.is_new:
@@ -267,17 +304,16 @@ class DatabaseMock:
         return self.tables[cls.TABLE_NAME][obj_idx]
 
     def delete_object(self, obj):
-        filters = {
-            key: obj.get_for_db(key)
-            for key in obj.get_primary_keys()
-        }
+        filters = {key: obj.get_for_db(key) for key in obj.get_primary_keys()}
         tbl_name = obj.get_table_name()
         index = self._find_object_index(tbl_name, filters)
         if index is not None:
             self.tables[tbl_name][index] = None
             self._clean_indices(tbl_name, index)
 
-    def _find_object_index(self, table_name, filters: dict | SqlCondition | None, order_by=None) -> t.Optional[int]:
+    def _find_object_index(
+        self, table_name, filters: dict | SqlCondition | None, order_by=None
+    ) -> int | None:
         for idx in self._find_object_indexes(table_name, filters):
             return idx
         return None
@@ -285,12 +321,15 @@ class DatabaseMock:
     def _clean_filters(self, filters: dict | SqlCondition | None):
         if not isinstance(filters, dict):
             return filters
-        return {
-            k: coerce.as_json_safe(filters[k])
-            for k in filters.keys()
-        }
+        return {k: coerce.as_json_safe(v) for k, v in filters.items()}
 
-    def _find_object_indexes(self, table_name, filters: dict | SqlCondition | None = None, join_str: str = 'AND', **kwargs):
+    def _find_object_indexes(
+        self,
+        table_name,
+        filters: dict | SqlCondition | None = None,
+        join_str: str = "AND",
+        **kwargs,
+    ):
         # TOOD: handle ordering
         if table_name in self.tables:
             filters = self._clean_filters(filters)
@@ -309,14 +348,25 @@ class DatabaseMock:
                     if self._check_filters(obj, filters, join_str):
                         yield idx
 
-    def _check_filters(self, obj: NODBBaseObject, filters: dict | SqlCondition | None, join_str: str = "AND") -> bool:
+    def _check_filters(
+        self,
+        obj: NODBBaseObject,
+        filters: dict | SqlCondition | None,
+        join_str: str = "AND",
+    ) -> bool:
         if filters is None:
             return True
         elif isinstance(filters, dict):
             if join_str == "OR":
-                return any(self._check_filter(obj.get_for_db(key), filters[key]) for key in filters)
+                return any(
+                    self._check_filter(obj.get_for_db(key), filters[key])
+                    for key in filters
+                )
             else:
-                return all(self._check_filter(obj.get_for_db(key), filters[key]) for key in filters)
+                return all(
+                    self._check_filter(obj.get_for_db(key), filters[key])
+                    for key in filters
+                )
         elif isinstance(filters, SqlCondition):
             return self._check_condition(obj, filters)
         else:
@@ -324,27 +374,42 @@ class DatabaseMock:
 
     def _check_condition(self, obj: NODBBaseObject, condition: SqlCondition) -> bool:
         if isinstance(condition, And):
-            return all(self._check_condition(obj, x) for x in condition.all_conditions())
+            return all(
+                self._check_condition(obj, x) for x in condition.all_conditions()
+            )
         elif isinstance(condition, Or):
-            return any(self._check_condition(obj, x) for x in condition.all_conditions())
+            return any(
+                self._check_condition(obj, x) for x in condition.all_conditions()
+            )
         elif isinstance(condition, Equals):
             if condition.case_sensitive:
                 return obj.get_for_db(condition.column_name) == condition.value
             else:
-                return str(obj.get_for_db(condition.column_name)).lower() == str(condition.value).lower()
+                return (
+                    str(obj.get_for_db(condition.column_name)).lower()
+                    == str(condition.value).lower()
+                )
         else:
             raise NotImplementedError(condition)
 
-    def _build_index_set(self, table_name, filters: dict | SqlCondition | None, join_str: str = 'AND') -> list[int] | None:
-        if join_str != 'OR' and isinstance(filters, dict) and not any(isinstance(x, tuple) for x in filters.values()):
-            if table_name in self._lookups:
-                for index_key in self._lookups[table_name]:
-                    keys = index_key.split('__')
-                    if any(k not in filters or isinstance(filters[k], tuple) for k in keys):
-                        continue
-                    lookup_key = '__'.join(str(filters[k]) for k in keys)
-                    if lookup_key in self._lookups[table_name][index_key]:
-                        return  self._lookups[table_name][index_key][lookup_key]
+    def _build_index_set(
+        self, table_name, filters: dict | SqlCondition | None, join_str: str = "AND"
+    ) -> list[int] | None:
+        if (
+            join_str != "OR"
+            and isinstance(filters, dict)
+            and not any(isinstance(x, tuple) for x in filters.values())
+            and table_name in self._lookups
+        ):
+            for index_key in self._lookups[table_name]:
+                keys = index_key.split("__")
+                if any(
+                    k not in filters or isinstance(filters[k], tuple) for k in keys
+                ):
+                    continue
+                lookup_key = "__".join(str(filters[k]) for k in keys)
+                if lookup_key in self._lookups[table_name][index_key]:
+                    return self._lookups[table_name][index_key][lookup_key]
         return None
 
     def _check_filter(self, test_value, filter_info):
@@ -354,26 +419,27 @@ class DatabaseMock:
             if test_value is None:
                 return len(filter_info) > 2 and filter_info[2]
             else:
-                if filter_info[1] == '<=':
+                if filter_info[1] == "<=":
                     return test_value <= filter_info[0]
-                elif filter_info[1] == '>=':
+                elif filter_info[1] == ">=":
                     return test_value >= filter_info[0]
-                elif filter_info[1] == '>':
+                elif filter_info[1] == ">":
                     return test_value > filter_info[0]
-                elif filter_info[1] == '<':
+                elif filter_info[1] == "<":
                     return test_value < filter_info[0]
-                elif filter_info[1] == 'IN':
+                elif filter_info[1] == "IN":
                     return test_value in filter_info[0]
                 else:
-                    raise ValueError(f'op [{filter_info[1]}] not recognized [mock DB]')
+                    raise ValueError(f"op [{filter_info[1]}] not recognized [mock DB]")
         else:
             return test_value == filter_info
 
-    def fetch_queue_summary(self, tag_name: str | None = None) -> dict[str, dict[str, int]]:
+    def fetch_queue_summary(
+        self, tag_name: str | None = None
+    ) -> dict[str, dict[str, int]]:
         report = {}
         if NODBQueueItem.TABLE_NAME in self.tables:
             for item in self.tables[NODBQueueItem.TABLE_NAME]:
-                item: NODBQueueItem = item
                 if tag_name and item.tag != tag_name:
                     continue
                 if item.queue_name not in report:
@@ -384,28 +450,34 @@ class DatabaseMock:
         return report
 
     def create_queue_item(self, **kwargs):
-        kwargs['queue_uuid'] = str(uuid.uuid4())
-        kwargs['created_date'] = datetime.datetime.now()
-        kwargs['modified_date'] = datetime.datetime.now()
-        kwargs['status'] = QueueStatus.UNLOCKED.value
-        kwargs['locked_by'] = None
-        kwargs['locked_since'] = None
-        kwargs['escalation_level'] = 0
-        if 'priority' not in kwargs or not kwargs['priority']:
-            kwargs['priority'] = 0
-        if 'unique_item_name' in kwargs and not kwargs['unique_item_name']:
-            kwargs['unique_item_name'] = None
-        if 'subqueue_name' in kwargs and not kwargs['subqueue_name']:
-            kwargs['subqueue_name'] = None
+        kwargs["queue_uuid"] = str(uuid.uuid4())
+        kwargs["created_date"] = datetime.datetime.now()
+        kwargs["modified_date"] = datetime.datetime.now()
+        kwargs["status"] = QueueStatus.UNLOCKED.value
+        kwargs["locked_by"] = None
+        kwargs["locked_since"] = None
+        kwargs["escalation_level"] = 0
+        if "priority" not in kwargs or not kwargs["priority"]:
+            kwargs["priority"] = 0
+        if "unique_item_name" in kwargs and not kwargs["unique_item_name"]:
+            kwargs["unique_item_name"] = None
+        if "subqueue_name" in kwargs and not kwargs["subqueue_name"]:
+            kwargs["subqueue_name"] = None
         self.table(NODBQueueItem).append(NODBQueueItem(**kwargs, is_new=False))
 
-    def fetch_next_queue_item(self,
-                              queue_name: str,
-                              app_id: str = 'tests',
-                              subqueue_name: t.Optional[str] = None,
-                              retries: int = 0) -> NODBQueueItem | None:
+    def fetch_next_queue_item(
+        self,
+        queue_name: str,
+        app_id: str = "tests",
+        subqueue_name: str | None = None,
+        retries: int = 0,
+    ) -> NODBQueueItem | None:
         for idx, item in enumerate(self.table(NODBQueueItem)):
-            if item.queue_name == queue_name and (subqueue_name is None or item.subqueue_name == subqueue_name) and item.status == QueueStatus.UNLOCKED:
+            if (
+                item.queue_name == queue_name
+                and (subqueue_name is None or item.subqueue_name == subqueue_name)
+                and item.status == QueueStatus.UNLOCKED
+            ):
                 with item.readonly_access():
                     item.status = QueueStatus.LOCKED
                     item.locked_by = app_id
@@ -426,7 +498,6 @@ class DatabaseMock:
 
 
 class DummyNODB:
-
     def __init__(self, db: DatabaseMock):
         self._db = db
 

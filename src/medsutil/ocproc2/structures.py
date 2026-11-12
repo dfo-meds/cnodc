@@ -1,34 +1,55 @@
 """Structural elements of OCPROC2."""
+
+import datetime
 import hashlib
 import typing as t
-import datetime
 from _hashlib import HASH
 
+from medsutil import awaretime
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2.elements import ElementMap, AbstractElement, SingleElement, AnyElementExport, MetadataDict, \
-    QCInfoMap, ExportQCInfo, QCInfo
-from medsutil.ocproc2.history import HistoryEntry, QCTestRunInfo, QCResult, QCMessage, MessageType, ActionType, \
-    Organization
 from medsutil.lazy_load import LazyLoadList
-import medsutil.awaretime as awaretime
-
-
+from medsutil.ocproc2.elements import (
+    AbstractElement,
+    AnyElementExport,
+    ElementMap,
+    ExportQCInfo,
+    MetadataDict,
+    QCInfoMap,
+    SingleElement,
+)
+from medsutil.ocproc2.history import (
+    ActionType,
+    HistoryEntry,
+    MessageType,
+    Organization,
+    QCMessage,
+    QCResult,
+    QCTestRunInfo,
+)
 
 if t.TYPE_CHECKING:
-    from medsutil.ocproc2.elements import DefaultValueDict, SupportedValueOrElement
     import medsutil.types as ct
-    type FindType = BaseRecord | RecordSet | AbstractElement | ElementMap | RecordMap | dict[int, RecordSet] | None
+    from medsutil.ocproc2.elements import DefaultValueDict, SupportedValueOrElement
+
+    type FindType = (
+        BaseRecord
+        | RecordSet
+        | AbstractElement
+        | ElementMap
+        | RecordMap
+        | dict[int, RecordSet]
+        | None
+    )
 
 
 class BaseRecord:
-
-    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords')
+    __slots__ = ("_coordinates", "_metadata", "_parameters", "_subrecords")
 
     def __init__(self):
-        self._metadata: t.Optional[ElementMap] = None
-        self._parameters: t.Optional[ElementMap] = None
-        self._coordinates: t.Optional[ElementMap] = None
-        self._subrecords: t.Optional[RecordMap] = None
+        self._metadata: ElementMap | None = None
+        self._parameters: ElementMap | None = None
+        self._coordinates: ElementMap | None = None
+        self._subrecords: RecordMap | None = None
 
     @property
     def metadata(self) -> ElementMap:
@@ -54,17 +75,38 @@ class BaseRecord:
             self._subrecords = RecordMap()
         return t.cast(RecordMap, self._subrecords)
 
-    def set(self, element_full_name: str, value: SupportedValueOrElement, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+    def set(
+        self,
+        element_full_name: str,
+        value: SupportedValueOrElement,
+        metadata: DefaultValueDict | None = None,
+        **kwargs,
+    ):
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.set(element_name, value, metadata, **kwargs)
 
-    def append_to(self, element_full_name: str, value: SupportedValueOrElement, metadata: t.Optional[DefaultValueDict] = None, **kwargs):
+    def append_to(
+        self,
+        element_full_name: str,
+        value: SupportedValueOrElement,
+        metadata: DefaultValueDict | None = None,
+        **kwargs,
+    ):
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.append_to(element_name, value, metadata, **kwargs)
 
-    def set_many(self, element_full_name: str, values: t.Sequence[SupportedValueOrElement], common_metadata: t.Optional[DefaultValueDict] = None, specific_metadata: t.Sequence[t.Optional[DefaultValueDict]] = None, **kwargs):
+    def set_many(
+        self,
+        element_full_name: str,
+        values: t.Sequence[SupportedValueOrElement],
+        common_metadata: DefaultValueDict | None = None,
+        specific_metadata: t.Sequence[DefaultValueDict | None] = None,
+        **kwargs,
+    ):
         child_parent, element_name = self._find_element_map(element_full_name)
-        child_parent.set_many(element_name, values, common_metadata, specific_metadata, **kwargs)
+        child_parent.set_many(
+            element_name, values, common_metadata, specific_metadata, **kwargs
+        )
 
     def set_element(self, element_full_name: str, value: AbstractElement):
         child_parent, element_name = self._find_element_map(element_full_name)
@@ -74,31 +116,42 @@ class BaseRecord:
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.append_element_to(element_name, value)
 
-    def set_many_elements(self, element_full_name: str, values: t.Iterable[SingleElement], metadata: t.Optional[DefaultValueDict] = None):
+    def set_many_elements(
+        self,
+        element_full_name: str,
+        values: t.Iterable[SingleElement],
+        metadata: DefaultValueDict | None = None,
+    ):
         child_parent, element_name = self._find_element_map(element_full_name)
         child_parent.set_many_elements(element_name, values, metadata)
 
     def _find_element_map(self, element_full_name: str) -> tuple[ElementMap, str]:
-        pieces = element_full_name.split('/')
+        pieces = element_full_name.split("/")
         element_name = pieces.pop(-1)
         child_parent = self.find_child(pieces)
         if child_parent is not None and isinstance(child_parent, ElementMap):
             return child_parent, element_name
         else:
-            raise ValueError(f'invalid element path: [{element_full_name}]: [{child_parent}]')
+            raise ValueError(
+                f"invalid element path: [{element_full_name}]: [{child_parent}]"
+            )
 
-    def find_child(self, object_path: t.Union[str, list[str]]) -> FindType:
-        opath = [x for x in object_path.split('/') if x != ''] if isinstance(object_path, str) else object_path
+    def find_child(self, object_path: str | list[str]) -> FindType:
+        opath = (
+            [x for x in object_path.split("/") if x != ""]
+            if isinstance(object_path, str)
+            else object_path
+        )
         if not opath:
             return self
         first_element = opath.pop(0)
-        if first_element == 'metadata':
+        if first_element == "metadata":
             return self.metadata.find_child(opath)
-        elif first_element == 'parameters':
+        elif first_element == "parameters":
             return self.parameters.find_child(opath)
-        elif first_element == 'coordinates':
+        elif first_element == "coordinates":
             return self.coordinates.find_child(opath)
-        elif first_element == 'subrecords':
+        elif first_element == "subrecords":
             return self.subrecords.find_child(opath)
         else:
             return None
@@ -107,39 +160,43 @@ class BaseRecord:
         map_: BaseExport = {}
         md = self._metadata.to_mapping() if self._metadata is not None else None
         if self._metadata is not None:
-            map_['_metadata'] = md
+            map_["_metadata"] = md
         pm = self._parameters.to_mapping() if self._parameters is not None else None
         if pm:
-            map_['_parameters'] = pm
+            map_["_parameters"] = pm
         cm = self._coordinates.to_mapping() if self._coordinates is not None else None
         if cm:
-            map_['_coordinates'] = cm
+            map_["_coordinates"] = cm
         sm = self._subrecords.to_mapping() if self._subrecords is not None else None
         if sm:
-            map_['_subrecords'] = sm
+            map_["_subrecords"] = sm
         return map_
 
     def from_mapping(self, map_: BaseExport):
         try:
-            md = map_['_metadata']
+            md = map_["_metadata"]
             if md:
                 self.metadata.from_mapping(md)
-        except KeyError: ...
+        except KeyError:
+            ...
         try:
-            pm = map_['_parameters']
+            pm = map_["_parameters"]
             if pm:
                 self.parameters.from_mapping(pm)
-        except KeyError: ...
+        except KeyError:
+            ...
         try:
-            cd = map_['_coordinates']
+            cd = map_["_coordinates"]
             if cd:
                 self.coordinates.from_mapping(cd)
-        except KeyError: ...
+        except KeyError:
+            ...
         try:
-            sr = map_['_subrecords']
+            sr = map_["_subrecords"]
             if sr:
                 self.subrecords.from_mapping(sr)
-        except KeyError: ...
+        except KeyError:
+            ...
 
     def iter_subrecords(self, subrecord_type: str = None) -> t.Iterable[BaseRecord]:
         if self._subrecords is not None:
@@ -167,7 +224,6 @@ class ChildRecord(BaseRecord):
 
 
 class HistoryList(LazyLoadList[dict[str, ct.SupportsExtendedJson], HistoryEntry]):
-
     def _load_item(self, item: dict) -> HistoryEntry:
         return HistoryEntry.from_mapping(item)
 
@@ -176,7 +232,6 @@ class HistoryList(LazyLoadList[dict[str, ct.SupportsExtendedJson], HistoryEntry]
 
 
 class QCTestInfoList(LazyLoadList[dict[str, ct.SupportsExtendedJson], QCTestRunInfo]):
-
     def _load_item(self, item: dict) -> QCTestRunInfo:
         return QCTestRunInfo.from_mapping(item)
 
@@ -185,14 +240,20 @@ class QCTestInfoList(LazyLoadList[dict[str, ct.SupportsExtendedJson], QCTestRunI
 
 
 class ParentRecord(BaseRecord):
-
-    __slots__ = ('_metadata', '_parameters', '_coordinates', '_subrecords', 'history', 'qc_tests', '_qc_info')
+    __slots__ = (
+        "_coordinates",
+        "_metadata",
+        "_parameters",
+        "_qc_info",
+        "_subrecords",
+        "history",
+        "qc_tests",
+    )
 
     def __init__(self):
         super().__init__()
         self.history: HistoryList = HistoryList()
         self.qc_tests: QCTestInfoList = QCTestInfoList()
-
 
     def deepcopy(self) -> ParentRecord:
         return ParentRecord.build_from_mapping(self.to_mapping())
@@ -201,25 +262,37 @@ class ParentRecord(BaseRecord):
         map_: ParentExport = {}
         map_.update(super().to_mapping())
         if self.history is not None and self.history:
-            map_['_history'] = self.history.to_mapping()
+            map_["_history"] = self.history.to_mapping()
         if self.qc_tests is not None and self.qc_tests:
-            map_['_qc_tests'] = self.qc_tests.to_mapping()
+            map_["_qc_tests"] = self.qc_tests.to_mapping()
         return map_
 
     def from_mapping(self, map_: ParentExport):
         super().from_mapping(map_)
-        if '_history' in map_:
-            self.history.from_mapping(map_['_history'])
-        if '_qc_tests' in map_:
-            self.qc_tests.from_mapping(map_['_qc_tests'])
+        if "_history" in map_:
+            self.history.from_mapping(map_["_history"])
+        if "_qc_tests" in map_:
+            self.qc_tests.from_mapping(map_["_qc_tests"])
 
-    def test_already_run(self, test_protocol: str, test_name: str, include_stale: bool = False) -> bool:
+    def test_already_run(
+        self, test_protocol: str, test_name: str, include_stale: bool = False
+    ) -> bool:
         if include_stale:
-            return any(x.test_protocol == test_protocol and x.test_name == test_name for x in self.qc_tests)
+            return any(
+                x.test_protocol == test_protocol and x.test_name == test_name
+                for x in self.qc_tests
+            )
         else:
-            return any(x.test_protocol == test_protocol and x.test_name == test_name and not x.is_stale for x in self.qc_tests)
+            return any(
+                x.test_protocol == test_protocol
+                and x.test_name == test_name
+                and not x.is_stale
+                for x in self.qc_tests
+            )
 
-    def latest_test_result(self, test_protocol: str, test_name: str, include_stale: bool = False) -> t.Optional[QCTestRunInfo]:
+    def latest_test_result(
+        self, test_protocol: str, test_name: str, include_stale: bool = False
+    ) -> QCTestRunInfo | None:
         best = None
         for qcr in self.qc_tests:
             if qcr.test_name != test_name or qcr.test_protocol != test_protocol:
@@ -242,118 +315,133 @@ class ParentRecord(BaseRecord):
         for q in self.qc_tests:
             q.update_hash(h)
 
-    def record_qc_test_result(self,
-                              test_protocol: str,
-                              test_name: str,
-                              test_version: str,
-                              outcome: QCResult,
-                              messages: list[QCMessage],
-                              notes: str = None,
-                              test_tags: t.Optional[list[str]] = None,
-                              test_time: t.Optional[datetime.datetime] = None):
+    def record_qc_test_result(
+        self,
+        test_protocol: str,
+        test_name: str,
+        test_version: str,
+        outcome: QCResult,
+        messages: list[QCMessage],
+        notes: str = None,
+        test_tags: list[str] | None = None,
+        test_time: datetime.datetime | None = None,
+    ):
         self.mark_test_results_stale(test_protocol, test_name)
-        self.qc_tests.append(QCTestRunInfo(
-            test_protocol,
-            test_name,
-            test_version,
-            test_time or awaretime.AwareDateTime.utcnow(),
-            outcome,
-            messages,
-            notes,
-            test_tags=test_tags,
-        ))
+        self.qc_tests.append(
+            QCTestRunInfo(
+                test_protocol,
+                test_name,
+                test_version,
+                test_time or awaretime.AwareDateTime.utcnow(),
+                outcome,
+                messages,
+                notes,
+                test_tags=test_tags,
+            )
+        )
 
     def mark_test_results_stale(self, test_protocol: str, test_name: str):
         for qct in self.qc_tests:
             if qct.test_name == test_name and qct.test_protocol == test_protocol:
                 qct.is_stale = True
 
-    def add_processed_by(self,
-                         source_name: str,
-                         source_version: str,
-                         source_instance: str,
-                         organization: Organization = Organization.CNODC,
-                         change_time: t.Optional[AwareDateTime] = None):
-        self.history.append(HistoryEntry(
-            "Processing log",
-            change_time or AwareDateTime.utcnow(),
-            source_name,
-            source_version,
-            source_instance,
-            MessageType.ACTION,
-            ActionType.PROCESS,
-            organization=organization
-        ))
+    def add_processed_by(
+        self,
+        source_name: str,
+        source_version: str,
+        source_instance: str,
+        organization: Organization = Organization.CNODC,
+        change_time: AwareDateTime | None = None,
+    ):
+        self.history.append(
+            HistoryEntry(
+                "Processing log",
+                change_time or AwareDateTime.utcnow(),
+                source_name,
+                source_version,
+                source_instance,
+                MessageType.ACTION,
+                ActionType.PROCESS,
+                organization=organization,
+            )
+        )
 
-    def add_history_action(self,
-                           message: str,
-                           source_name: str,
-                           source_version: str,
-                           source_instance: str,
-                           action_type: ActionType,
-                           affected_path: str | None = None,
-                           organization: Organization = Organization.CNODC,
-                           change_time: t.Optional[AwareDateTime] = None):
-        self.history.append(HistoryEntry(
-            message,
-            change_time or AwareDateTime.utcnow(),
-            source_name,
-            source_version,
-            source_instance,
-            MessageType.ACTION,
-            action_type,
-            affected_path=affected_path,
-            organization=organization,
-        ))
+    def add_history_action(
+        self,
+        message: str,
+        source_name: str,
+        source_version: str,
+        source_instance: str,
+        action_type: ActionType,
+        affected_path: str | None = None,
+        organization: Organization = Organization.CNODC,
+        change_time: AwareDateTime | None = None,
+    ):
+        self.history.append(
+            HistoryEntry(
+                message,
+                change_time or AwareDateTime.utcnow(),
+                source_name,
+                source_version,
+                source_instance,
+                MessageType.ACTION,
+                action_type,
+                affected_path=affected_path,
+                organization=organization,
+            )
+        )
 
-    def add_history_entry(self,
-                          message: str,
-                          source_name: str,
-                          source_version: str,
-                          source_instance: str,
-                          message_type: MessageType = MessageType.NOTE,
-                          change_time: t.Optional[AwareDateTime] = None):
-        self.history.append(HistoryEntry(
-            message,
-            change_time or awaretime.AwareDateTime.utcnow(),
-            source_name,
-            source_version,
-            source_instance,
-            message_type
-        ))
+    def add_history_entry(
+        self,
+        message: str,
+        source_name: str,
+        source_version: str,
+        source_instance: str,
+        message_type: MessageType = MessageType.NOTE,
+        change_time: AwareDateTime | None = None,
+    ):
+        self.history.append(
+            HistoryEntry(
+                message,
+                change_time or awaretime.AwareDateTime.utcnow(),
+                source_name,
+                source_version,
+                source_instance,
+                message_type,
+            )
+        )
 
-    def record_note(self,
-                    message: str,
-                    source_name: str,
-                    source_version: str,
-                    source_instance: str):
-        self.add_history_entry(message, source_name, source_version, source_instance, MessageType.NOTE)
+    def record_note(
+        self, message: str, source_name: str, source_version: str, source_instance: str
+    ):
+        self.add_history_entry(
+            message, source_name, source_version, source_instance, MessageType.NOTE
+        )
 
-    def report_error(self,
-                     message: str,
-                     source_name: str,
-                     source_version: str,
-                     source_instance: str):
-        self.add_history_entry(message, source_name, source_version, source_instance, MessageType.ERROR)
+    def report_error(
+        self, message: str, source_name: str, source_version: str, source_instance: str
+    ):
+        self.add_history_entry(
+            message, source_name, source_version, source_instance, MessageType.ERROR
+        )
 
-    def report_warning(self,
-                       message: str,
-                       source_name: str,
-                       source_version: str,
-                       source_instance: str):
-        self.add_history_entry(message, source_name, source_version, source_instance, MessageType.WARNING)
+    def report_warning(
+        self, message: str, source_name: str, source_version: str, source_instance: str
+    ):
+        self.add_history_entry(
+            message, source_name, source_version, source_instance, MessageType.WARNING
+        )
 
-    def internal_note(self,
-                      message: str,
-                      source_name: str,
-                      source_version: str,
-                      source_instance: str):
-        self.add_history_entry(message, source_name, source_version, source_instance, MessageType.INFO)
+    def internal_note(
+        self, message: str, source_name: str, source_version: str, source_instance: str
+    ):
+        self.add_history_entry(
+            message, source_name, source_version, source_instance, MessageType.INFO
+        )
 
 
 class RecordSet:
-
-    __slots__ = ('_metadata', '_records', '_qc_info')
+    __slots__ = ("_metadata", "_qc_info", "_records")
 
     def __init__(self):
         self._metadata: ElementMap | None = None
@@ -386,27 +474,29 @@ class RecordSet:
 
     def to_mapping(self) -> RecordSetExport:
         base: RecordSetExport = {
-            '_records': self.records.to_mapping(),
+            "_records": self.records.to_mapping(),
         }
         if self._metadata is not None:
-            base['_metadata'] = self._metadata.to_mapping()
+            base["_metadata"] = self._metadata.to_mapping()
         if self._qc_info is not None:
-            base['_qc_info'] = self._qc_info.to_mapping()
+            base["_qc_info"] = self._qc_info.to_mapping()
         return base
 
     def from_mapping(self, map_: RecordSetExport):
         try:
-            self.records.from_mapping(map_['_records'])
+            self.records.from_mapping(map_["_records"])
             try:
-                md = map_['_metadata']
+                md = map_["_metadata"]
                 if md:
                     self.metadata.from_mapping(md)
-            except KeyError as ex: ...
+            except KeyError:
+                ...
             try:
-                qc = map_['_qc_info']
+                qc = map_["_qc_info"]
                 if qc:
                     self.qc_info.from_mapping(qc)
-            except KeyError as ex: ...
+            except KeyError:
+                ...
         except TypeError:
             # probably a list from the older OCPROC2 spec
             self.records.from_mapping(map_)
@@ -415,20 +505,19 @@ class RecordSet:
         if not path:
             return self
         first_element = path.pop(0)
-        if first_element == 'metadata':
+        if first_element == "metadata":
             return self.metadata.find_child(path)
         try:
             idx = int(first_element)
             if idx < 0 or idx >= len(self.records):
                 return None
             return self.records[idx].find_child(path)
-        except (ValueError, TypeError) as ex:
+        except (ValueError, TypeError):
             return None
 
 
 class RecordMap:
-
-    __slots__ = ('record_sets', )
+    __slots__ = ("record_sets",)
 
     def __init__(self):
         self.record_sets: dict[str, dict[int, RecordSet]] = {}
@@ -442,7 +531,7 @@ class RecordMap:
     def __contains__(self, key: str):
         return key in self.record_sets
 
-    def iter_subrecords(self, srt: t.Optional[str] = None) -> t.Iterable[BaseRecord]:
+    def iter_subrecords(self, srt: str | None = None) -> t.Iterable[BaseRecord]:
         if srt is not None:
             try:
                 for rs_idx in self.record_sets[srt]:
@@ -467,15 +556,15 @@ class RecordMap:
                 if idx not in ret:
                     return None
                 return ret[idx].find_child(path)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return None
         return ret
 
     def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         for srt in self.record_sets:
-            h.update(srt.encode('utf-8', 'replace'))
+            h.update(srt.encode("utf-8", "replace"))
             for idx in self.record_sets[srt]:
-                h.update(str(idx).encode('utf-8', 'replace'))
+                h.update(str(idx).encode("utf-8", "replace"))
                 self.record_sets[srt][idx].update_hash(h)
 
     def new_recordset(self, record_type: str) -> RecordSet:
@@ -490,8 +579,7 @@ class RecordMap:
     def to_mapping(self) -> dict[str, dict[str, RecordSetExport]]:
         mapping: dict[str, dict[str, RecordSetExport]] = {
             x: {
-                str(y): self.record_sets[x][y].to_mapping()
-                for y in self.record_sets[x]
+                str(y): self.record_sets[x][y].to_mapping() for y in self.record_sets[x]
             }
             for x in self.record_sets
         }
@@ -505,7 +593,10 @@ class RecordMap:
                 self.record_sets[x][int(y)].from_mapping(map_[x][y])
 
     def get(self, record_set_type: str, record_set_index: int) -> RecordSet | None:
-        if record_set_type in self.record_sets and record_set_index in self.record_sets[record_set_type]:
+        if (
+            record_set_type in self.record_sets
+            and record_set_index in self.record_sets[record_set_type]
+        ):
             return self.record_sets[record_set_type][record_set_index]
         return None
 
@@ -514,7 +605,9 @@ class RecordMap:
             self.record_sets[record_set_type] = {}
         self.record_sets[record_set_type][record_set_index] = record_set
 
-    def append_to_record_set(self, record_set_type: str, record_set_index: int, record: ChildRecord):
+    def append_to_record_set(
+        self, record_set_type: str, record_set_index: int, record: ChildRecord
+    ):
         if record_set_type not in self.record_sets:
             self.record_sets[record_set_type] = {}
         if record_set_index not in self.record_sets[record_set_type]:

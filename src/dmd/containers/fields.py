@@ -1,16 +1,16 @@
+import datetime
 import decimal
 import typing as t
-import datetime
 
 import markupsafe
 import wtforms
 from markupsafe import Markup, escape
 
 import gcflask.forms
+from dmd.containers.base import Container, Field, NumberMixin, StringMixin
 from gcapp import i18n
-from gcapp.i18n.base import TString, MLString, tr, format_date
+from gcapp.i18n.base import MLString, TString, format_date, tr
 from gcflask.widgets import FlatPickrWidget, Select2Widget
-from dmd.containers.base import Field, NumberMixin, StringMixin, Container
 
 
 @Container.register_type
@@ -29,7 +29,7 @@ class BooleanField(Field):
     def _sanitize_value(self, value: str | bool | int | None) -> bool | None:
         if value is None:
             return None
-        return not not value
+        return bool(value)
 
 
 @Container.register_type
@@ -37,7 +37,9 @@ class DateField(Field):
     DATA_TYPE = "date"
     CONTROL_CLASS = wtforms.DateField
 
-    def __init__(self, *args, with_time: bool = False, with_calendar: bool = True, **kwargs):
+    def __init__(
+        self, *args, with_time: bool = False, with_calendar: bool = True, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self._with_time = with_time
         self._with_calendar = with_calendar
@@ -53,7 +55,9 @@ class DateField(Field):
     def _display(self, v: datetime.date | None) -> Markup:
         return escape(format_date(v) if v is not None else tr("gcflask.common.na"))
 
-    def _sanitize_value(self, value: str | datetime.date | None) -> datetime.date | None:
+    def _sanitize_value(
+        self, value: str | datetime.date | None
+    ) -> datetime.date | None:
         if isinstance(value, str):
             if self._with_time:
                 return datetime.datetime.strptime(value, self._storage_format)
@@ -68,7 +72,7 @@ class DateField(Field):
                 with_time=self._with_time,
                 with_calendar=True,
                 placeholder=TString("gcflask.common.placeholder"),
-            )
+            ),
         }
 
     def _serialize(self, value: datetime.date | None) -> t.Any:
@@ -99,22 +103,22 @@ class DecimalField(NumberMixin, Field):
     CONTROL_CLASS = wtforms.DecimalField
 
     def _field_level_control_kwargs(self) -> dict[str, t.Any]:
-        kwargs = {
-            'places': self._config.get("places", 10)
-        }
+        kwargs = {"places": self._config.get("places", 10)}
         rounding: str | None = self._config.get("rounding", None)
         if rounding and hasattr(decimal, rounding):
             kwargs["rounding"] = getattr(decimal, rounding)
         return kwargs
 
-    def _sanitize_value(self, value: decimal.Decimal | str | None | int | float) -> decimal.Decimal | None:
+    def _sanitize_value(
+        self, value: decimal.Decimal | str | None | float
+    ) -> decimal.Decimal | None:
         if value is None or value == "":
             return None
         v = decimal.Decimal(value) if isinstance(value, (str, int, float)) else value
         return t.cast(decimal.Decimal, round(v, self._config.get("places", 10)))
 
     def _display(self, v: decimal.Decimal | None) -> Markup:
-        str_v = str(v) if v is not None else ''
+        str_v = str(v) if v is not None else ""
         if "." in str_v:
             str_v = str_v.rstrip("0")
         elif str_v.startswith("0E"):
@@ -183,15 +187,19 @@ class ChoiceField[X](Field):
 
     def _field_level_control_kwargs(self) -> dict[str, t.Any]:
         return {
-            'choices': self.choices,
-            'coerce': self._coerce_form,
-            'widget': Select2Widget(
+            "choices": self.choices,
+            "coerce": self._coerce_form,
+            "widget": Select2Widget(
                 allow_multiple=self.is_repeatable,
-                placeholder=TString("gcflask.common.placeholder")
-            ) if self._allow_javascript_controls() else None
+                placeholder=TString("gcflask.common.placeholder"),
+            )
+            if self._allow_javascript_controls()
+            else None,
         }
 
-    def _find_choice(self, value: X | None) -> tuple[X | None, str | MLString | TString | None]:
+    def _find_choice(
+        self, value: X | None
+    ) -> tuple[X | None, str | MLString | TString | None]:
         if value is None or value == "":
             return None, None
         for short, long in self.choices():
@@ -205,7 +213,9 @@ class ChoiceField[X](Field):
         return self._values
 
     def _build_choices(self) -> list[tuple[X, str | TString | MLString]]:
-        v: list[tuple[str, str | TString | MLString]] = [("", TString("gcflask.common.placeholder"))]
+        v: list[tuple[str, str | TString | MLString]] = [
+            ("", TString("gcflask.common.placeholder"))
+        ]
         for x in self._config["values"]:
             disp = self._config["values"][x]
             if isinstance(disp, dict):
@@ -225,7 +235,6 @@ class ChoiceField[X](Field):
 
 
 class HtmlDisplayBaseField(Field):
-
     CONTROL_CLASS = gcflask.forms.HtmlField
 
     def _field_level_control_kwargs(self) -> dict[str, t.Any]:
@@ -239,7 +248,6 @@ class HtmlDisplayBaseField(Field):
 
 @Container.register_type
 class KeyValueField(Field):
-
     DATA_TYPE = "key_value"
     CONTROL_CLASS = wtforms.FormField
 
@@ -248,7 +256,9 @@ class KeyValueField(Field):
         kwargs["form_class"] = _KeyValueForm
         return kwargs
 
-    def _sanitize_value(self, value: dict | None) -> dict[str, str | float | int] | None:
+    def _sanitize_value(
+        self, value: dict | None
+    ) -> dict[str, str | float | int] | None:
         if not value:
             return None
         if not value.get("key", None):
@@ -272,7 +282,9 @@ class KeyValueField(Field):
                 value["data_type"] = f"text{suffix}"
         return value
 
-    def _data_value(self, value: dict[str, str | float | int], **kwargs) -> tuple[str, float | int | str | list[str] | list[float | int]] | None:
+    def _data_value(
+        self, value: dict[str, str | float | int], **kwargs
+    ) -> tuple[str, float | int | str | list[str] | list[float | int]] | None:
         if not value:
             return None
         dtype = value.get("data_type", "text")
@@ -290,13 +302,12 @@ class KeyValueField(Field):
     def _display(self, v: t.Any) -> Markup:
         kv = self._data_value(v)
         if kv is None:
-            return markupsafe.escape('')
+            return markupsafe.escape("")
         else:
             return markupsafe.escape(f"{kv[0]} = {kv[1]}")
 
 
 class _KeyValueForm(wtforms.Form):
-
     key = gcflask.forms.StringField(
         label="entityfields.key_value.key",
     )
@@ -313,10 +324,11 @@ class _KeyValueForm(wtforms.Form):
             ("number", i18n.tr("entityfields.key_value.number_type")),
             ("number_list", i18n.tr("entityfields.key_value.number_list_type")),
         ],
-        default="str"
+        default="str",
     )
 
     # TODO: validation based on data_type for value?
+
 
 # these are plugins for this module
 # DatasetReference

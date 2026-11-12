@@ -7,22 +7,18 @@ from medsutil.math import ScienceNumber
 
 
 class GEBCOBathymetry(FastGeoGrid):
-
     def __init__(self, file: pathlib.Path):
         super().__init__(
             file=file,
             z_values=[0],
             end_z=9999,
-
             start_x=-180,
             end_x=180,
             x_increment=(15, 3600),
-
             start_y=-90,
             end_y=90,
             y_increment=(15, 3600),
-
-            data_size_bytes=4
+            data_size_bytes=4,
         )
         # see https://www.researchgate.net/publication/373727147_Comparison_of_Publicly_Available_Bathymetric_Data_with_Real_Measurements_in_the_Southeastern_Black_Sea
         # mean absolute error of 400
@@ -42,20 +38,26 @@ class GEBCOBathymetry(FastGeoGrid):
         return ScienceNumber.from_float32(depth * -1, self._gebco_std_dev)
 
     @staticmethod
-    def build_from_gebco(output_file: pathlib.Path,
-                         gebco_tiffs: list[pathlib.Path],
-                         output: bool = False):
+    def build_from_gebco(
+        output_file: pathlib.Path, gebco_tiffs: list[pathlib.Path], output: bool = False
+    ):
+        import numpy as np
         import rasterio
         from rasterio.transform import AffineTransformer
-        import numpy as np
-        open_tiffs: list[tuple[rasterio.DatasetReader, np.ndarray, AffineTransformer]] = []
+
+        open_tiffs: list[
+            tuple[rasterio.DatasetReader, np.ndarray, AffineTransformer]
+        ] = []
         try:
             for gebco_tiff in gebco_tiffs:
                 print(f"source file: {gebco_tiff}")
                 raster = rasterio.open(gebco_tiff)
-                open_tiffs.append((raster, raster.read(1), AffineTransformer(raster.transform)))
+                open_tiffs.append(
+                    (raster, raster.read(1), AffineTransformer(raster.transform))
+                )
 
             bathymetry = GEBCOBathymetry(output_file)
+
             def _get_value(coords: tuple[int, int, int]) -> bytes:
                 longitude = bathymetry.get_longitude(coords[0])
                 if longitude is not None:
@@ -63,16 +65,22 @@ class GEBCOBathymetry(FastGeoGrid):
                     if latitude is not None:
                         for _, raster_array, transformer in open_tiffs:
                             offset_y, offset_x = transformer.rowcol(longitude, latitude)
-                            if offset_y < 0 or offset_x < 0 or offset_x >= 21600 or offset_y >= 21600:
+                            if (
+                                offset_y < 0
+                                or offset_x < 0
+                                or offset_x >= 21600
+                                or offset_y >= 21600
+                            ):
                                 continue
                             depth_check = raster_array[offset_y, offset_x]
                             if depth_check < 0:
                                 return struct.pack("<f", depth_check * -1)
                 return struct.pack("<f", math.nan)
+
             bathymetry.build_file(_get_value, output=output)
             with open(output_file.parent / (output_file.name + ".finished"), "w") as h:
                 h.write("done")
-        except (KeyboardInterrupt, Exception) as e:
+        except (KeyboardInterrupt, Exception):
             output_file.unlink(True)
             raise
         finally:

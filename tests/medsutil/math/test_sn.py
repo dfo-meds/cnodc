@@ -3,7 +3,6 @@ from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestScienceNumber(BaseTestCase):
-
     def test_override_stdev(self):
         a = ScienceNumber(100, 0.5, min_std_dev=2.0)
         self.assertAlmostEqual(a.std_dev, 2.0)
@@ -23,7 +22,7 @@ class TestScienceNumber(BaseTestCase):
     def test_sub_float_with_error(self):
         a = ScienceNumber(5.1, 0.1)
         b = ScienceNumber(11.52, 0.01)
-        c = b-a
+        c = b - a
         self.assertAlmostEqual(c.nominal_value, 11.52 - 5.1)
         self.assertAlmostEqual(c.std_dev, 0.100498756)
 

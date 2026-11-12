@@ -1,11 +1,12 @@
-""" Provides a sentinel value that indicates a new object should be built. """
+"""Provides a sentinel value that indicates a new object should be built."""
+
 import typing as t
 import uuid
 
 
 class _DelayedDefaultValue[T]:
-    """ Represents a default value that needs to be built to avoid pass-by-reference errors when a new object is built
-        (like a dictionary).
+    """Represents a default value that needs to be built to avoid pass-by-reference errors when a new object is built
+    (like a dictionary).
     """
 
     def __init__(self, cb: t.Callable[[], T]):

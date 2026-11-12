@@ -1,23 +1,23 @@
 """
-    Support for variable-length quantity (VLQ) binary encoding of integers.
+Support for variable-length quantity (VLQ) binary encoding of integers.
 
-    VLQ integers are composed of bytes. In each, the most-significant bit
-    is treated as a flag to indicate if the next byte is part of the same
-    number. The other seven bits are a binary encoding of the number.
+VLQ integers are composed of bytes. In each, the most-significant bit
+is treated as a flag to indicate if the next byte is part of the same
+number. The other seven bits are a binary encoding of the number.
 
-    So, for example, a VLQ integer might be:
+So, for example, a VLQ integer might be:
 
-    1 0110011   1 1001101   0 1010010
+1 0110011   1 1001101   0 1010010
 
-    The leading 1s indicate the next byte is included, the last one has a leading 0.
+The leading 1s indicate the next byte is included, the last one has a leading 0.
 
-    The actual number is b011001110011011010010 (the concatenation of the other seven bits
+The actual number is b011001110011011010010 (the concatenation of the other seven bits
 
 """
 
 
 def vlq_encode(number: int) -> bytearray:
-    """ Encodes an integer as a byte array. """
+    """Encodes an integer as a byte array."""
     result = bytearray()
     while number >= 0b10000000:
         bits = number & 0b01111111
@@ -28,7 +28,7 @@ def vlq_encode(number: int) -> bytearray:
 
 
 def vlq_decode(bytes_: bytes) -> tuple[int, int]:
-    """ Given a stream of bytes where the first byte is a VLQ integer, decodes the integer and returns it and the offset. """
+    """Given a stream of bytes where the first byte is a VLQ integer, decodes the integer and returns it and the offset."""
     total = 0
     shift = 0
     pos = 0

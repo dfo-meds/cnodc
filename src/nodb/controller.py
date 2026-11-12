@@ -1,42 +1,70 @@
 """Wrapper around psycopg2 that provides additional functionality
-    to support the NODB."""
+to support the NODB."""
+
 import contextlib
 import datetime
-import uuid
 import typing as t
+import uuid
 
 import psycopg2 as pg
-import psycopg2.extras as pge
 import psycopg2.extensions as pgext
+import psycopg2.extras as pge
 import psycopg2.sql as pgs
 import zirconium as zr
 import zrlog
 from autoinject import injector
 
+import medsutil.types as ct
+from gcapp.queries import (
+    And,
+    Between,
+    Equals,
+    In,
+    InEnvelope,
+    IsNotNull,
+    IsNull,
+    Like,
+    Or,
+    SqlCondition,
+)
+from medsutil import json
+from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 from nodb.interface import (
-    wrap_nodb_exceptions, NODBObjectType, NODBObject, POSTGRES_ALLOWED_CHARACTERS, FilterDict, LockType, JoinString,
-    SupportsPostgres, ScannedFileStatus, QueueStatus,
-    LOCK_EXPIRY_TIME, COMPLETED_QUEUE_ITEM_LIFETIME, ERRORED_QUEUE_ITEM_LIFETIME, PROCESS_EXPIRY_TIME, NODBError, NODB
+    COMPLETED_QUEUE_ITEM_LIFETIME,
+    ERRORED_QUEUE_ITEM_LIFETIME,
+    LOCK_EXPIRY_TIME,
+    NODB,
+    POSTGRES_ALLOWED_CHARACTERS,
+    PROCESS_EXPIRY_TIME,
+    FilterDict,
+    JoinString,
+    LockType,
+    NODBError,
+    NODBObject,
+    NODBObjectType,
+    QueueStatus,
+    ScannedFileStatus,
+    SupportsPostgres,
+    wrap_nodb_exceptions,
 )
-from gcapp.queries import SqlCondition, And, Or, Equals, IsNull, IsNotNull, In, Between, InEnvelope, Like
 from nodb.queue import NODBQueueItem
 from pipeman.exceptions import CNODCError
-import medsutil.json as json
-import medsutil.types as ct
-from medsutil.awaretime import AwareDateTime
 
 _DEBUG_SQL_CALLS = False
 
 if _DEBUG_SQL_CALLS:
     # This gives me some additional insight into the timing of SQL
     # Eventually I should make this a metric for key queries
-    import time
     import atexit
+    import time
+
     log: dict[str, list[int | float]] = {}
+
     def print_log():
         for k, v in log.items():
             print(f"{k}: {v[0]} [{v[1] / v[0]:.3f}] [{v[1]:.3f}]")
+
     atexit.register(print_log)
 
 
@@ -51,16 +79,17 @@ class _SqlQueryStringifier:
             query = self._q.as_string(self._cursor)
         else:
             query = self._q
-        return self._cursor.mogrify(query, self._args).decode('utf-8')
+        return self._cursor.mogrify(query, self._args).decode("utf-8")
 
 
 class PreparedStatement:
-
-    def __init__(self,
-                 db: PostgresController,
-                 object_type: NODBObjectType,
-                 data_map: dict[str, str],
-                 name: str):
+    def __init__(
+        self,
+        db: PostgresController,
+        object_type: NODBObjectType,
+        data_map: dict[str, str],
+        name: str,
+    ):
         self.db = db
         self.object_type = object_type
         self.name = name
@@ -82,16 +111,18 @@ class PreparedStatement:
 
     @wrap_nodb_exceptions
     def execute(self, obj: NODBObject):
-        self._cursor.execute(self._execute_statement, [
-            obj.get_for_db(x) for x in self.data_map_columns
-        ])
+        self._cursor.execute(
+            self._execute_statement, [obj.get_for_db(x) for x in self.data_map_columns]
+        )
 
     @wrap_nodb_exceptions
     def _make_prepared_statement(self):
         prepared = f"PREPARE {self.name} ({','.join(self.data_map[x] for x in self.data_map_columns)}) AS "
         prepared += self._build_prepared_statement()
         self._cursor.execute(prepared)
-        self._execute_statement = f"EXECUTE {self.name}({','.join('%s' for _ in self.data_map_columns)})"
+        self._execute_statement = (
+            f"EXECUTE {self.name}({','.join('%s' for _ in self.data_map_columns)})"
+        )
 
     def _build_prepared_statement(self):
         raise NotImplementedError
@@ -101,8 +132,8 @@ class PreparedStatement:
         self._execute_statement = None
         self._cursor.execute(f"DEALLOCATE {self.name}")
 
-class PreparedInsert(PreparedStatement):
 
+class PreparedInsert(PreparedStatement):
     def insert(self, obj):
         self.execute(obj)
 
@@ -117,7 +148,6 @@ class PreparedInsert(PreparedStatement):
 
 
 class PreparedSelect(PreparedStatement):
-
     @wrap_nodb_exceptions
     def _build_prepared_statement(self):
         prepared = f"INSERT INTO {self.object_type.get_table_name()} ("
@@ -126,7 +156,6 @@ class PreparedSelect(PreparedStatement):
         prepared += ",".join(f"${n}" for n in range(1, len(self.data_map_columns) + 1))
         prepared += ")"
         return prepared
-
 
 
 class _PGCursor:
@@ -146,7 +175,9 @@ class _PGCursor:
     def execute(self, query: str | pgs.Composable, args=None):
         """Execute a query against the database."""
         if _DEBUG_SQL_CALLS:
-            self._log.trace(f"SQL Query: [%s]", _SqlQueryStringifier(self._cursor, query, args))
+            self._log.trace(
+                "SQL Query: [%s]", _SqlQueryStringifier(self._cursor, query, args)
+            )
             t_start = time.monotonic()
             self._cursor.execute(query, args)
             t_total = time.monotonic() - t_start
@@ -187,20 +218,25 @@ class _PGCursor:
     def create_savepoint(self, name):
         """Create a save point."""
         name = self._escape_savepoint_name(name)
-        self._cursor.execute(pgs.SQL('SAVEPOINT ') + pgs.SQL(name))
+        self._cursor.execute(pgs.SQL("SAVEPOINT ") + pgs.SQL(name))
         return name
 
     def rollback_to_savepoint(self, name):
         """Rollback to a save point."""
-        self._cursor.execute(pgs.SQL('ROLLBACK TO SAVEPOINT ') + pgs.SQL(self._escape_savepoint_name(name)))
+        self._cursor.execute(
+            pgs.SQL("ROLLBACK TO SAVEPOINT ")
+            + pgs.SQL(self._escape_savepoint_name(name))
+        )
 
     def release_savepoint(self, name):
         """Release a save point."""
-        self._cursor.execute(pgs.SQL('RELEASE SAVEPOINT ') + pgs.SQL(self._escape_savepoint_name(name)))
+        self._cursor.execute(
+            pgs.SQL("RELEASE SAVEPOINT ") + pgs.SQL(self._escape_savepoint_name(name))
+        )
 
     @staticmethod
     def _escape_savepoint_name(name: str):
-        return ''.join(n for n in name.lower() if n in POSTGRES_ALLOWED_CHARACTERS)
+        return "".join(n for n in name.lower() if n in POSTGRES_ALLOWED_CHARACTERS)
 
 
 class PostgresController:
@@ -218,7 +254,7 @@ class PostgresController:
         return self._cur_cls(self._conn.cursor(), self._conn)
 
     @contextlib.contextmanager
-    def cursor(self) -> t.Generator[_PGCursor, t.Any, None]:
+    def cursor(self) -> t.Generator[_PGCursor, t.Any]:
         """Get a cursor and close it when done."""
         try:
             with self._conn.cursor() as cur:
@@ -238,10 +274,13 @@ class PostgresController:
 
     def close(self):
         """Close the connection"""
-        pass
 
-    def prepared_insert(self, object_type: NODBObjectType, name: str, data_map: dict[str, str]):
-        return PreparedInsert(db=self, object_type=object_type, data_map=data_map, name=name)
+    def prepared_insert(
+        self, object_type: NODBObjectType, name: str, data_map: dict[str, str]
+    ):
+        return PreparedInsert(
+            db=self, object_type=object_type, data_map=data_map, name=name
+        )
 
     @wrap_nodb_exceptions
     def create_savepoint(self, name):
@@ -264,55 +303,55 @@ class PostgresController:
     @wrap_nodb_exceptions
     def delete_object(self, obj: NODBObject):
         """Delete an object."""
-        args = {
-            x: obj.get_for_db(x)
-            for x in obj.get_primary_keys()
-        }
+        args = {x: obj.get_for_db(x) for x in obj.get_primary_keys()}
         if not args:
-            raise CNODCError('Cannot delete if no args', 'NODB', 8000)
+            raise CNODCError("Cannot delete if no args", "NODB", 8000)
         query = self.assemble_query(
             self.build_delete_clause(obj.get_table_name()),
-            self.build_where_clause(args)
+            self.build_where_clause(args),
         )
         with self.cursor() as cur:
             cur.execute(query)
 
     @wrap_nodb_exceptions
-    def load_object[T](self,
-                       obj_cls: type[T],
-                       filters: FilterDict,
-                       join_str: JoinString = None,
-                       lock_type: LockType = None,
-                       limit_fields: list[str] = None,
-                       key_only: bool = False, ) -> T | None:
+    def load_object[T](
+        self,
+        obj_cls: type[T],
+        filters: FilterDict,
+        join_str: JoinString = None,
+        lock_type: LockType = None,
+        limit_fields: list[str] = None,
+        key_only: bool = False,
+    ) -> T | None:
         """Load an object."""
         query = self.assemble_query(
             self.build_select_clause(
                 obj_cls.get_table_name(),
                 self.extend_selected_fields(limit_fields, filters, key_only, obj_cls),
-                self._stable_sort_columns
+                self._stable_sort_columns,
             ),
             self.build_where_clause(filters=filters, join_str=join_str),
-            self.build_lock_type_clause(lock_type)
+            self.build_lock_type_clause(lock_type),
         )
         with self.cursor() as cur:
             cur.execute(query)
             first_row = cur.fetchone()
             if first_row:
                 try:
-                    fields = {x: first_row[x] for x in first_row.keys() if isinstance(x, str)}
-                    return obj_cls(
-                        is_new=False,
-                        **fields
-                    )
+                    fields = {
+                        x: first_row[x] for x in first_row.keys() if isinstance(x, str)
+                    }
+                    return obj_cls(is_new=False, **fields)
                 except TypeError as ex:
-                    raise CodedError(f"Data class [{obj_cls.__name__}] cannot handle fields from database, found [{','.join(fields.keys())}]") from ex
+                    raise CodedError(
+                        f"Data class [{obj_cls.__name__}] cannot handle fields from database, found [{','.join(fields.keys())}]"
+                    ) from ex
         return None
 
     @wrap_nodb_exceptions
     def rows(self, table_name: str) -> int:
         query = self.assemble_query(
-            self.build_select_clause(table_name, [pgs.SQL('COUNT(*)')], False)
+            self.build_select_clause(table_name, [pgs.SQL("COUNT(*)")], False)
         )
         with self.cursor() as cur:
             cur.execute(query)
@@ -320,11 +359,16 @@ class PostgresController:
             return row[0]
 
     @wrap_nodb_exceptions
-    def count_objects(self, obj_cls: NODBObjectType, filters: FilterDict = None, join_str: JoinString = None) -> int:
+    def count_objects(
+        self,
+        obj_cls: NODBObjectType,
+        filters: FilterDict = None,
+        join_str: JoinString = None,
+    ) -> int:
         """Load an object."""
         query = self.assemble_query(
-            self.build_select_clause(obj_cls.get_table_name(), ['COUNT(*)'], False),
-            self.build_where_clause(filters, join_str)
+            self.build_select_clause(obj_cls.get_table_name(), ["COUNT(*)"], False),
+            self.build_where_clause(filters, join_str),
         )
         with self.cursor() as cur:
             cur.execute(query)
@@ -333,48 +377,52 @@ class PostgresController:
 
     def load_user_roles(self, user_id: int) -> t.Iterable[str]:
         with self.cursor() as cur:
-            cur.execute("SELECT role_name FROM nodb_user_role WHERE user_id = %s", (user_id,))
+            cur.execute(
+                "SELECT role_name FROM nodb_user_role WHERE user_id = %s", (user_id,)
+            )
             for x in cur.fetch_stream(50):
                 yield x[0]
 
     def assign_user_role(self, user_id: int, role_name: str):
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_user_role (user_id, role_name) VALUES (%s, %s) ON CONFLICT DO NOTHING", (
-                user_id,
-                role_name
-            ))
+            cur.execute(
+                "INSERT INTO nodb_user_role (user_id, role_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (user_id, role_name),
+            )
 
     def unassign_user_role(self, user_id: int, role_name: str):
         with self.cursor() as cur:
-            cur.execute("DELETE FROM nodb_user_role WHERE user_id = %s AND role_name = %s", (user_id, role_name))
+            cur.execute(
+                "DELETE FROM nodb_user_role WHERE user_id = %s AND role_name = %s",
+                (user_id, role_name),
+            )
 
     @wrap_nodb_exceptions
-    def stream_relation_raw(self,
-                        obj_cls: NODBObjectType,
-                        relation_table: str,
-                        relation_keys: dict[str, str],
-                        limit_fields: list[str] | None = None,
-                        key_only: bool = False,
-                        join_str: JoinString = None,
-                        filters: FilterDict | None = None,
-                        order_by: list[str] | None = None,
-                        lock_type: LockType = LockType.NONE,
-                            limit: int | None = None,
-                            offset: int | None = None) -> t.Iterable[dict[str, SupportsPostgres]]:
+    def stream_relation_raw(
+        self,
+        obj_cls: NODBObjectType,
+        relation_table: str,
+        relation_keys: dict[str, str],
+        limit_fields: list[str] | None = None,
+        key_only: bool = False,
+        join_str: JoinString = None,
+        filters: FilterDict | None = None,
+        order_by: list[str] | None = None,
+        lock_type: LockType = LockType.NONE,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> t.Iterable[dict[str, SupportsPostgres]]:
         query = self.assemble_query(
             self.build_select_clause(
                 obj_cls.get_table_name(),
                 self.extend_selected_fields(limit_fields, None, key_only, obj_cls),
                 self._stable_sort_columns,
             ),
-            self._build_join_clause(
-                relation_table,
-                relation_keys
-            ),
+            self._build_join_clause(relation_table, relation_keys),
             self.build_where_clause(filters, join_str),
             self.build_order_by_clause(order_by),
             self.build_limit_offset_clause(limit, offset),
-            self.build_lock_type_clause(lock_type)
+            self.build_lock_type_clause(lock_type),
         )
         with self.cursor() as cur:
             cur.execute(query)
@@ -382,18 +430,20 @@ class PostgresController:
                 yield row
 
     @wrap_nodb_exceptions
-    def stream_relation_objects(self,
-                        obj_cls: NODBObjectType,
-                        relation_table: str,
-                        relation_keys: dict[str, str],
-                        limit_fields: list[str] | None = None,
-                        key_only: bool = False,
-                        join_str: JoinString = None,
-                        filters: FilterDict | None = None,
-                        order_by: list[str] | None = None,
-                        lock_type: LockType = LockType.NONE,
-                                limit: int | None = None,
-                                offset: int | None = None) -> t.Iterable[NODBObject]:
+    def stream_relation_objects(
+        self,
+        obj_cls: NODBObjectType,
+        relation_table: str,
+        relation_keys: dict[str, str],
+        limit_fields: list[str] | None = None,
+        key_only: bool = False,
+        join_str: JoinString = None,
+        filters: FilterDict | None = None,
+        order_by: list[str] | None = None,
+        lock_type: LockType = LockType.NONE,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> t.Iterable[NODBObject]:
         for row in self.stream_relation_raw(
             obj_cls=obj_cls,
             relation_table=relation_table,
@@ -405,9 +455,11 @@ class PostgresController:
             order_by=order_by,
             lock_type=lock_type,
             limit=limit,
-            offset=offset
+            offset=offset,
         ):
-            yield obj_cls(is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)})
+            yield obj_cls(
+                is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)}
+            )
 
     def _build_join_clause(self, right_table_name: str, join_keys: dict[str, str]):
         yield pgs.SQL("JOIN")
@@ -423,28 +475,30 @@ class PostgresController:
                 yield pgs.SQL(f"{left_key} = {right_key}")
 
     @wrap_nodb_exceptions
-    def stream_raw(self,
-                   obj_cls: NODBObjectType,
-                   filters: FilterDict = None,
-                   join_str: JoinString = None,
-                   lock_type: LockType = LockType.NONE,
-                   limit_fields: t.Optional[list[str]] = None,
-                   key_only: bool = False,
-                   order_by: t.Optional[list[str]] = None,
-                   offset: int | None = None,
-                   limit: int | None = None) -> t.Iterable[dict[str, SupportsPostgres]]:
+    def stream_raw(
+        self,
+        obj_cls: NODBObjectType,
+        filters: FilterDict = None,
+        join_str: JoinString = None,
+        lock_type: LockType = LockType.NONE,
+        limit_fields: list[str] | None = None,
+        key_only: bool = False,
+        order_by: list[str] | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> t.Iterable[dict[str, SupportsPostgres]]:
         """Load an object."""
         query = self.assemble_query(
             self.build_select_clause(
                 obj_cls.get_table_name(),
                 self.extend_selected_fields(limit_fields, filters, key_only, obj_cls),
-                self._stable_sort_columns
+                self._stable_sort_columns,
             ),
             self.build_where_clause(filters, join_str),
             # group by, having
             self.build_order_by_clause(order_by),
             self.build_limit_offset_clause(limit, offset),
-            self.build_lock_type_clause(lock_type)
+            self.build_lock_type_clause(lock_type),
         )
         with self.cursor() as cur:
             cur.execute(query)
@@ -452,16 +506,18 @@ class PostgresController:
                 yield row
 
     @wrap_nodb_exceptions
-    def stream_objects(self,
-                       obj_cls: NODBObjectType,
-                       filters: FilterDict = None,
-                       join_str: JoinString = None,
-                       lock_type: LockType = LockType.NONE,
-                       limit_fields: t.Optional[list[str]] = None,
-                       key_only: bool = False,
-                       order_by: t.Optional[list[str]] = None,
-                       offset: int | None = None,
-                       limit: int | None = None) -> t.Iterable[NODBObject]:
+    def stream_objects(
+        self,
+        obj_cls: NODBObjectType,
+        filters: FilterDict = None,
+        join_str: JoinString = None,
+        lock_type: LockType = LockType.NONE,
+        limit_fields: list[str] | None = None,
+        key_only: bool = False,
+        order_by: list[str] | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> t.Iterable[NODBObject]:
         for row in self.stream_raw(
             obj_cls=obj_cls,
             filters=filters,
@@ -471,9 +527,11 @@ class PostgresController:
             key_only=key_only,
             order_by=order_by,
             offset=offset,
-            limit=limit
+            limit=limit,
         ):
-            yield obj_cls(is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)})
+            yield obj_cls(
+                is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)}
+            )
 
     def upsert_object(self, obj: NODBObject) -> bool:
         """Upsert an object, if necessary."""
@@ -497,13 +555,10 @@ class PostgresController:
         query = self.assemble_query(
             self.build_update_clause(
                 obj.get_table_name(),
-                { x: obj.get_for_db(x) for x in update_values },
-                self._stable_sort_columns
+                {x: obj.get_for_db(x) for x in update_values},
+                self._stable_sort_columns,
             ),
-            self.build_where_clause({
-                x: obj.get_for_db(x)
-                for x in primary_keys
-            })
+            self.build_where_clause({x: obj.get_for_db(x) for x in primary_keys}),
         )
         with self.cursor() as cur:
             cur.execute(query)
@@ -517,12 +572,9 @@ class PostgresController:
         insert_statement = self.assemble_query(
             self.build_insert_statement(
                 obj.get_table_name(),
-                {
-                    x: obj.get_for_db(x)
-                    for x in obj.modified_values
-                },
+                {x: obj.get_for_db(x) for x in obj.modified_values},
                 primary_keys,
-                self._stable_sort_columns
+                self._stable_sort_columns,
             )
         )
         with self.cursor() as cur:
@@ -538,56 +590,69 @@ class PostgresController:
         return True
 
     @wrap_nodb_exceptions
-    def upsert_process_info(self,
-                            server_name: str,
-                            process_id: str,
-                            process_name: str,
-                            process_version: str,
-                            info: dict[str, t.Any]):
+    def upsert_process_info(
+        self,
+        server_name: str,
+        process_id: str,
+        process_name: str,
+        process_version: str,
+        info: dict[str, t.Any],
+    ):
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_processes (system_id, process_id, process_name, process_version, info) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (system_id, process_id) DO UPDATE SET info = EXCLUDED.info",[
-                server_name,
-                process_id,
-                process_name,
-                process_version,
-                json.dumps(info)
-            ])
+            cur.execute(
+                "INSERT INTO nodb_processes (system_id, process_id, process_name, process_version, info) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (system_id, process_id) DO UPDATE SET info = EXCLUDED.info",
+                [
+                    server_name,
+                    process_id,
+                    process_name,
+                    process_version,
+                    json.dumps(info),
+                ],
+            )
 
     @wrap_nodb_exceptions
     def clear_process_info_for_server(self, server_name: str):
         with self.cursor() as cur:
-            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s", [
-                server_name
-            ])
+            cur.execute(
+                "UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s",
+                [server_name],
+            )
 
     @wrap_nodb_exceptions
     def clear_process_info(self, server_name: str, process_id: str):
         with self.cursor() as cur:
-            cur.execute("UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s AND process_id = %s", [
-                server_name,
-                process_id
-            ])
+            cur.execute(
+                "UPDATE nodb_processes SET exited = 'Y' WHERE system_id = %s AND process_id = %s",
+                [server_name, process_id],
+            )
 
     @wrap_nodb_exceptions
     def fetch_processes(self) -> t.Iterable[dict[str, t.Any]]:
         with self.cursor() as cur:
-            cur.execute("SELECT system_id, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes ORDER BY system_id, process_id")
+            cur.execute(
+                "SELECT system_id, process_id, process_name, process_version, db_created_date, db_modified_date, info, exited FROM nodb_processes ORDER BY system_id, process_id"
+            )
             for item in cur.fetch_stream(10):
                 process_info: dict[str, t.Any] = item[6]
-                process_info['server_name'] = item[0]
-                process_info['process_id'] = item[1]
-                process_info['process_name'] = item[2]
-                process_info['process_version'] = item[3]
-                process_info['db_created_date'] = item[4]
-                process_info['db_modified_date'] = item[5]
-                process_info['exited'] = item[7]
+                process_info["server_name"] = item[0]
+                process_info["process_id"] = item[1]
+                process_info["process_name"] = item[2]
+                process_info["process_version"] = item[3]
+                process_info["db_created_date"] = item[4]
+                process_info["db_modified_date"] = item[5]
+                process_info["exited"] = item[7]
                 yield process_info
 
     @wrap_nodb_exceptions
-    def fast_renew_queue_item(self, queue_uuid: str, now_: AwareDateTime | None = None) -> AwareDateTime | None:
+    def fast_renew_queue_item(
+        self, queue_uuid: str, now_: AwareDateTime | None = None
+    ) -> AwareDateTime | None:
         with self.cursor() as cur:
             dt = now_ or AwareDateTime.now()
-            cur.execute(f"UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED' RETURNING 1 AS outcome", [dt.isoformat(), queue_uuid])  # nosec: B608 # not hard coded string
+            cur.execute(
+                "UPDATE nodb_queues SET locked_since = %s WHERE queue_uuid = %s AND status = 'LOCKED' RETURNING 1 AS outcome",
+                [dt.isoformat(), queue_uuid],
+            )  # nosec: B608 # not hard coded string
             result = cur.fetchone()
             if result is None or result[0] != 1:
                 return None
@@ -600,13 +665,20 @@ class PostgresController:
             return [row[0] for row in cur.fetch_stream(25)]
 
     @wrap_nodb_exceptions
-    def fetch_queue_summary(self, tag_name: str | None = None) -> dict[str, dict[str, int]]:
+    def fetch_queue_summary(
+        self, tag_name: str | None = None
+    ) -> dict[str, dict[str, int]]:
         res = {}
         with self.cursor() as cur:
             if tag_name:
-                cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues WHERE tag = %s GROUP BY queue_name, status", [tag_name])
+                cur.execute(
+                    "SELECT COUNT(*), queue_name, status FROM nodb_queues WHERE tag = %s GROUP BY queue_name, status",
+                    [tag_name],
+                )
             else:
-                cur.execute("SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status")
+                cur.execute(
+                    "SELECT COUNT(*), queue_name, status FROM nodb_queues GROUP BY queue_name, status"
+                )
             for row in cur.fetch_stream(25):
                 if row[1] not in res:
                     res[row[1]] = {}
@@ -616,42 +688,57 @@ class PostgresController:
     @wrap_nodb_exceptions
     def fetch_queue_ready_summary(self) -> t.Iterable[tuple[str, str, int, int]]:
         with self.cursor() as cur:
-            cur.execute("SELECT queue_name, subqueue_name, escalation_level, COUNT(*) FROM nodb_queues WHERE status = 'UNLOCKED' GROUP BY queue_name, subqueue_name, escalation_level")
+            cur.execute(
+                "SELECT queue_name, subqueue_name, escalation_level, COUNT(*) FROM nodb_queues WHERE status = 'UNLOCKED' GROUP BY queue_name, subqueue_name, escalation_level"
+            )
             for row in cur.fetch_stream(25):
                 yield str(row[0]), str(row[1]), int(row[2] or 0), int(row[3])
 
     @wrap_nodb_exceptions
-    def fast_update_queue_status(self,
-                                 queue_uuid: str,
-                                 new_status: QueueStatus,
-                                 release_at: datetime.datetime | None = None,
-                                 reduce_priority: bool = False,
-                                 escalation_level: int = 0,
-                                 is_closed: bool = False,
-                                 require_locked: bool = True) -> AwareDateTime | None:
+    def fast_update_queue_status(
+        self,
+        queue_uuid: str,
+        new_status: QueueStatus,
+        release_at: datetime.datetime | None = None,
+        reduce_priority: bool = False,
+        escalation_level: int = 0,
+        is_closed: bool = False,
+        require_locked: bool = True,
+    ) -> AwareDateTime | None:
         now_ = AwareDateTime.now() if is_closed else None
         with self.cursor() as cur:  # nosec B608 # not a hard coded query
             query = "UPDATE nodb_queues SET status = %s, locked_by = NULL, locked_since = NULL, delay_release = %s, priority = priority + %s, escalation_level = %s, db_closed_date = %s WHERE queue_uuid = %s"
             if require_locked:
                 query += " AND status = 'LOCKED'"
-            cur.execute(query, [
-                new_status.value,
-                release_at.isoformat() if release_at else None,
-                1 if reduce_priority else 0,
-                escalation_level,
-                now_,
-                queue_uuid
-            ])
+            cur.execute(
+                query,
+                [
+                    new_status.value,
+                    release_at.isoformat() if release_at else None,
+                    1 if reduce_priority else 0,
+                    escalation_level,
+                    now_,
+                    queue_uuid,
+                ],
+            )
         return now_
 
     @wrap_nodb_exceptions
-    def scanned_file_status(self, file_path: str, mod_time: datetime.datetime | None = None) -> ScannedFileStatus:
+    def scanned_file_status(
+        self, file_path: str, mod_time: datetime.datetime | None = None
+    ) -> ScannedFileStatus:
         """Get the status of a scanned file."""
         with self.cursor() as cur:
             if mod_time is None:
-                cur.execute("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = %s AND modified_date IS NULL", [file_path])
+                cur.execute(
+                    "SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = %s AND modified_date IS NULL",
+                    [file_path],
+                )
             else:
-                cur.execute("SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_time.isoformat()])
+                cur.execute(
+                    "SELECT was_processed, was_errored FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s",
+                    [file_path, mod_time.isoformat()],
+                )
             row = cur.fetchone()
             if row is None:
                 return ScannedFileStatus.NOT_PRESENT
@@ -663,73 +750,113 @@ class PostgresController:
                 return ScannedFileStatus.UNPROCESSED
 
     @wrap_nodb_exceptions
-    def note_scanned_file(self, file_path: str, mod_time: datetime.datetime | None = None):
+    def note_scanned_file(
+        self, file_path: str, mod_time: datetime.datetime | None = None
+    ):
         """Mark a scanned file as visited."""
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_time.isoformat() if mod_time is not None else None])
+            cur.execute(
+                "INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)",
+                [file_path, mod_time.isoformat() if mod_time is not None else None],
+            )
 
     @wrap_nodb_exceptions
-    def mark_scanned_item_success(self, file_path: str, mod_time: datetime.datetime | None = None) -> None:
+    def mark_scanned_item_success(
+        self, file_path: str, mod_time: datetime.datetime | None = None
+    ) -> None:
         """Mark a scanned file as a success."""
         with self.cursor() as cur:
             if mod_time is None:
-                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE", [file_path])
+                cur.execute(
+                    "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE",
+                    [file_path],
+                )
             else:
-                cur.execute("SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s", [file_path, mod_time.isoformat()])
+                cur.execute(
+                    "SELECT was_processed FROM nodb_scanned_files WHERE file_path = %s AND modified_date = %s",
+                    [file_path, mod_time.isoformat()],
+                )
                 row = cur.fetchone()
                 if row is None:
-                    cur.execute("INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)", [file_path, mod_time.isoformat()])
-                cur.execute("UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND (modified_date <= %s or modified_date IS NULL) AND was_processed = FALSE AND was_errored = FALSE", [file_path, mod_time.isoformat()])
+                    cur.execute(
+                        "INSERT INTO nodb_scanned_files (file_path, modified_date) VALUES (%s, %s)",
+                        [file_path, mod_time.isoformat()],
+                    )
+                cur.execute(
+                    "UPDATE nodb_scanned_files SET was_processed = TRUE where file_path = %s AND (modified_date <= %s or modified_date IS NULL) AND was_processed = FALSE AND was_errored = FALSE",
+                    [file_path, mod_time.isoformat()],
+                )
 
     @wrap_nodb_exceptions
-    def mark_scanned_item_failed(self, file_path: str, mod_time: datetime.datetime | None = None):
+    def mark_scanned_item_failed(
+        self, file_path: str, mod_time: datetime.datetime | None = None
+    ):
         """Mark a scanned file as failing."""
         with self.cursor() as cur:
             if mod_time is None:
-                cur.execute("UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = %s AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE", [file_path])
+                cur.execute(
+                    "UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = %s AND modified_date IS NULL AND was_processed = FALSE AND was_errored = FALSE",
+                    [file_path],
+                )
             else:
-                cur.execute("UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = %s AND modified_date = %s AND was_processed = FALSE AND was_errored = FALSE", [file_path, mod_time.isoformat()])
+                cur.execute(
+                    "UPDATE nodb_scanned_files SET was_errored = TRUE WHERE file_path = %s AND modified_date = %s AND was_processed = FALSE AND was_errored = FALSE",
+                    [file_path, mod_time.isoformat()],
+                )
 
     @wrap_nodb_exceptions
-    def create_queue_item(self,
-                          queue_name: str,
-                          data: dict[str, ct.SupportsExtendedJson],
-                          priority: t.Optional[int] = None,
-                          unique_item_name: t.Optional[str] = None,
-                          subqueue_name: t.Optional[str] = None,
-                          correlation_id: t.Optional[str] = None,
-                          tag: t.Optional[str] = None) -> str:
+    def create_queue_item(
+        self,
+        queue_name: str,
+        data: dict[str, ct.SupportsExtendedJson],
+        priority: int | None = None,
+        unique_item_name: str | None = None,
+        subqueue_name: str | None = None,
+        correlation_id: str | None = None,
+        tag: str | None = None,
+    ) -> str:
         correlation_id = correlation_id or str(uuid.uuid4())
         """Create a new queue item."""
         with self.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO nodb_queues (queue_name, subqueue_name, priority, unique_item_name, data, correlation_id, tag) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)""", [
-                queue_name,
-                subqueue_name or None,
-                priority if priority is not None else 0,
-                unique_item_name or None,
-                json.dumps(data),
-                correlation_id,
-                tag
-            ])
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                [
+                    queue_name,
+                    subqueue_name or None,
+                    priority if priority is not None else 0,
+                    unique_item_name or None,
+                    json.dumps(data),
+                    correlation_id,
+                    tag,
+                ],
+            )
         return t.cast(str, correlation_id)
 
     @wrap_nodb_exceptions
-    def bulk_update_objects(self, obj_cls: NODBObjectType, updates: dict[str, SupportsPostgres], key_field: str, key_values: list[
-        SupportsPostgres]):
+    def bulk_update_objects(
+        self,
+        obj_cls: NODBObjectType,
+        updates: dict[str, SupportsPostgres],
+        key_field: str,
+        key_values: list[SupportsPostgres],
+    ):
         base_query = self.assemble_query(
-            self.build_update_clause(obj_cls.get_table_name(), updates, self._stable_sort_columns),
+            self.build_update_clause(
+                obj_cls.get_table_name(), updates, self._stable_sort_columns
+            ),
             (
-                pgs.SQL('WHERE'),
+                pgs.SQL("WHERE"),
                 pgs.Identifier(key_field),
-                pgs.SQL('IN'),
-
-            )
+                pgs.SQL("IN"),
+            ),
         )
         with self.cursor() as cur:
             for subset in self.batched(key_values):
-                specific_query = base_query + pgs.SQL("(" + ",".join('%s' for _ in range(0, len(subset))) + ")")
+                specific_query = base_query + pgs.SQL(
+                    "(" + ",".join("%s" for _ in range(len(subset))) + ")"
+                )
                 cur.execute(specific_query, [*subset])
 
     def batched(self, values: list) -> t.Iterable[list]:
@@ -737,57 +864,79 @@ class PostgresController:
         x = 0
         l_values = len(values)
         while x < l_values:
-            yield values[x:x+self._max_in_size]
+            yield values[x : x + self._max_in_size]
             x += self._max_in_size
 
-    def fetch_next_queue_item(self,
-                              queue_name: str,
-                              app_id: str,
-                              subqueue_name: str | None = None,
-                              min_escalation: int = 0,
-                              max_escalation: int = 0,
-                              retries: int = 1) -> t.Optional[NODBQueueItem]:
+    def fetch_next_queue_item(
+        self,
+        queue_name: str,
+        app_id: str,
+        subqueue_name: str | None = None,
+        min_escalation: int = 0,
+        max_escalation: int = 0,
+        retries: int = 1,
+    ) -> NODBQueueItem | None:
         """Get the next queue item."""
         with self.cursor() as cur:
             while retries > 0:
-                item_uuid = self._attempt_fetch_queue_item(queue_name, subqueue_name, app_id, min_escalation, max_escalation, cur)
+                item_uuid = self._attempt_fetch_queue_item(
+                    queue_name,
+                    subqueue_name,
+                    app_id,
+                    min_escalation,
+                    max_escalation,
+                    cur,
+                )
                 if item_uuid is not None:
                     return NODBQueueItem.find_by_uuid(self, item_uuid)
                 retries -= 1
             return None
 
     @wrap_nodb_exceptions
-    def run_maintenance(self,
-                        lock_expiry_seconds: int = LOCK_EXPIRY_TIME,
-                        completed_lifetime_seconds: int = COMPLETED_QUEUE_ITEM_LIFETIME,
-                        error_lifetime_seconds: int = ERRORED_QUEUE_ITEM_LIFETIME,
-                        process_expiry_seconds: int = PROCESS_EXPIRY_TIME):
+    def run_maintenance(
+        self,
+        lock_expiry_seconds: int = LOCK_EXPIRY_TIME,
+        completed_lifetime_seconds: int = COMPLETED_QUEUE_ITEM_LIFETIME,
+        error_lifetime_seconds: int = ERRORED_QUEUE_ITEM_LIFETIME,
+        process_expiry_seconds: int = PROCESS_EXPIRY_TIME,
+    ):
         with self.cursor() as cur:
-            cur.execute("CALL run_nodb_maintenance (%s, %s, %s, %s)", [
-                lock_expiry_seconds,
-                completed_lifetime_seconds,
-                error_lifetime_seconds,
-                process_expiry_seconds
-            ])
+            cur.execute(
+                "CALL run_nodb_maintenance (%s, %s, %s, %s)",
+                [
+                    lock_expiry_seconds,
+                    completed_lifetime_seconds,
+                    error_lifetime_seconds,
+                    process_expiry_seconds,
+                ],
+            )
             cur.commit()
 
     @staticmethod
     @wrap_nodb_exceptions
-    def _attempt_fetch_queue_item(queue_name: str,
-                                  subqueue_name: t.Optional[str],
-                                  app_id: str,
-                                  min_escalation: int,
-                                  max_escalation: int,
-                                  cur: _PGCursor) -> t.Optional[str]:
+    def _attempt_fetch_queue_item(
+        queue_name: str,
+        subqueue_name: str | None,
+        app_id: str,
+        min_escalation: int,
+        max_escalation: int,
+        cur: _PGCursor,
+    ) -> str | None:
         """Make a single attempt to get a queue item."""
         sp = False
         try:
             cur.create_savepoint("fetch_queue_item")
             sp = True
             if subqueue_name:
-                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s::varchar(126), %s, %s)", (queue_name, app_id, min_escalation, max_escalation, subqueue_name))
+                cur.execute(
+                    "SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s::varchar(126), %s, %s)",
+                    (queue_name, app_id, min_escalation, max_escalation, subqueue_name),
+                )
             else:
-                cur.execute("SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s, %s)", (queue_name, app_id, min_escalation, max_escalation))
+                cur.execute(
+                    "SELECT * FROM next_queue_item(%s::varchar(126), %s::varchar(126), %s, %s)",
+                    (queue_name, app_id, min_escalation, max_escalation),
+                )
             item = cur.fetchone()
             if item is not None and item[0] is not None:
                 cur.release_savepoint("fetch_queue_item")
@@ -813,30 +962,30 @@ class PostgresController:
     def grant_permission(self, role_name: str, permission_name: str):
         """Grant a permission to a role."""
         with self.cursor() as cur:
-            cur.execute("SELECT 1 FROM nodb_permissions WHERE role_name = %s and permission = %s", [
-                role_name,
-                permission_name
-            ])
+            cur.execute(
+                "SELECT 1 FROM nodb_permissions WHERE role_name = %s and permission = %s",
+                [role_name, permission_name],
+            )
             row = cur.fetchone()
             if row is None:
-                cur.execute("INSERT INTO nodb_permissions (role_name, permission) VALUES (%s, %s)", [
-                    role_name,
-                    permission_name
-                ])
+                cur.execute(
+                    "INSERT INTO nodb_permissions (role_name, permission) VALUES (%s, %s)",
+                    [role_name, permission_name],
+                )
 
     @wrap_nodb_exceptions
     def remove_permission(self, role_name: str, permission_name: str):
         """Remove a permission from a role."""
         with self.cursor() as cur:
-            cur.execute("DELETE FROM nodb_permissions WHERE role_name = %s and permission = %s", [
-                role_name,
-                permission_name
-            ])
+            cur.execute(
+                "DELETE FROM nodb_permissions WHERE role_name = %s and permission = %s",
+                [role_name, permission_name],
+            )
 
     @wrap_nodb_exceptions
     def load_queue_items(self) -> t.Iterable[tuple[str, str, str]]:
         with self.cursor() as cur:
-            cur.execute('SELECT queue_name, queue_uuid, status FROM nodb_queues')
+            cur.execute("SELECT queue_name, queue_uuid, status FROM nodb_queues")
             for x in cur.fetch_stream(100):
                 yield x[0], x[1], x[2]
 
@@ -846,7 +995,13 @@ class PostgresController:
         roles = list(roles)
         if roles:
             with self.cursor() as cur:
-                query = pgs.SQL("SELECT permission FROM nodb_permissions WHERE role_name IN (") + pgs.SQL(',').join(pgs.Placeholder() for _ in roles) + pgs.SQL(")")
+                query = (
+                    pgs.SQL(
+                        "SELECT permission FROM nodb_permissions WHERE role_name IN ("
+                    )
+                    + pgs.SQL(",").join(pgs.Placeholder() for _ in roles)
+                    + pgs.SQL(")")
+                )
                 cur.execute(query, [*roles])
                 permissions.update(row[0] for row in cur.fetch_stream(20))
         return permissions
@@ -858,121 +1013,132 @@ class PostgresController:
             cur.execute("DELETE FROM nodb_sessions WHERE session_id = %s", [session_id])
 
     @wrap_nodb_exceptions
-    def record_login(self,
-                     username: str | None,
-                     remote_addr: str | None,
-                     success: bool,
-                     from_api: bool,
-                     message: str | None = None,
-                     max_failures: int = 0,
-                     max_failure_window_seconds: int = 300,
-                     user_lock_time_seconds: int = 3600) -> bool:
+    def record_login(
+        self,
+        username: str | None,
+        remote_addr: str | None,
+        success: bool,
+        from_api: bool,
+        message: str | None = None,
+        max_failures: int = 0,
+        max_failure_window_seconds: int = 300,
+        user_lock_time_seconds: int = 3600,
+    ) -> bool:
         """Record a user logging in."""
         with self.cursor() as cur:
-            cur.execute("SELECT * FROM record_login(%s::varchar(126), %s::varchar(126), %s::char(1), %s::char(1), %s::TEXT, %s, %s, %s)", (
-                username,
-                remote_addr,
-                'Y' if success else 'N',
-                'Y' if from_api else 'N',
-                message,
-                max_failures,
-                max_failure_window_seconds,
-                user_lock_time_seconds
-            ))
+            cur.execute(
+                "SELECT * FROM record_login(%s::varchar(126), %s::varchar(126), %s::char(1), %s::char(1), %s::TEXT, %s, %s, %s)",
+                (
+                    username,
+                    remote_addr,
+                    "Y" if success else "N",
+                    "Y" if from_api else "N",
+                    message,
+                    max_failures,
+                    max_failure_window_seconds,
+                    user_lock_time_seconds,
+                ),
+            )
             return cur.fetchone()[0] == 1
 
-    def create_temp_finalize_result(self,
-                                    object_type: str,
-                                    object_uuid: str,
-                                    obs_uuid: str,
-                                    obs_date: datetime.date,
-                                    result: str):
+    def create_temp_finalize_result(
+        self,
+        object_type: str,
+        object_uuid: str,
+        obs_uuid: str,
+        obs_date: datetime.date,
+        result: str,
+    ):
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_temporary_finalize_results (object_type, object_uuid, obs_uuid, obs_date, result) VALUES (%s, %s, %s, %s, %s)", (
-                object_type,
-                object_uuid,
-                obs_uuid,
-                obs_date,
-                result
-            ))
+            cur.execute(
+                "INSERT INTO nodb_temporary_finalize_results (object_type, object_uuid, obs_uuid, obs_date, result) VALUES (%s, %s, %s, %s, %s)",
+                (object_type, object_uuid, obs_uuid, obs_date, result),
+            )
 
-    def clear_temp_finalize_result(self,
-                                    object_type: str,
-                                    object_uuid: str):
+    def clear_temp_finalize_result(self, object_type: str, object_uuid: str):
         with self.cursor() as cur:
-            cur.execute("DELETE FROM nodb_temporary_finalize_results WHERE object_type = %s AND object_uuid = %s", (
-                object_type,
-                object_uuid
-            ))
+            cur.execute(
+                "DELETE FROM nodb_temporary_finalize_results WHERE object_type = %s AND object_uuid = %s",
+                (object_type, object_uuid),
+            )
 
-    def stream_temp_finalize_results(self,
-                                     object_type: str,
-                                     object_uuid: str) -> t.Iterable[tuple[str, str, str]]:
+    def stream_temp_finalize_results(
+        self, object_type: str, object_uuid: str
+    ) -> t.Iterable[tuple[str, str, str]]:
         with self.cursor() as cur:
-            cur.execute("SELECT obs_uuid, obs_date, result FROM nodb_temporary_finalize_results WHERE object_type = %s AND obs_date = %s", (
-                object_type, object_uuid
-            ))
+            cur.execute(
+                "SELECT obs_uuid, obs_date, result FROM nodb_temporary_finalize_results WHERE object_type = %s AND obs_date = %s",
+                (object_type, object_uuid),
+            )
             for result in cur.fetch_stream(25):
                 yield result[0], result[1], result[2]
 
     def has_temp_qc_outcome(self, process_id: str, working_uuid: str) -> bool:
         with self.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND working_uuid = %s", (
-                process_id,
-                working_uuid
-            ))
+            cur.execute(
+                "SELECT COUNT(*) FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND working_uuid = %s",
+                (process_id, working_uuid),
+            )
             return cur.fetchone()[0] > 0
 
     def stream_temp_qc_outcomes(self, process_id: str) -> t.Iterable[tuple[str, int]]:
         with self.cursor() as cur:
-            cur.execute("SELECT DISTINCT batch_identifier, outcome FROM nodb_temporary_qc_results WHERE batch_process_id = %s", (
-                process_id,
-            ))
+            cur.execute(
+                "SELECT DISTINCT batch_identifier, outcome FROM nodb_temporary_qc_results WHERE batch_process_id = %s",
+                (process_id,),
+            )
             for result in cur.fetch_stream(25):
                 yield result[0], result[1]
 
-    def reassign_temp_qc_outcomes(self,
-                                  process_id: str,
-                                  batch_key: str,
-                                  outcome: int,
-                                  new_batch_uuid: str,
-                                  current_batch_uuid: str | None):
+    def reassign_temp_qc_outcomes(
+        self,
+        process_id: str,
+        batch_key: str,
+        outcome: int,
+        new_batch_uuid: str,
+        current_batch_uuid: str | None,
+    ):
         with self.cursor() as cur:
             query = "UPDATE nodb_working SET qc_batch_id = %s WHERE working_uuid IN (SELECT working_uuid FROM nodb_temporary_qc_results WHERE batch_process_id = %s AND batch_identifier = %s AND outcome = %s)"
             if current_batch_uuid is None:
                 query += " AND qc_batch_id IS NULL"
-                cur.execute(query, (
-                    new_batch_uuid,
-                    process_id,
-                    batch_key,
-                    outcome,
-                ))
+                cur.execute(
+                    query,
+                    (
+                        new_batch_uuid,
+                        process_id,
+                        batch_key,
+                        outcome,
+                    ),
+                )
             else:
                 query += " AND qc_batch_id = %s"
-                cur.execute(query, (
-                    new_batch_uuid,
-                    process_id,
-                    batch_key,
-                    outcome,
-                    current_batch_uuid,
-                ))
+                cur.execute(
+                    query,
+                    (
+                        new_batch_uuid,
+                        process_id,
+                        batch_key,
+                        outcome,
+                        current_batch_uuid,
+                    ),
+                )
 
     def cleanup_temp_qc_outcomes(self, process_id: str):
         with self.cursor() as cur:
-            cur.execute("DELETE FROM nodb_temporary_qc_results WHERE batch_process_id = %s", (process_id,))
+            cur.execute(
+                "DELETE FROM nodb_temporary_qc_results WHERE batch_process_id = %s",
+                (process_id,),
+            )
 
-    def create_temp_qc_outcome(self,
-                               process_id: str,
-                               working_uuid: str,
-                               batch_key: str,
-                               outcome: int):
+    def create_temp_qc_outcome(
+        self, process_id: str, working_uuid: str, batch_key: str, outcome: int
+    ):
         with self.cursor() as cur:
-            cur.execute("INSERT INTO nodb_temporary_qc_results (batch_process_id, batch_identifier, outcome, working_uuid) VALUES (%s, %s, %s, %s)", (
-                process_id,
-                batch_key,
-                outcome,
-                working_uuid
-            ))
+            cur.execute(
+                "INSERT INTO nodb_temporary_qc_results (batch_process_id, batch_identifier, outcome, working_uuid) VALUES (%s, %s, %s, %s)",
+                (process_id, batch_key, outcome, working_uuid),
+            )
 
     @staticmethod
     def assemble_query(*args):
@@ -983,14 +1149,15 @@ class PostgresController:
             else:
                 for x in a:
                     yield from _chain(x)
+
         return pgs.SQL(" ").join(_chain(args))
 
     @staticmethod
     def extend_selected_fields(
-            limit_fields: t.Iterable[str] | None,
-            filters: FilterDict | None,
-            key_only: bool,
-            obj_cls: NODBObjectType | None
+        limit_fields: t.Iterable[str] | None,
+        filters: FilterDict | None,
+        key_only: bool,
+        obj_cls: NODBObjectType | None,
     ) -> set[str] | None:
         fields: set[str] = set()
         if limit_fields:
@@ -1003,46 +1170,62 @@ class PostgresController:
 
     @staticmethod
     def build_delete_clause(table_name: str) -> t.Iterable[pgs.Composable]:
-        yield pgs.SQL('DELETE FROM')
+        yield pgs.SQL("DELETE FROM")
         yield pgs.Identifier(table_name)
 
     @staticmethod
-    def build_update_clause(table_name: str, set_values: dict[str, t.Any], stable_sort: bool = False) -> t.Iterable[pgs.Composable]:
-        keys = list(set(x for x in set_values.keys()))
+    def build_update_clause(
+        table_name: str, set_values: dict[str, t.Any], stable_sort: bool = False
+    ) -> t.Iterable[pgs.Composable]:
+        keys = list(set(x for x in set_values))
         if stable_sort:
             keys.sort()
-        yield pgs.SQL('UPDATE')
+        yield pgs.SQL("UPDATE")
         yield pgs.Identifier(table_name)
-        yield pgs.SQL('SET')
-        yield pgs.SQL(',').join(
-            pgs.Composed((
-                pgs.Identifier(key),
-                pgs.SQL('='),
-                pgs.Literal(set_values[key])
-            ))
+        yield pgs.SQL("SET")
+        yield pgs.SQL(",").join(
+            pgs.Composed(
+                (pgs.Identifier(key), pgs.SQL("="), pgs.Literal(set_values[key]))
+            )
             for key in keys
         )
 
     @staticmethod
-    def build_insert_statement(table: str, insert_values: dict[str, t.Any] = None, primary_keys: list[str] = None, stable_sort: bool = False) -> t.Iterable[pgs.Composable]:
-        yield pgs.SQL('INSERT INTO')
+    def build_insert_statement(
+        table: str,
+        insert_values: dict[str, t.Any] = None,
+        primary_keys: list[str] = None,
+        stable_sort: bool = False,
+    ) -> t.Iterable[pgs.Composable]:
+        yield pgs.SQL("INSERT INTO")
         yield pgs.Identifier(table)
         if insert_values:
             keys = list(insert_values.keys())
             if stable_sort:
                 keys.sort()
-            yield pgs.SQL('(') + pgs.SQL(',').join(pgs.Identifier(x) for x in keys) + pgs.SQL(")")
-            yield pgs.SQL('VALUES (') + pgs.SQL(',').join(pgs.Literal(insert_values[x]) for x in keys) + pgs.SQL(')')
+            yield (
+                pgs.SQL("(")
+                + pgs.SQL(",").join(pgs.Identifier(x) for x in keys)
+                + pgs.SQL(")")
+            )
+            yield (
+                pgs.SQL("VALUES (")
+                + pgs.SQL(",").join(pgs.Literal(insert_values[x]) for x in keys)
+                + pgs.SQL(")")
+            )
         else:
-            yield pgs.SQL('DEFAULT VALUES')
+            yield pgs.SQL("DEFAULT VALUES")
         if primary_keys:
             if stable_sort:
                 primary_keys.sort()
-            yield pgs.SQL('RETURNING ') + pgs.SQL(',').join(pgs.Identifier(x) for x in primary_keys)
+            yield pgs.SQL("RETURNING ") + pgs.SQL(",").join(
+                pgs.Identifier(x) for x in primary_keys
+            )
 
     @staticmethod
-    def build_limit_offset_clause(limit: int | None = None,
-                                  offset: int | None = None) -> t.Iterable[pgs.Composable]:
+    def build_limit_offset_clause(
+        limit: int | None = None, offset: int | None = None
+    ) -> t.Iterable[pgs.Composable]:
         if limit is not None:
             yield pgs.SQL("LIMIT")
             yield pgs.Literal(limit)
@@ -1051,63 +1234,80 @@ class PostgresController:
             yield pgs.Literal(offset)
 
     @staticmethod
-    def build_select_clause(table_name, fields, stable_sort, alias: str | None = None) -> t.Iterable[pgs.Composable]:
-        yield pgs.SQL('SELECT')
+    def build_select_clause(
+        table_name, fields, stable_sort, alias: str | None = None
+    ) -> t.Iterable[pgs.Composable]:
+        yield pgs.SQL("SELECT")
         if not fields:
-            yield pgs.SQL('*')
+            yield pgs.SQL("*")
         else:
             fields = list(fields)
             # stable field sorting is occasionally important
             if stable_sort:
                 fields.sort()
-            yield pgs.SQL(',').join(pgs.Identifier(field) if isinstance(field, str) else field for field in fields)
-        yield pgs.SQL('FROM')
+            yield pgs.SQL(",").join(
+                pgs.Identifier(field) if isinstance(field, str) else field
+                for field in fields
+            )
+        yield pgs.SQL("FROM")
         yield pgs.Identifier(table_name)
         if alias:
             yield pgs.SQL("AS")
             yield pgs.Identifier(alias)
 
     @staticmethod
-    def build_where_clause(filters: FilterDict | None = None, join_str: str | None = None) -> t.Iterable[pgs.Composable]:
+    def build_where_clause(
+        filters: FilterDict | None = None, join_str: str | None = None
+    ) -> t.Iterable[pgs.Composable]:
         if filters:
-            yield pgs.SQL('WHERE')
+            yield pgs.SQL("WHERE")
             if isinstance(filters, dict):
                 first = True
-                join_str_sql = pgs.SQL('AND' if join_str is None else (join_str.strip() or 'AND'))
+                join_str_sql = pgs.SQL(
+                    "AND" if join_str is None else (join_str.strip() or "AND")
+                )
                 for key in filters:
                     if first:
                         first = False
                     else:
                         yield join_str_sql
-                    yield from PostgresController._build_where_component(key, filters[key])
+                    yield from PostgresController._build_where_component(
+                        key, filters[key]
+                    )
             elif isinstance(filters, SqlCondition):
                 yield from PostgresController._build_sql_condition(filters)
             else:
                 first = True
-                join_str_sql = pgs.SQL('AND' if join_str is None else (join_str.strip() or 'AND'))
+                join_str_sql = pgs.SQL(
+                    "AND" if join_str is None else (join_str.strip() or "AND")
+                )
                 for condition in filters:
                     if first:
                         first = False
                     else:
                         yield join_str_sql
                     yield from PostgresController._build_sql_condition(condition)
-                
+
     @staticmethod
     def _build_sql_condition(condition: SqlCondition) -> t.Iterable[pgs.Composable]:
         if isinstance(condition, And):
             yield pgs.SQL("(")
             first = True
             for part in condition.all_conditions():
-                if first: first = False
-                else: yield pgs.SQL('AND')
+                if first:
+                    first = False
+                else:
+                    yield pgs.SQL("AND")
                 yield from PostgresController._build_sql_condition(part)
             yield pgs.SQL(")")
         elif isinstance(condition, Or):
             yield pgs.SQL("(")
             first = True
             for part in condition.all_conditions():
-                if first: first = False
-                else: yield pgs.SQL('OR')
+                if first:
+                    first = False
+                else:
+                    yield pgs.SQL("OR")
                 yield from PostgresController._build_sql_condition(part)
             yield pgs.SQL(")")
         elif isinstance(condition, Equals):
@@ -1118,7 +1318,7 @@ class PostgresController:
             yield pgs.Identifier(condition.column_name)
             if not condition.case_sensitive:
                 yield pgs.SQL(")")
-            yield pgs.SQL('=')
+            yield pgs.SQL("=")
             if not condition.case_sensitive:
                 yield pgs.SQL("LOWER(")
             yield pgs.Literal(condition.value)
@@ -1133,8 +1333,8 @@ class PostgresController:
             if condition.or_null:
                 yield pgs.SQL("(")
             yield pgs.Identifier(condition.column_name)
-            yield pgs.SQL('IN (')
-            yield pgs.SQL(',').join(pgs.Literal(v) for v in condition.values)
+            yield pgs.SQL("IN (")
+            yield pgs.SQL(",").join(pgs.Literal(v) for v in condition.values)
             yield pgs.SQL(")")
             if condition.or_null:
                 yield pgs.SQL("OR")
@@ -1190,26 +1390,25 @@ class PostgresController:
         else:
             raise TypeError(f"Unknown condition type {condition.__class__}")
 
-
     @staticmethod
     def _build_where_component(column, component) -> t.Iterable[pgs.Composable]:
         if component is None:
             yield pgs.Identifier(column)
-            yield pgs.SQL('IS NULL')
+            yield pgs.SQL("IS NULL")
         elif isinstance(component, tuple):
             # (value, operation[, allow_null])
             suffix = None
             if len(component) > 2 and component[2]:
-                yield pgs.SQL('(')
-                yield pgs.Composed((pgs.Identifier(column), pgs.SQL('IS NULL OR')))
-                suffix = pgs.SQL(')')
+                yield pgs.SQL("(")
+                yield pgs.Composed((pgs.Identifier(column), pgs.SQL("IS NULL OR")))
+                suffix = pgs.SQL(")")
             op = component[1].strip().upper()
             val = component[0]
-            if op == 'IN':
+            if op == "IN":
                 yield pgs.Identifier(column)
-                yield pgs.SQL('IN (')
-                yield pgs.SQL(',').join(pgs.Literal(v) for v in val)
-                yield pgs.SQL(')')
+                yield pgs.SQL("IN (")
+                yield pgs.SQL(",").join(pgs.Literal(v) for v in val)
+                yield pgs.SQL(")")
             elif op == "BETWEEN":
                 yield pgs.Identifier(column)
                 yield pgs.SQL("BETWEEN")
@@ -1228,24 +1427,28 @@ class PostgresController:
             if suffix is not None:
                 yield suffix
         else:
-            yield pgs.Identifier(column) + pgs.SQL('=') + pgs.Literal(component)
+            yield pgs.Identifier(column) + pgs.SQL("=") + pgs.Literal(component)
 
     @staticmethod
-    def build_order_by_clause(order_by: t.Optional[t.Sequence[t.Union[str,tuple[str, bool]]]] = None) -> t.Iterable[pgs.Composable]:
+    def build_order_by_clause(
+        order_by: t.Sequence[str | tuple[str, bool]] | None = None,
+    ) -> t.Iterable[pgs.Composable]:
         if isinstance(order_by, str):
             order_by = [order_by]
         if order_by is not None:
-            yield pgs.SQL('ORDER BY')
+            yield pgs.SQL("ORDER BY")
             for order_info in order_by:
                 if isinstance(order_info, tuple):
                     order_field, is_desc = order_info
                 else:
                     order_field, is_desc = order_info, False
                 yield pgs.Identifier(order_field)
-                yield pgs.SQL('ASC') if not is_desc else pgs.SQL('DESC')
+                yield pgs.SQL("ASC") if not is_desc else pgs.SQL("DESC")
 
     @staticmethod
-    def build_lock_type_clause(lock_type: t.Optional[LockType] = None) -> t.Iterable[pgs.Composable]:
+    def build_lock_type_clause(
+        lock_type: LockType | None = None,
+    ) -> t.Iterable[pgs.Composable]:
         """Build a clause to add on to a SELECT statement to get a row lock."""
         if lock_type == LockType.FOR_SHARE:
             yield pgs.SQL("FOR SHARE")
@@ -1264,8 +1467,7 @@ class PostgresController:
             return "\\N"
         elif isinstance(v, str):
             return (
-                v
-                .replace("\\", "\\\\")
+                v.replace("\\", "\\\\")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t")
                 .replace("\n", "\\n")
@@ -1274,12 +1476,12 @@ class PostgresController:
                 .replace("\v", "\\v")
             )
         elif isinstance(v, (bytes, bytearray)):
-            return "\\\\x" + (''.join(hex(x)[2:].zfill(2) for x in v))
+            return "\\\\x" + ("".join(hex(x)[2:].zfill(2) for x in v))
         elif isinstance(v, bool):
-            return 't' if v else 'f'
+            return "t" if v else "f"
         elif isinstance(v, datetime.datetime):
-            utc_v = v.astimezone(datetime.timezone.utc)
-            return utc_v.strftime('%Y-%m-%d %H:%M:%SZ')
+            utc_v = v.astimezone(datetime.UTC)
+            return utc_v.strftime("%Y-%m-%d %H:%M:%SZ")
         elif isinstance(v, datetime.date):
             return v.strftime("%Y-%m-%d")
         elif isinstance(v, (list, tuple, dict)):
@@ -1289,7 +1491,6 @@ class PostgresController:
 
 
 class PGConnectionWrapper:
-
     def __init__(self, connect_args: dict[str, t.Any]):
         self._connect_args = connect_args
         self._conn: pgext.connection | None = None
@@ -1299,21 +1500,36 @@ class PGConnectionWrapper:
         if self._conn is not None:
             return self._conn.cursor()
         else:
-            raise NODBError("Database connection not present", 9000, is_connection_issue=True, pgcode=None)
+            raise NODBError(
+                "Database connection not present",
+                9000,
+                is_connection_issue=True,
+                pgcode=None,
+            )
 
     def commit(self):
         self._verify_connection()
         if self._conn is not None:
             self._conn.commit()
         else:
-            raise NODBError("Database connection not present", 9001, is_connection_issue=True, pgcode=None)
+            raise NODBError(
+                "Database connection not present",
+                9001,
+                is_connection_issue=True,
+                pgcode=None,
+            )
 
     def rollback(self):
         self._verify_connection()
         if self._conn is not None:
             self._conn.rollback()
         else:
-            raise NODBError("Database connection not present", 9002, is_connection_issue=True, pgcode=None)
+            raise NODBError(
+                "Database connection not present",
+                9002,
+                is_connection_issue=True,
+                pgcode=None,
+            )
 
     def connect(self):
         self._verify_connection()
@@ -1349,10 +1565,14 @@ class NODBPostgresController(NODB):
     @injector.construct
     def __init__(self, **kwargs: t.Any):
         super().__init__()
-        connect_args: dict[str, t.Any] = kwargs if kwargs else t.cast(dict[str, t.Any], self.config.as_dict(("nodb",), default={}))
-        if 'options' not in connect_args:
-            connect_args['options'] = "-c search_path=public"
-        connect_args['cursor_factory'] = pge.DictCursor
+        connect_args: dict[str, t.Any] = (
+            kwargs
+            if kwargs
+            else t.cast(dict[str, t.Any], self.config.as_dict(("nodb",), default={}))
+        )
+        if "options" not in connect_args:
+            connect_args["options"] = "-c search_path=public"
+        connect_args["cursor_factory"] = pge.DictCursor
         self._conn: PGConnectionWrapper = PGConnectionWrapper(connect_args)
 
     def __cleanup__(self):
@@ -1362,5 +1582,3 @@ class NODBPostgresController(NODB):
     @wrap_nodb_exceptions
     def _build_controller_instance(self):
         return PostgresController(self._conn)
-
-

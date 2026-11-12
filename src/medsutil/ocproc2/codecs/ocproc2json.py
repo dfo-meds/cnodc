@@ -1,39 +1,43 @@
 import typing as t
 
+import medsutil.types as ct
+from medsutil import json, ocproc2
+from medsutil.byteseq import ByteSequenceReader
 from medsutil.ocproc2 import ParentRecord
 from medsutil.ocproc2.codecs.base import BaseCodec
-from medsutil.byteseq import ByteSequenceReader
 from medsutil.ocproc2.structures import ParentExport
-import medsutil.types as ct
-import medsutil.ocproc2 as ocproc2
-import medsutil.json as json
 
 
 class OCProc2JsonCodec(BaseCodec):
-
     JSON_WHITESPACE = b" \r\n\t"
     FILE_EXTENSION = ".json"
 
     def __init__(self, **kwargs):
-        super().__init__(log_name="cnodc.codecs.json", is_encoder=True, is_decoder=True, **kwargs)
+        super().__init__(
+            log_name="cnodc.codecs.json", is_encoder=True, is_decoder=True, **kwargs
+        )
 
-    def _encode_start(self, options: dict) -> t.Union[None, bytes, bytearray]:
-        return b'['
+    def _encode_start(self, options: dict) -> None | bytes | bytearray:
+        return b"["
 
-    def _encode_single_record(self, record: ocproc2.ParentRecord, options: dict) -> ct.ByteStrings:
+    def _encode_single_record(
+        self, record: ocproc2.ParentRecord, options: dict
+    ) -> ct.ByteStrings:
         yield json.dumpb(record.to_mapping())
 
-    def _encode_separator(self, options: dict) -> t.Union[None, bytes, bytearray]:
-        return b','
+    def _encode_separator(self, options: dict) -> None | bytes | bytearray:
+        return b","
 
-    def _encode_end(self, options: dict) -> t.Union[None, bytes, bytearray]:
-        return b']'
+    def _encode_end(self, options: dict) -> None | bytes | bytearray:
+        return b"]"
 
-    def _parse_into_messages(self, data: ct.ByteStrings, options: dict) -> ct.ByteStrings:
+    def _parse_into_messages(
+        self, data: ct.ByteStrings, options: dict
+    ) -> ct.ByteStrings:
         stream = self._as_byte_sequence(data)
         stream.lstrip(OCProc2JsonCodec.JSON_WHITESPACE)
         if not stream.at_eof():
-            if stream[0] == b'[':
+            if stream[0] == b"[":
                 yield from self._decode_streaming_records(stream)
             else:
                 yield stream.consume_all()
@@ -51,7 +55,7 @@ class OCProc2JsonCodec(BaseCodec):
                 depth -= 1
                 if depth == 0:
                     break
-            elif end_c == 125: # }
+            elif end_c == 125:  # }
                 depth -= 1
                 if depth == 1:
                     buffer = buffer.strip()
@@ -62,15 +66,20 @@ class OCProc2JsonCodec(BaseCodec):
         buffer = buffer.strip()
         # TODO: handle this better
         if not stream.at_eof():
-            self.log.warning(f"More data detected")
-        if buffer == b'':
-            self.log.warning(f"Missing trailing bracket")
-        elif buffer != b']':  # pragma: no coverage (fallback for malformed JSON)
-            self.log.warning(f"More data detected")
+            self.log.warning("More data detected")
+        if buffer == b"":
+            self.log.warning("Missing trailing bracket")
+        elif buffer != b"]":  # pragma: no coverage (fallback for malformed JSON)
+            self.log.warning("More data detected")
 
-    def _decode_single_message(self, stream: t.ByteString, options: dict) -> t.Iterable[ocproc2.ParentRecord]:
+    def _decode_single_message(
+        self, stream: t.ByteString, options: dict
+    ) -> t.Iterable[ocproc2.ParentRecord]:
         if isinstance(stream, memoryview):
-            yield ParentRecord.build_from_mapping(t.cast(ParentExport, t.cast(object, json.load_dict(bytes(stream)))))
+            yield ParentRecord.build_from_mapping(
+                t.cast(ParentExport, t.cast(object, json.load_dict(bytes(stream))))
+            )
         else:
-            yield ParentRecord.build_from_mapping(t.cast(ParentExport, t.cast(object, json.load_dict(stream))))
-
+            yield ParentRecord.build_from_mapping(
+                t.cast(ParentExport, t.cast(object, json.load_dict(stream)))
+            )

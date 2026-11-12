@@ -16,19 +16,30 @@ connection_string = "..."
 
 
 """
+
 import typing as t
 from contextlib import contextmanager
 
-from medsutil.storage.azure import wrap_azure_errors, _AzureBaseHandle
+from medsutil.storage.azure import _AzureBaseHandle, wrap_azure_errors
 from medsutil.storage.interface import FeatureFlag, StatResult, StorageTier
 
 if t.TYPE_CHECKING:
     import sqlite3
-    from azure.storage.blob import BlobClient, StandardBlobTier, ContainerClient, BlobBlock, BlockState, BlobProperties
+
+    from azure.storage.blob import (
+        BlobBlock,
+        BlobClient,
+        BlobProperties,
+        ContainerClient,
+        StandardBlobTier,
+    )
+
 
 def total_memory_size(__obj) -> int:
     import sys
+
     seen = set()
+
     def _size_of(obj) -> int:
         if id(obj) in seen:
             return 0
@@ -40,10 +51,11 @@ def total_memory_size(__obj) -> int:
         elif isinstance(obj, t.Iterable) and not isinstance(obj, str):
             s += sum(map(_size_of, iter(obj)))
         return s
+
     return _size_of(__obj)
 
-class BlobWalker:
 
+class BlobWalker:
     def __init__(self, relative_name: str, max_memory: int):
         self._relative_name = relative_name
         self._max_memory_size = max_memory
@@ -51,9 +63,9 @@ class BlobWalker:
         self._temp_dir: None | str = None
         self._sql_handle: None | sqlite3.Connection = None
         self._memory_dict: dict[str, list | dict | str | None] = {
-            '_dirs': {},
-            '_files': [],
-            '_full_name': relative_name
+            "_dirs": {},
+            "_files": [],
+            "_full_name": relative_name,
         }
 
     def cleanup(self):
@@ -62,6 +74,7 @@ class BlobWalker:
             del self._sql_handle
         if self._temp_dir:
             import shutil
+
             shutil.rmtree(self._temp_dir)
             del self._temp_dir
         del self._memory_dict
@@ -73,8 +86,8 @@ class BlobWalker:
             yield from self._walk_memory()
 
     def append(self, bp: BlobProperties):
-        relative_name = bp.name[len(self._relative_name):].strip('/')
-        dir_list = relative_name.split('/')
+        relative_name = bp.name[len(self._relative_name) :].strip("/")
+        dir_list = relative_name.split("/")
         file_name = dir_list.pop(-1)
         if self._use_file_system:
             self._append_file_system(file_name, dir_list)
@@ -86,9 +99,10 @@ class BlobWalker:
     def _rollover(self):
         import sqlite3
         import tempfile
+
         self._use_file_system = True
         self._temp_dir: str = tempfile.mkdtemp()
-        self._sql_handle = sqlite3.connect(self._temp_dir.rstrip('/\\') + '/walker.db')
+        self._sql_handle = sqlite3.connect(self._temp_dir.rstrip("/\\") + "/walker.db")
         self._sql_handle.execute("""
             CREATE TABLE blob_paths (parent_name TEXT NOT NULL, blob_name TEXT NOT NULL)
         """)
@@ -98,25 +112,36 @@ class BlobWalker:
         self._memory_dict = {}
 
     def _insert_row(self, dir_name, file_name):
-        self._sql_handle.execute("INSERT INTO blob_paths (parent_name, blob_name) VALUES (?, ?)", [dir_name, file_name])
+        self._sql_handle.execute(
+            "INSERT INTO blob_paths (parent_name, blob_name) VALUES (?, ?)",
+            [dir_name, file_name],
+        )
 
     def _append_file_system(self, file_name: str, dir_list: list[str]):
-        self._insert_row(self._relative_name + '/' + '/'.join(dir_list), file_name)
+        self._insert_row(self._relative_name + "/" + "/".join(dir_list), file_name)
 
     def _walk_file_system(self) -> t.Iterable[tuple[str, list[str], list[str]]]:
-        cur = self._sql_handle.execute("SELECT DISTINCT parent_name FROM blob_paths ORDER BY length(parent_name) ASC")
+        cur = self._sql_handle.execute(
+            "SELECT DISTINCT parent_name FROM blob_paths ORDER BY length(parent_name) ASC"
+        )
         row = cur.fetchone()
         while row is not None:
-            sub_dir_cur = self._sql_handle.execute("SELECT DISTINCT parent_name FROM blob_paths WHERE parent_name LIKE ? ORDER BY length(parent_name) ASC", [f"{row[0]}/%"])
+            sub_dir_cur = self._sql_handle.execute(
+                "SELECT DISTINCT parent_name FROM blob_paths WHERE parent_name LIKE ? ORDER BY length(parent_name) ASC",
+                [f"{row[0]}/%"],
+            )
             sub_dirs = set()
             sub_dir_row = sub_dir_cur.fetchone()
             while sub_dir_row is not None:
-                actual_subdir = sub_dir_row[0][len(row[0]):].strip('/')
-                if '/' not in actual_subdir:
+                actual_subdir = sub_dir_row[0][len(row[0]) :].strip("/")
+                if "/" not in actual_subdir:
                     sub_dirs.add(actual_subdir)
                 sub_dir_row = sub_dir_cur.fetchone()
             files = list()
-            file_cur = self._sql_handle.execute("SELECT DISTINCT blob_name FROM blob_paths WHERE parent_name = ?", [row[0]])
+            file_cur = self._sql_handle.execute(
+                "SELECT DISTINCT blob_name FROM blob_paths WHERE parent_name = ?",
+                [row[0]],
+            )
             file_cur_row = file_cur.fetchone()
             while file_cur_row is not None:
                 files.append(file_cur_row[0])
@@ -132,54 +157,62 @@ class BlobWalker:
 
     @staticmethod
     def _recursive_yield(d: dict) -> t.Iterable[tuple[str, list[str], list[str]]]:
-        dir_names = list(d['_dirs'].keys())
-        yield d['_full_name'], dir_names, d['_files']
+        dir_names = list(d["_dirs"].keys())
+        yield d["_full_name"], dir_names, d["_files"]
         for subd_key in dir_names:
-            yield from BlobWalker._recursive_yield(d['_dirs'][subd_key])
+            yield from BlobWalker._recursive_yield(d["_dirs"][subd_key])
 
     @staticmethod
     def _deep_append(d: dict, dir_names: list, file_name: str):
         if not dir_names:
-            d['_files'].append(file_name)
+            d["_files"].append(file_name)
         else:
             next_name = dir_names.pop(0)
-            if next_name not in d['_dirs']:
-                d['_dirs'][next_name] = {
-                    '_dirs': {},
-                    '_files': [],
-                    '_full_name': f"{d['_full_name']}/{next_name}"
+            if next_name not in d["_dirs"]:
+                d["_dirs"][next_name] = {
+                    "_dirs": {},
+                    "_files": [],
+                    "_full_name": f"{d['_full_name']}/{next_name}",
                 }
-            BlobWalker._deep_append(d['_dirs'][next_name], dir_names, file_name)
+            BlobWalker._deep_append(d["_dirs"][next_name], dir_names, file_name)
 
 
 class AzureBlobHandle(_AzureBaseHandle):
     """Handle class for Azure blobs"""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args,
-                         essential_domain='.blob.core.windows.net',
-                         supports=FeatureFlag.DEFAULT | FeatureFlag.TIERING | FeatureFlag.METADATA | FeatureFlag.CREATED_TIME,
-                         log_name='az_blob',
-                         **kwargs)
+        super().__init__(
+            *args,
+            essential_domain=".blob.core.windows.net",
+            supports=FeatureFlag.DEFAULT
+            | FeatureFlag.TIERING
+            | FeatureFlag.METADATA
+            | FeatureFlag.CREATED_TIME,
+            log_name="az_blob",
+            **kwargs,
+        )
         self.walk_max_memory = 1024 * 1024
         self._open_container = None
         self._open_blob = None
 
     @contextmanager
-    def client(self) -> t.Generator[BlobClient, None, None]:
+    def client(self) -> t.Generator[BlobClient]:
         """Build a blob client."""
         with self.container_client() as client:
             yield client.get_blob_client(self._get_full_path())
 
     @contextmanager
-    def container_client(self) -> t.Generator[ContainerClient, None, None]:
+    def container_client(self) -> t.Generator[ContainerClient]:
         """Build a container client."""
-        with self.persistent_connection("container", self._get_client, "container") as x:
+        with self.persistent_connection(
+            "container", self._get_client, "container"
+        ) as x:
             yield x
 
     @staticmethod
     def code_tier(tier: StandardBlobTier | None) -> StorageTier | None:
         from azure.storage.blob import StandardBlobTier
+
         if tier is StandardBlobTier.HOT:
             return StorageTier.FREQUENT
         elif tier is StandardBlobTier.COOL:
@@ -191,6 +224,7 @@ class AzureBlobHandle(_AzureBaseHandle):
     @staticmethod
     def decode_tier(tier: StorageTier | None) -> StandardBlobTier:
         from azure.storage.blob import StandardBlobTier
+
         if tier is StorageTier.FREQUENT:
             return StandardBlobTier.HOT
         elif tier is StorageTier.INFREQUENT:
@@ -202,7 +236,9 @@ class AzureBlobHandle(_AzureBaseHandle):
     @wrap_azure_errors
     def _stat(self) -> StatResult:
         from azure.core.exceptions import ResourceNotFoundError
+
         from medsutil.awaretime import AwareDateTime
+
         try:
             with self.client() as client:
                 props = client.get_blob_properties()
@@ -212,9 +248,13 @@ class AzureBlobHandle(_AzureBaseHandle):
                     is_dir=False,
                     metadata=props.metadata,
                     st_size=props.size,
-                    st_ctime=AwareDateTime.from_datetime(props.creation_time, 'Etc/UTC'),
-                    st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
-                    tier=self.code_tier(props.blob_tier)
+                    st_ctime=AwareDateTime.from_datetime(
+                        props.creation_time, "Etc/UTC"
+                    ),
+                    st_mtime=AwareDateTime.from_datetime(
+                        props.last_modified, "Etc/UTC"
+                    ),
+                    tier=self.code_tier(props.blob_tier),
                 )
         except ResourceNotFoundError:
             if self._no_remote_is_dir():
@@ -227,14 +267,22 @@ class AzureBlobHandle(_AzureBaseHandle):
             stream = client.download_blob()
             yield from self._halt_flag.iterate(stream.chunks())
 
-    def _fast_blob_upload(self, client: BlobClient, chunk: bytes, metadata: dict[str, str]) -> dict:
-        return client.upload_blob(chunk, length=len(chunk), metadata=metadata, overwrite=True)
+    def _fast_blob_upload(
+        self, client: BlobClient, chunk: bytes, metadata: dict[str, str]
+    ) -> dict:
+        return client.upload_blob(
+            chunk, length=len(chunk), metadata=metadata, overwrite=True
+        )
 
     @staticmethod
-    def _blob_streaming_upload(client: BlobClient, chunk: bytes, offset: int) -> BlobBlock:
+    def _blob_streaming_upload(
+        client: BlobClient, chunk: bytes, offset: int
+    ) -> BlobBlock:
         import base64
+
         from azure.storage.blob import BlobBlock, BlockState
-        block_id = base64.b64encode(f"{offset:032d}".encode('utf-8')).decode('utf-8')
+
+        block_id = base64.b64encode(f"{offset:032d}".encode()).decode("utf-8")
         client.stage_block(block_id, chunk, len(chunk))
         bb = BlobBlock(block_id, BlockState.UNCOMMITTED)
         bb.size = len(chunk)
@@ -242,12 +290,15 @@ class AzureBlobHandle(_AzureBaseHandle):
 
     def _streaming_write(self, chunks: t.Iterable[bytes], **kwargs):
         from medsutil.byteseq import ByteSequenceReader
+
         with self.client() as client_:
             bsr = ByteSequenceReader(chunks)
-            block_size: int = 1024 * 1024 * 4  # this should take around 2 seconds at most with a good connection
+            block_size: int = (
+                1024 * 1024 * 4
+            )  # this should take around 2 seconds at most with a good connection
             first_block = bytes(bsr.consume(block_size))
-            metadata = kwargs.pop('metadata', {})
-            tier = kwargs.pop('storage_tier', None)
+            metadata = kwargs.pop("metadata", {})
+            tier = kwargs.pop("storage_tier", None)
             # fast upload for small blobs
             if bsr.at_eof():
                 new_data = self._fast_blob_upload(client_, first_block, metadata)
@@ -259,8 +310,8 @@ class AzureBlobHandle(_AzureBaseHandle):
                     exists=True,
                     st_size=len(first_block),
                     metadata=metadata,
-                    st_mtime=new_data['last_modified'],
-                    tier=tier
+                    st_mtime=new_data["last_modified"],
+                    tier=tier,
                 )
 
             # longer process for bigger blobs
@@ -270,7 +321,9 @@ class AzureBlobHandle(_AzureBaseHandle):
                 while not bsr.at_eof():
                     self.breakpoint()
                     chunk = bytes(bsr.consume(block_size))
-                    uncommitted.append(self._blob_streaming_upload(client_, chunk, offset))
+                    uncommitted.append(
+                        self._blob_streaming_upload(client_, chunk, offset)
+                    )
                     offset += len(chunk)
                 new_data = client_.commit_block_list(uncommitted, metadata=metadata)
                 if tier is not None:
@@ -281,22 +334,32 @@ class AzureBlobHandle(_AzureBaseHandle):
                     exists=True,
                     st_size=offset,
                     metadata=metadata,
-                    st_mtime=new_data['last_modified'],
-                    tier=tier
+                    st_mtime=new_data["last_modified"],
+                    tier=tier,
                 )
 
     @wrap_azure_errors
     def _remove(self):
         from azure.core.exceptions import ResourceNotFoundError
+
         try:
             with self.client() as client:
                 client.delete_blob()
-            self._update_stat(exists=False, is_dir=None, is_file=None, metadata=None, tier=None, st_mtime=None, st_size=None)
-        except ResourceNotFoundError: ...
+            self._update_stat(
+                exists=False,
+                is_dir=None,
+                is_file=None,
+                metadata=None,
+                tier=None,
+                st_mtime=None,
+                st_size=None,
+            )
+        except ResourceNotFoundError:
+            ...
 
     def full_name(self):
-        path = [x for x in self.parse_url().path.split('/') if x]
-        return '/'.join(path[1:])
+        path = [x for x in self.parse_url().path.split("/") if x]
+        return "/".join(path[1:])
 
     @wrap_azure_errors
     def _walk(self) -> t.Iterable[tuple[str, list[str], list[str]]]:
@@ -304,7 +367,9 @@ class AzureBlobHandle(_AzureBaseHandle):
         walker = BlobWalker(full_name, self.walk_max_memory)
         try:
             with self.container_client() as client:
-                for blob_properties in self._halt_flag.iterate(client.list_blobs(name_starts_with=full_name)):
+                for blob_properties in self._halt_flag.iterate(
+                    client.list_blobs(name_starts_with=full_name)
+                ):
                     walker.append(blob_properties)
                 yield from walker.walk_all()
         finally:
@@ -321,26 +386,24 @@ class AzureBlobHandle(_AzureBaseHandle):
         # never need to worry about making directories here.
         pass
 
-    def _local_fast_copy(self, destination: AzureBlobHandle, allow_overwrite: bool = False) -> AzureBlobHandle:
+    def _local_fast_copy(
+        self, destination: AzureBlobHandle, allow_overwrite: bool = False
+    ) -> AzureBlobHandle:
         if destination.account_name == self.account_name:
             with destination.client() as client:
                 if hasattr(client, "start_copy_from_url"):
-                    result = client.start_copy_from_url(
-                        self.path(),
-                        requires_sync=True
-                    )
+                    result = client.start_copy_from_url(self.path(), requires_sync=True)
                     if result["copy_status"] == "success":
                         return destination
         return self._copy(destination, allow_overwrite)
 
-    def _local_fast_move(self, destination: AzureBlobHandle, allow_overwrite: bool = False) -> AzureBlobHandle:
+    def _local_fast_move(
+        self, destination: AzureBlobHandle, allow_overwrite: bool = False
+    ) -> AzureBlobHandle:
         if destination.account_name == self.account_name:
             with destination.client() as client:
                 if hasattr(client, "start_copy_from_url"):
-                    result = client.start_copy_from_url(
-                        self.path(),
-                        requires_sync=True
-                    )
+                    result = client.start_copy_from_url(self.path(), requires_sync=True)
                     if result["copy_status"] == "success":
                         self.remove()
                         return destination
@@ -361,5 +424,8 @@ class AzureBlobHandle(_AzureBaseHandle):
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
         from urllib.parse import urlparse
+
         pieces = urlparse(file_path)
-        return pieces.hostname is not None and pieces.hostname.endswith(".blob.core.windows.net")
+        return pieces.hostname is not None and pieces.hostname.endswith(
+            ".blob.core.windows.net"
+        )

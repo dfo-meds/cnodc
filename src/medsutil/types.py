@@ -1,20 +1,21 @@
-""" Type hints that are widely used throughout the application. """
-import typing as _t
+"""Type hints that are widely used throughout the application."""
+
 import os as _os
+import typing as _t
 
 if _t.TYPE_CHECKING:
-    import datetime as _datetime
     import collections.abc as _abc
-    import uuid as _uuid
+    import datetime as _datetime
     import decimal as _decimal
     import enum as _enum
     import io as _io
+    import uuid as _uuid
 
     # Types to support localization
     LanguageName = _t.Literal[
         "und",  # Language not adequately defined or equally valid in French and English (really this should be mis probably)
         "en",  # Canadian English
-        "fr"  # Canadian French
+        "fr",  # Canadian French
     ]
     """ Type hint for a supported BCP-47 language codes. """
 
@@ -26,13 +27,27 @@ if _t.TYPE_CHECKING:
 
     # Types to support JSON objects
     type _SupportsNativeJson = bool | str | float | int | None | _enum.IntEnum
-    type _SupportsNativeJsonAll = _SupportsNativeJson | dict[str, _SupportsNativeJsonAll] | list[_SupportsNativeJsonAll]
+    type _SupportsNativeJsonAll = (
+        _SupportsNativeJson
+        | dict[str, _SupportsNativeJsonAll]
+        | list[_SupportsNativeJsonAll]
+    )
     SupportsNativeJson = _SupportsNativeJsonAll
     """Type hint for objects that can be serialized with Python's native json library. """
 
-    type _SupportsExtendedJson = _SupportsNativeJson | _datetime.datetime | _datetime.date | _datetime.time | _uuid.UUID | _enum.Enum
-    type _SupportsExtendedJsonAll = _SupportsExtendedJson | _abc.Mapping[str, _SupportsExtendedJsonAll] | _abc.Iterable[
-        _SupportsExtendedJsonAll]
+    type _SupportsExtendedJson = (
+        _SupportsNativeJson
+        | _datetime.datetime
+        | _datetime.date
+        | _datetime.time
+        | _uuid.UUID
+        | _enum.Enum
+    )
+    type _SupportsExtendedJsonAll = (
+        _SupportsExtendedJson
+        | _abc.Mapping[str, _SupportsExtendedJsonAll]
+        | _abc.Iterable[_SupportsExtendedJsonAll]
+    )
     SupportsExtendedJson = _SupportsExtendedJsonAll
     """Type hint for objects that can be serialzed with our own cnodc.util.json library. """
 
@@ -52,7 +67,9 @@ if _t.TYPE_CHECKING:
     ISOString = str
     """ Type hint for a string that is a date in ISO format. """
 
-    type _AcceptAsJsonDict[X: SupportsString, Y: SupportsExtendedJson] = _t.Mapping[X, Y] | JsonDictString
+    type _AcceptAsJsonDict[X: SupportsString, Y: SupportsExtendedJson] = (
+        _t.Mapping[X, Y] | JsonDictString
+    )
     AcceptAsJsonDict = _AcceptAsJsonDict
     """ Type hint for something that is a mapping or one that can be loaded from JSON. """
 
@@ -71,7 +88,9 @@ if _t.TYPE_CHECKING:
     AcceptAsInteger = int | _t.SupportsIndex | _t.SupportsInt | str | _abc.Buffer
     """ Type hint for something that can be accepted as an integer. """
 
-    AcceptAsFloat = int | _t.SupportsIndex | _t.SupportsFloat | str | _abc.Buffer | float
+    AcceptAsFloat = (
+        int | _t.SupportsIndex | _t.SupportsFloat | str | _abc.Buffer | float
+    )
     """ Type hint for something that can be accepted as a float. """
 
     # Time-based type hints
@@ -106,15 +125,17 @@ if _t.TYPE_CHECKING:
 
     # Protocols for basic operations
     class SupportsBool(_t.Protocol):
-        """ Type hint for an object that supports being converted into a boolean value. """
+        """Type hint for an object that supports being converted into a boolean value."""
+
         def __bool__(self) -> bool: ...
 
     class SupportsString(_t.Protocol):
-        """ Type hint for an object that supports being converted into a string value. """
+        """Type hint for an object that supports being converted into a string value."""
+
         def __str__(self) -> str: ...
 
     class SupportsEvent(_t.Protocol):
-        """ Type hint for an event object such as threading.Event or multiprocessing.Event. """
+        """Type hint for an event object such as threading.Event or multiprocessing.Event."""
 
         def is_set(self) -> bool: ...
         def clear(self): ...
@@ -123,22 +144,36 @@ if _t.TYPE_CHECKING:
     class SupportsHashUpdate(_t.Protocol):
         def update(self, b: bytes): ...
 
-    SupportsByteStreaming = _t.ByteString | str | _os.PathLike | SupportsBinaryRead | _t.Iterable[_t.ByteString]
+    SupportsByteStreaming = (
+        _t.ByteString
+        | str
+        | _os.PathLike
+        | SupportsBinaryRead
+        | _t.Iterable[_t.ByteString]
+    )
     SupportsByteStreamWriting = str | _os.PathLike | SupportsBinaryWrite | bytearray
 
 
 def is_binary_writable(obj: _t.Any) -> _t.TypeIs[SupportsBinaryWrite]:
-    """ Checks if an object is writable. """
-    return hasattr(obj, 'write') and hasattr(obj, 'writable') and obj.writable()
+    """Checks if an object is writable."""
+    return hasattr(obj, "write") and hasattr(obj, "writable") and obj.writable()
+
 
 def is_binary_readable(obj: _t.Any) -> _t.TypeIs[SupportsBinaryRead]:
-    """ Checks if an object is readable. """
-    return hasattr(obj, 'read') and hasattr(obj, 'readable') and obj.readable()
+    """Checks if an object is readable."""
+    return hasattr(obj, "read") and hasattr(obj, "readable") and obj.readable()
+
 
 def is_binary_seekable(obj: _t.Any) -> _t.TypeIs[SupportsBinarySeek]:
-    """ Checks if an object is seekable. """
-    return hasattr(obj, 'tell') and hasattr(obj, 'seek') and hasattr(obj, 'seekable') and obj.seekable()
+    """Checks if an object is seekable."""
+    return (
+        hasattr(obj, "tell")
+        and hasattr(obj, "seek")
+        and hasattr(obj, "seekable")
+        and obj.seekable()
+    )
+
 
 def is_local_path(obj: _t.Any) -> _t.TypeIs[_os.PathLike | str]:
-    """ Checks if an object is like a local path. """
+    """Checks if an object is like a local path."""
     return isinstance(obj, (str, _os.PathLike))

@@ -1,24 +1,24 @@
 import base64
 import json
+import os
 import pathlib
 import typing as t
 import uuid
 
-from cryptography.fernet import Fernet, InvalidToken
 from autoinject import injector
-import os
+from cryptography.fernet import Fernet, InvalidToken
+
+import medsutil.datadict as dd
 from medsutil.exceptions import CodedError
 from medsutil.storage import StorageController
-import medsutil.datadict as dd
-
-from oceanvault.policies import PolicyGroup, AccessType
+from oceanvault.policies import AccessType, PolicyGroup
 
 
-class VaultError(CodedError): CODE_SPACE = 'VAULT'
+class VaultError(CodedError):
+    CODE_SPACE = "VAULT"
 
 
 class BaseSecret(dd.DataDictModifiedTracker):
-
     _vault: SecretVault
 
     path: str = dd.p_str(required=True, readonly=True)
@@ -27,7 +27,7 @@ class BaseSecret(dd.DataDictModifiedTracker):
         self._vault = vault
 
     def check_access(self, pg: PolicyGroup, required_access: list[AccessType]):
-        return pg.check(f'/secrets/{self.path}', required_access)
+        return pg.check(f"/secrets/{self.path}", required_access)
 
     def mark_modified(self, item: str):
         super().mark_modified(item)
@@ -39,7 +39,6 @@ class KeyValueSecret(BaseSecret):
 
 
 class SecretVault:
-
     storage: StorageController = None
 
     @injector.construct
@@ -57,18 +56,18 @@ class SecretVault:
         self.mark_modified()
 
     def get_secret(self, path: str) -> BaseSecret:
-        return self._secrets[path.strip('/')]
+        return self._secrets[path.strip("/")]
 
     def mark_modified(self):
         self._modified = True
 
     def _require_loaded(self):
         if not self._loaded:
-            raise VaultError('Vault must be opened first', 1000)
+            raise VaultError("Vault must be opened first", 1000)
 
     def _require_not_loaded(self):
         if self._loaded:
-            raise VaultError('Vault is already open', 1001)
+            raise VaultError("Vault is already open", 1001)
 
     def _generate_master_key(self):
         self._master_key = Fernet.generate_key()
@@ -104,7 +103,7 @@ class SecretVault:
         temp = {}
         data_dict = json.loads(data)
         if not isinstance(data_dict, dict):
-            raise VaultError('Invalid secret info, not a dict', 2000)
+            raise VaultError("Invalid secret info, not a dict", 2000)
         for key in data_dict:
             secret = BaseSecret.import_from_map(data_dict[key])
             temp[secret.path] = secret
@@ -120,19 +119,16 @@ class SecretVault:
         with self.storage.handle(self._secret_file) as sf:
             temp = sf.with_name(str(uuid.uuid4()))
             fernet_shared = Fernet(t.cast(bytes, self._master_key))
-            with temp.open('wb') as h:
+            with temp.open("wb") as h:
                 h.write(fernet_shared.encrypt(self._export_secret_info()))
             temp.rename(sf)
 
     def _export_secret_info(self) -> bytes:
-        raw = [
-            self._secrets[x].export()
-            for x in self._secrets
-        ]
-        return json.dumps(raw).encode('utf-8')
+        raw = [self._secrets[x].export() for x in self._secrets]
+        return json.dumps(raw).encode("utf-8")
 
     @staticmethod
     def from_environ_b64(secret_key_env_name: str, secrets_file: str | pathlib.Path):
         sv = SecretVault(secrets_file)
-        sv.open_vault(base64.urlsafe_b64decode(os.environ.get(secret_key_env_name, '')))
+        sv.open_vault(base64.urlsafe_b64decode(os.environ.get(secret_key_env_name, "")))
         return sv

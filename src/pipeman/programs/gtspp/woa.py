@@ -1,8 +1,10 @@
-from pipeman.programs.woa.climatology_check import WorldOceanAtlasClimatologyCheck, WOATimeResolution
+from pipeman.programs.woa.climatology_check import (
+    WOATimeResolution,
+    WorldOceanAtlasClimatologyCheck,
+)
 
 
 class GTSPPWOASeasonalCheck(WorldOceanAtlasClimatologyCheck):
-
     def __init__(self):
         super().__init__(
             test_protocol="gtspp",
@@ -15,7 +17,6 @@ class GTSPPWOASeasonalCheck(WorldOceanAtlasClimatologyCheck):
 
 
 class GTSPPWOAMonthlyCheck(WorldOceanAtlasClimatologyCheck):
-
     def __init__(self):
         super().__init__(
             test_protocol="gtspp",

@@ -2,132 +2,154 @@ import functools
 import logging
 import unittest
 
-from tests.helpers.base_test_case import load_ordered_tests, ordered_after, BaseTestCase, skip_integration_test
-from medsutil.dynamic import dynamic_name
-from medsutil.ocproc2.codecs.netcdf import NetCDFCommonDecoder
-from nodb.observations import NODBWorkingRecord, NODBSourceFile, NODBObservation, NODBObservationData
-from pipeman.processing.progressor import WorkflowProgressWorker
-from pipeman.programs.file_scan import FileScanTask, FileDownloadWorker
-from pipeman.programs.glider.ego_convert import validate_ego_glider_file
-from pipeman.programs.glider.ego_decode import GliderEGOMapper
-from pipeman.programs.glider.workers import GliderConversionWorker
-from pipeman.programs.dmd.pusher import DMDMetadataPushWorker
-from pipeman.programs.nodb.loader import NODBDecodeLoadWorker
-from tests.helpers.base_test_case import skip_long_test
-from tests.helpers.mock_workflow import MockWorkflow, WorkflowTestResult, BaseWorkflowTestCase
-from tests.helpers.mock_requests import MockResponse
-from autoinject import injector
 import zirconium as zr
-import medsutil.json as json
+from autoinject import injector
+
+from medsutil import json
+from medsutil.dynamic import dynamic_name
+from nodb.observations import (
+    NODBObservation,
+    NODBObservationData,
+    NODBSourceFile,
+    NODBWorkingRecord,
+)
+from pipeman.processing.progressor import WorkflowProgressWorker
+from pipeman.programs.dmd.pusher import DMDMetadataPushWorker
+from pipeman.programs.file_scan import FileDownloadWorker, FileScanTask
+from pipeman.programs.glider.ego_convert import validate_ego_glider_file
+from pipeman.programs.glider.workers import GliderConversionWorker
+from tests.helpers.base_test_case import (
+    BaseTestCase,
+    load_ordered_tests,
+    ordered_after,
+    skip_integration_test,
+)
+from tests.helpers.mock_requests import MockResponse
+from tests.helpers.mock_workflow import (
+    BaseWorkflowTestCase,
+    MockWorkflow,
+    WorkflowTestResult,
+)
 
 load_tests = load_ordered_tests
+
 
 def with_security(cb):
     @functools.wraps(cb)
     def _inner(method, url, **kwargs):
-        h = kwargs.pop('headers', {})
-        if 'Authorization' not in h:
+        h = kwargs.pop("headers", {})
+        if "Authorization" not in h:
             return MockResponse(b"Forbidden", 403)
-        if h['Authorization'] != 'Bearer 12345':
+        if h["Authorization"] != "Bearer 12345":
             return MockResponse(b"Forbidden", 403)
         return cb(method, url, **kwargs)
+
     return _inner
+
 
 @with_security
 def upsert_dataset(method, url, data, request_list, **kwargs):
     request_list.append(json.loads(data))
-    return json.dumps({'guid': '23456'})
+    return json.dumps({"guid": "23456"})
 
 
 @skip_integration_test
 class TestGliderWithDMD(BaseTestCase):
-
     def test_dmd_ready(self):
         import requests
+
         res = requests.get(self.real_dmd.base_url())
         res.raise_for_status()
-        auth_token = self.real_dmd.create_bot_user('testbot')
+        auth_token = self.real_dmd.create_bot_user("testbot")
         print(auth_token)
 
 
 @skip_integration_test
 class TestGliderDecode(BaseWorkflowTestCase):
-
     @classmethod
     @injector.inject
     @injector.test_case
-    def build_and_run_workflow(cls, workflow: MockWorkflow, cfg: zr.ApplicationConfig) -> WorkflowTestResult:
+    def build_and_run_workflow(
+        cls, workflow: MockWorkflow, cfg: zr.ApplicationConfig
+    ) -> WorkflowTestResult:
         cls.set_log_level_for_class(logging.ERROR)
-        auth_token = cls.real_dmd.create_bot_user('testbot')
-        cfg.set_defaults({
-            'dmd': {
-                'auth_token': 'foobar',
-                'base_url': 'http://localhost:9100/metadb/'
+        _ = cls.real_dmd.create_bot_user("testbot")
+        cfg.set_defaults(
+            {
+                "dmd": {
+                    "auth_token": "foobar",
+                    "base_url": "http://localhost:9100/metadb/",
+                }
             }
-        })
-        input_dir = cls.class_temp_dir / 'inputs'
+        )
+        input_dir = cls.class_temp_dir / "inputs"
         input_dir.mkdir()
-        error_dir = cls.class_temp_dir / 'errors'
+        error_dir = cls.class_temp_dir / "errors"
         error_dir.mkdir()
-        glider_dir = cls.class_temp_dir / 'gliders'
+        glider_dir = cls.class_temp_dir / "gliders"
         glider_dir.mkdir()
-        erddap_dir = cls.class_temp_dir / 'erddap'
+        erddap_dir = cls.class_temp_dir / "erddap"
         erddap_dir.mkdir()
-        ego_dir = cls.class_temp_dir / 'ego'
+        ego_dir = cls.class_temp_dir / "ego"
         ego_dir.mkdir()
-        workflow.add_worker(FileScanTask, {
-            'run_on_boot': True,
-            'scan_target': str(input_dir),
-            'workflow_name': 'test_glider_decode',
-            'delay_seconds': 600,
-            'pattern': '*.nc',
-            'metadata': {
-                'source_name': 'ego_glider_files',
-                'program_name': 'gliders',
-            }
-        })
+        workflow.add_worker(
+            FileScanTask,
+            {
+                "run_on_boot": True,
+                "scan_target": str(input_dir),
+                "workflow_name": "test_glider_decode",
+                "delay_seconds": 600,
+                "pattern": "*.nc",
+                "metadata": {
+                    "source_name": "ego_glider_files",
+                    "program_name": "gliders",
+                },
+            },
+        )
         workflow.add_worker(FileDownloadWorker)
-        #workflow.add_worker(NODBDecodeLoadWorker,{
+        # workflow.add_worker(NODBDecodeLoadWorker,{
         #    'queue_name': 'decode_records',
         #    'error_directory': str(error_dir),
-        #})
+        # })
         workflow.add_worker(WorkflowProgressWorker)
-        workflow.add_worker(GliderConversionWorker, {
-            'openglider_directory': str(glider_dir),
-            'openglider_erddap_directory': str(erddap_dir),
-        })
+        workflow.add_worker(
+            GliderConversionWorker,
+            {
+                "openglider_directory": str(glider_dir),
+                "openglider_erddap_directory": str(erddap_dir),
+            },
+        )
         workflow.add_worker(DMDMetadataPushWorker)
         workflow.add_workflow(
-            'test_glider_decode',
+            "test_glider_decode",
             str(ego_dir),
             [
-                #{
-                 #   'order': 0,
-                 #   'name': 'decode_records',
-                 #   'worker_config': {
-                 #       'decoder': {
-                 #           'decoder_class': dynamic_name(NetCDFCommonDecoder),
-                 #           'decoder_kwargs': {
-                 #               'mapping_class': dynamic_name(GliderEGOMapper),
-                 #           },
-                 #           'autocomplete_records': True,
-                 #           'allow_reprocessing': True,
-                 #           'hook_before_record': dynamic_name(add_glider_mission_platform_info),
-                 #       },
-                 #   }
-                #},
-                'glider_ego_conversion'
+                # {
+                #   'order': 0,
+                #   'name': 'decode_records',
+                #   'worker_config': {
+                #       'decoder': {
+                #           'decoder_class': dynamic_name(NetCDFCommonDecoder),
+                #           'decoder_kwargs': {
+                #               'mapping_class': dynamic_name(GliderEGOMapper),
+                #           },
+                #           'autocomplete_records': True,
+                #           'allow_reprocessing': True,
+                #           'hook_before_record': dynamic_name(add_glider_mission_platform_info),
+                #       },
+                #   }
+                # },
+                "glider_ego_conversion"
             ],
-            dynamic_name(validate_ego_glider_file)
+            dynamic_name(validate_ego_glider_file),
         )
         cls._web_test_data = []
-        cls.web('http://test/api/upsert-dataset', 'POST')(
+        cls.web("http://test/api/upsert-dataset", "POST")(
             functools.partial(upsert_dataset, request_list=cls._web_test_data)
         )
         with cls.mock_web_test():
             return workflow.test_file(
-                cls.data_file_path('glider_ego/SEA032_20250606_R.nc'),
-                input_dir
+                cls.data_file_path("glider_ego/SEA032_20250606_R.nc"), input_dir
             )
 
     def test_download_ran(self):
@@ -157,8 +179,8 @@ class TestGliderDecode(BaseWorkflowTestCase):
         with self.real_nodb as db:
             source_files = [x for x in NODBSourceFile.find_all(db)]
             self.assertEqual(1, len(source_files))
-            self.assertEqual(source_files[0].source_name, 'ego_glider_files')
-            self.assertEqual(source_files[0].program_name, 'gliders')
+            self.assertEqual(source_files[0].source_name, "ego_glider_files")
+            self.assertEqual(source_files[0].program_name, "gliders")
 
     @ordered_after(test_source_file)
     @unittest.skip("not implemented")
@@ -201,13 +223,21 @@ class TestGliderDecode(BaseWorkflowTestCase):
     def test_dmd_content(self):
         data = json.dumps(self._web_test_data[0])
         data_reloaded = json.load_dict(data)
-        with open(self.data_file_path('glider_openglider/metadata.json'), 'r', encoding='utf-8') as h:
+        with open(
+            self.data_file_path("glider_openglider/metadata.json"),
+            "r",
+            encoding="utf-8",
+        ) as h:
             content = h.read()
             content = json.load_dict(content)
-        for key in ('date_created', 'file_storage_location', 'date_issued', 'date_modified'):
-            if key in content['metadata'] and key in data_reloaded['metadata']:
-                del content['metadata'][key]
-                del data_reloaded['metadata'][key]
+        for key in (
+            "date_created",
+            "file_storage_location",
+            "date_issued",
+            "date_modified",
+        ):
+            if key in content["metadata"] and key in data_reloaded["metadata"]:
+                del content["metadata"][key]
+                del data_reloaded["metadata"][key]
 
         self.assertDictSimilar(data_reloaded, content)
-

@@ -2,13 +2,11 @@ import pathlib
 import typing as t
 
 import markupsafe
-from sqlparse.tokens import DDL, Keyword, Newline, Whitespace, Comment, Punctuation
-from sqlparse.sql import TokenList, Token, Parenthesis, Values, Where
-
+from sqlparse.sql import Parenthesis, Token, TokenList, Values, Where
+from sqlparse.tokens import DDL, Comment, Keyword, Newline, Punctuation, Whitespace
 
 
 class DatabaseSchema:
-
     def __init__(self):
         self.tables: dict[str, DatabaseTable] = {}
 
@@ -18,34 +16,51 @@ class DatabaseSchema:
     def set_table_comment(self, table_name: str, comment: str | None):
         self.tables[table_name].comment = comment
 
-    def set_column_comment(self, table_name: str, column_name: str, comment: str | None):
+    def set_column_comment(
+        self, table_name: str, column_name: str, comment: str | None
+    ):
         self.tables[table_name].columns[column_name].comment = comment
 
-    def create_column(self, table_name: str, column_def: ColumnDef, version: tuple[int, int]):
-        self.tables[table_name].columns[column_def.column_name] = DatabaseColumn(column_def.column_name, version)
+    def create_column(
+        self, table_name: str, column_def: ColumnDef, version: tuple[int, int]
+    ):
+        self.tables[table_name].columns[column_def.column_name] = DatabaseColumn(
+            column_def.column_name, version
+        )
         self.tables[table_name].columns[column_def.column_name].set_from_def(column_def)
 
-    def create_index(self,
-                     index_name: str,
-                     table_name: str,
-                     column_names: list[str],
-                     index_type: str | None,
-                     where_clause: str | None,
-                     is_unique: bool,
-                     version: tuple[int, int]):
-        ...
+    def create_index(
+        self,
+        index_name: str,
+        table_name: str,
+        column_names: list[str],
+        index_type: str | None,
+        where_clause: str | None,
+        is_unique: bool,
+        version: tuple[int, int],
+    ): ...
 
-    def add_constraint(self, table_name: str, constraint: PrimaryKey | ForeignKey, version: tuple[int, int]):
-        ...
+    def add_constraint(
+        self,
+        table_name: str,
+        constraint: PrimaryKey | ForeignKey,
+        version: tuple[int, int],
+    ): ...
 
-    def add_table_partition(self, table_name: str, partition_of: str, lower_bound: str, upper_bound: str, version: tuple[int, int]):
-        ...
+    def add_table_partition(
+        self,
+        table_name: str,
+        partition_of: str,
+        lower_bound: str,
+        upper_bound: str,
+        version: tuple[int, int],
+    ): ...
 
-    def drop_index(self, index_name: str, version: tuple[int, int]):
-        ...
+    def drop_index(self, index_name: str, version: tuple[int, int]): ...
 
-    def drop_constraint(self, table_name: str, constraint_name: str, version: tuple[int, int]):
-        ...
+    def drop_constraint(
+        self, table_name: str, constraint_name: str, version: tuple[int, int]
+    ): ...
 
     def drop_table(self, table_name: str, version: tuple[int, int]):
         self.tables[table_name].deprecate(version)
@@ -57,16 +72,15 @@ class DatabaseSchema:
         for table_name in sorted(self.tables):
             self.tables[table_name].show()
 
-    def build_html(self,
-                   output_file: pathlib.Path,
-                   template: pathlib.Path | None = None):
+    def build_html(
+        self, output_file: pathlib.Path, template: pathlib.Path | None = None
+    ):
         if template is None:
             template_full = pathlib.Path(__file__).absolute().parent / "_template.html"
         else:
             template_full = template
-        with open(output_file, "w") as h:
-            with open(template_full, "r") as tf:
-                h.write(tf.read().replace("{{ CONTENT }}", self.build_html_content()))
+        with open(output_file, "w") as h, open(template_full, "r") as tf:
+            h.write(tf.read().replace("{{ CONTENT }}", self.build_html_content()))
 
     def build_html_content(self) -> str:
         content = ""
@@ -75,9 +89,7 @@ class DatabaseSchema:
         return content
 
 
-
 class DatabaseObject:
-
     def __init__(self, name: str, created: tuple[int, int], comment: str | None = None):
         self.name = name
         self.created: tuple[int, int] = created
@@ -92,7 +104,6 @@ class DatabaseObject:
 
 
 class DatabaseTable(DatabaseObject):
-
     def __init__(self, name: str, created: tuple[int, int]):
         super().__init__(name, created)
         self.columns: dict[str, DatabaseColumn] = {}
@@ -110,17 +121,21 @@ class DatabaseTable(DatabaseObject):
         print("=====\n")
 
     def build_html_content(self) -> str:
-        content = f'<div class="table'
+        content = '<div class="table'
         if self.deprecated:
-            content += ' removed'
+            content += " removed"
         content += f'" id="table_{self.name}">'
-        content += '<h2>' + str(markupsafe.escape(self.name)) + ' <span class="version">'
+        content += (
+            "<h2>" + str(markupsafe.escape(self.name)) + ' <span class="version">'
+        )
         content += f"{'.'.join(str(x) for x in self.created)}"
-        content += '</h2>'
+        content += "</h2>"
         if self.deprecated:
-            content += f'<p class="removed">Removed {'.'.join(str(x) for x in self.deprecated)}</p>'
+            content += f'<p class="removed">Removed {".".join(str(x) for x in self.deprecated)}</p>'
         if self.comment:
-            content += f'<p class="comment">' + str(markupsafe.escape(self.comment)) + '</p>'
+            content += (
+                '<p class="comment">' + str(markupsafe.escape(self.comment)) + "</p>"
+            )
         content += '<table cellspacing="0"><thead><tr><th>Column</th><th>Data Type</th><th>Properties</th><th>Comment</th></tr></thead><tbody>'
         later = []
         for column_name in sorted(self.columns.keys()):
@@ -130,12 +145,11 @@ class DatabaseTable(DatabaseObject):
                 later.append(column_name)
         for column_name in later:
             content += self.columns[column_name].build_html_content()
-        content += '</tbody></table></div>'
+        content += "</tbody></table></div>"
         return content
 
 
 class DatabaseColumn(DatabaseObject):
-
     def __init__(self, name: str, created: tuple[int, int]):
         super().__init__(name, created)
         self.data_type = None
@@ -147,21 +161,35 @@ class DatabaseColumn(DatabaseObject):
             self.data_type_size = cdef.data_type_size
 
     def build_html_content(self) -> str:
-        content = '<tr'
+        content = "<tr"
         if self.deprecated:
             content += ' class="removed"'
-        content += '><th class="column_name"><span class="full_name">' + str(markupsafe.escape(self.name))
-        content += '</span> <span class="version">' + '.'.join(str(x) for x in self.created) + '</span>'
+        content += '><th class="column_name"><span class="full_name">' + str(
+            markupsafe.escape(self.name)
+        )
+        content += (
+            '</span> <span class="version">'
+            + ".".join(str(x) for x in self.created)
+            + "</span>"
+        )
         if self.deprecated:
-            content += '<span class="removed"> - ' + '.'.join(str(x) for x in self.deprecated) + '</span>'
-        content += '</th>'
-        content += '<td class="data_type">' + (self.data_type or 'UNKNOWN').upper()
+            content += (
+                '<span class="removed"> - '
+                + ".".join(str(x) for x in self.deprecated)
+                + "</span>"
+            )
+        content += "</th>"
+        content += '<td class="data_type">' + (self.data_type or "UNKNOWN").upper()
         if self.data_type_size:
-            content += ' (' + str(self.data_type_size) + ')'
-        content += '</td>'
+            content += " (" + str(self.data_type_size) + ")"
+        content += "</td>"
         content += '<td class="properties"> </td>'
-        content += '<td class="comments">' + str(markupsafe.escape(self.comment or "")) + '</td>'
-        content += '</tr>'
+        content += (
+            '<td class="comments">'
+            + str(markupsafe.escape(self.comment or ""))
+            + "</td>"
+        )
+        content += "</tr>"
         return content
 
     def show(self):
@@ -171,38 +199,39 @@ class DatabaseColumn(DatabaseObject):
             print(f"  # {self.comment}")
 
 
-
-
 class SqlDatabaseChange:
-
-
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class TableComment(SqlDatabaseChange):
-
     def __init__(self, table_name: str, comment: str):
         self.table_name = table_name
         self.comment = comment
 
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        db.set_table_comment(self.table_name, self.comment.strip('"') if self.comment else None)
+        db.set_table_comment(
+            self.table_name, self.comment.strip('"') if self.comment else None
+        )
 
 
 class ColumnComment(SqlDatabaseChange):
-
     def __init__(self, column_name: str, comment: str):
         self.table_name, self.column_name = column_name.split(".", maxsplit=1)
         self.comment = comment
 
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        db.set_column_comment(self.table_name, self.column_name, self.comment.strip('"' if self.comment else None))
+        db.set_column_comment(
+            self.table_name,
+            self.column_name,
+            self.comment.strip('"' if self.comment else None),
+        )
 
 
 class CreateTable(SqlDatabaseChange):
-
-    def __init__(self, table_name: str, columns: list[ColumnDef | ForeignKey | PrimaryKey]):
+    def __init__(
+        self, table_name: str, columns: list[ColumnDef | ForeignKey | PrimaryKey]
+    ):
         self.table_name = table_name
         self.columns = columns
 
@@ -216,9 +245,7 @@ class CreateTable(SqlDatabaseChange):
                 db.add_constraint(self.table_name, column, version)
 
 
-
 class PartitionTable(SqlDatabaseChange):
-
     def __init__(self, table_name: str, partition_of: str, start: str, end: str):
         self.table_name = table_name
         self.partition_of = partition_of
@@ -226,18 +253,25 @@ class PartitionTable(SqlDatabaseChange):
         self.end = end
 
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        db.add_table_partition(self.table_name, self.partition_of, self.start, self.end, (major_version, minor_version))
+        db.add_table_partition(
+            self.table_name,
+            self.partition_of,
+            self.start,
+            self.end,
+            (major_version, minor_version),
+        )
 
 
 class Index(SqlDatabaseChange):
-
-    def __init__(self,
-                 index_name: str,
-                 table_name: str,
-                 column_names: list[str],
-                 index_type: str | None = None,
-                 where_clause: str | None = None,
-                 is_unique: bool = False):
+    def __init__(
+        self,
+        index_name: str,
+        table_name: str,
+        column_names: list[str],
+        index_type: str | None = None,
+        where_clause: str | None = None,
+        is_unique: bool = False,
+    ):
         self.index_name = index_name
         self.index_type = index_type
         self.column_names = column_names
@@ -246,11 +280,18 @@ class Index(SqlDatabaseChange):
         self.is_unique = is_unique
 
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        db.create_index(self.index_name, self.table_name, self.column_names, self.index_type, self.where_clause, self.is_unique, (major_version, minor_version))
+        db.create_index(
+            self.index_name,
+            self.table_name,
+            self.column_names,
+            self.index_type,
+            self.where_clause,
+            self.is_unique,
+            (major_version, minor_version),
+        )
 
 
 class DropTable(SqlDatabaseChange):
-
     def __init__(self, table_name: str):
         self.table_name = table_name
 
@@ -259,39 +300,39 @@ class DropTable(SqlDatabaseChange):
 
 
 class AddColumn(SqlDatabaseChange):
-
-    def __init__(self,
-                 table_name: str,
-                 column_def: ColumnDef):
+    def __init__(self, table_name: str, column_def: ColumnDef):
         self.table_name = table_name
         self.column_def = column_def
 
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        db.create_column(self.table_name, self.column_def, (major_version, minor_version))
+        db.create_column(
+            self.table_name, self.column_def, (major_version, minor_version)
+        )
+
 
 class DropColumn(SqlDatabaseChange):
-
     def __init__(self, table_name: str, column_name: str):
         self.table_name = table_name
         self.column_name = column_name
 
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        db.drop_column(self.table_name, self.column_name, (major_version, minor_version))
-
+        db.drop_column(
+            self.table_name, self.column_name, (major_version, minor_version)
+        )
 
 
 class DropConstraint(SqlDatabaseChange):
-
     def __init__(self, table_name: str, constraint_name: str):
         self.table_name = table_name
         self.constraint_name = constraint_name
 
     def apply(self, db: DatabaseSchema, major_version: int, minor_version: int):
-        db.drop_constraint(self.table_name, self.constraint_name, (major_version, minor_version))
+        db.drop_constraint(
+            self.table_name, self.constraint_name, (major_version, minor_version)
+        )
 
 
 class DropIndex(SqlDatabaseChange):
-
     def __init__(self, index_name: str):
         self.index_name = index_name
 
@@ -300,27 +341,29 @@ class DropIndex(SqlDatabaseChange):
 
 
 class ForeignKey:
-
-    def __init__(self, columns: list[str], foreign_table: str, foreign_columns: list[str]):
+    def __init__(
+        self, columns: list[str], foreign_table: str, foreign_columns: list[str]
+    ):
         self.columns = columns
         self.foreign_table = foreign_table
         self.foreign_columns = foreign_columns
 
 
 class PrimaryKey:
-
     def __init__(self, columns: list[str]):
         self.columns = columns
 
-class ColumnDef:
 
-    def __init__(self,
-                 column_name: str,
-                 data_type: str,
-                 data_type_size: str | None = None,
-                 default: t.Any = None,
-                 not_null: bool = False,
-                 constraints: list[str] | None = None):
+class ColumnDef:
+    def __init__(
+        self,
+        column_name: str,
+        data_type: str,
+        data_type_size: str | None = None,
+        default: t.Any = None,
+        not_null: bool = False,
+        constraints: list[str] | None = None,
+    ):
         self.column_name = column_name
         self.data_type = data_type
         self.data_type_size = data_type_size
@@ -329,9 +372,7 @@ class ColumnDef:
         self.constraints = constraints
 
 
-
 class SqlStatement:
-
     def __init__(self, statement: TokenList):
         self.statement: TokenList = statement
 
@@ -341,8 +382,12 @@ class SqlStatement:
     @staticmethod
     def _clean_tokens(tokens: list[Token]) -> list[Token]:
         return [
-            token for token in tokens
-            if not (token.ttype in (Newline, Whitespace, Comment) or (token.ttype is None and token.value.startswith("--")))
+            token
+            for token in tokens
+            if not (
+                token.ttype in (Newline, Whitespace, Comment)
+                or (token.ttype is None and token.value.startswith("--"))
+            )
         ]
 
     @staticmethod
@@ -356,7 +401,9 @@ class SqlStatement:
         if tokens[1].ttype is Keyword and tokens[1].value == "PARTITION":
             return self._assemble_partition_table_def(tokens[0], tokens[3], tokens[5])
         elif isinstance(tokens[1], Parenthesis):
-            return self._assemble_new_table_def(tokens[0], self.flatten(tokens[1].tokens))
+            return self._assemble_new_table_def(
+                tokens[0], self.flatten(tokens[1].tokens)
+            )
 
     def _assemble_new_table_def(self, table_name: Token, tokens: list[Token]):
         buffer = []
@@ -388,7 +435,6 @@ class SqlStatement:
             elif tokens[0].value == "PRIMARY KEY":
                 return self._assemble_primary_key(tokens[2:-1])
         if tokens[0].value.endswith(" TIMESTAMPTZ"):
-
             kwargs = {
                 "column_name": tokens[0].value[:-11].strip(),
                 "data_type": "TIMESTAMPTZ",
@@ -404,7 +450,6 @@ class SqlStatement:
         in_data_type_size = False
         data_type_size = []
 
-
         in_default = False
         default = []
 
@@ -413,7 +458,9 @@ class SqlStatement:
         refs = []
 
         while idx < len(tokens):
-            if tokens[idx].value == "(" and not (in_default or data_type_size or in_ref):
+            if tokens[idx].value == "(" and not (
+                in_default or data_type_size or in_ref
+            ):
                 in_data_type_size = True
             elif tokens[idx].value == ")" and in_data_type_size:
                 in_data_type_size = False
@@ -452,29 +499,28 @@ class SqlStatement:
         for idx, element in enumerate(identifiers):
             if element.value == "REFERENCES":
                 return ForeignKey(
-                    [x.value for x in identifiers[1:idx-1:2]],
-                    identifiers[idx+1].value,
-                    [x.value for x in identifiers[idx+3:-1:2]]
+                    [x.value for x in identifiers[1 : idx - 1 : 2]],
+                    identifiers[idx + 1].value,
+                    [x.value for x in identifiers[idx + 3 : -1 : 2]],
                 )
         raise ValueError("NO REFERENCES")
 
     def _assemble_primary_key(self, identifiers: list[Token]):
         return PrimaryKey([x.value for x in identifiers[::2]])
 
-    def _assemble_partition_table_def(self, table_name: Token, partition_of_table: Token, values: Values):
+    def _assemble_partition_table_def(
+        self, table_name: Token, partition_of_table: Token, values: Values
+    ):
         tokens = self._clean_tokens(values.tokens)
         return PartitionTable(
             table_name.value,
             partition_of_table.value,
             tokens[2].value.strip("() \r\t\n"),
-            tokens[4].value.strip("() \r\t\n")
+            tokens[4].value.strip("() \r\t\n"),
         )
 
     def _assemble_index_def(self, tokens: list[Token], is_unique: bool = False):
-        kwargs = {
-            "index_name": tokens[0].value,
-            "is_unique": is_unique
-        }
+        kwargs = {"index_name": tokens[0].value, "is_unique": is_unique}
         if len(tokens) >= 4 and tokens[3].value == "USING":
             kwargs["table_name"] = tokens[2].value
             method_info = self._clean_tokens(tokens[4].flatten())
@@ -488,7 +534,9 @@ class SqlStatement:
             kwargs["column_names"] = [x.value for x in table_cols[2::2]]
             start_at = 3
         if isinstance(tokens[start_at], Where):
-            kwargs["where_clause"] = " ".join(str(x) for x in self._clean_tokens(tokens[start_at].tokens)[1:])
+            kwargs["where_clause"] = " ".join(
+                str(x) for x in self._clean_tokens(tokens[start_at].tokens)[1:]
+            )
         return Index(**kwargs)
 
     def _assemble_function(self, tokens: list[Token]):
@@ -511,20 +559,35 @@ class SqlStatement:
         token = tokens[0]
         try:
             if token.ttype is DDL and token.value in ("CREATE", "CREATE OR REPLACE"):
-
                 if tokens[1].ttype is Keyword:
                     if tokens[1].value == "TABLE":
-                        return self._assemble_table_def(self._skip_if_not_exists(tokens[2:]))
+                        return self._assemble_table_def(
+                            self._skip_if_not_exists(tokens[2:])
+                        )
                     elif tokens[1].value == "INDEX":
-                        return self._assemble_index_def(self._skip_if_not_exists(tokens[2:]))
-                    elif tokens[1].value == "UNIQUE" and tokens[2].ttype is Keyword and tokens[2].value == "INDEX":
-                        return self._assemble_index_def(self._skip_if_not_exists(tokens[3:]), True)
+                        return self._assemble_index_def(
+                            self._skip_if_not_exists(tokens[2:])
+                        )
+                    elif (
+                        tokens[1].value == "UNIQUE"
+                        and tokens[2].ttype is Keyword
+                        and tokens[2].value == "INDEX"
+                    ):
+                        return self._assemble_index_def(
+                            self._skip_if_not_exists(tokens[3:]), True
+                        )
                     elif tokens[1].value == "FUNCTION":
-                        return self._assemble_function(self._skip_if_not_exists(tokens[2:]))
+                        return self._assemble_function(
+                            self._skip_if_not_exists(tokens[2:])
+                        )
                     elif tokens[1].value == "PROCEDURE":
-                        return self._assemble_procedure(self._skip_if_not_exists(tokens[3:]))
+                        return self._assemble_procedure(
+                            self._skip_if_not_exists(tokens[3:])
+                        )
                     elif tokens[1].value == "TRIGGER":
-                        return self._assemble_trigger(self._skip_if_not_exists(tokens[2:]))
+                        return self._assemble_trigger(
+                            self._skip_if_not_exists(tokens[2:])
+                        )
             elif token.ttype is Keyword and token.value == "COMMENT":
                 if tokens[2].ttype is Keyword and tokens[2].value == "TABLE":
                     return TableComment(tokens[3].value, tokens[5].value)
@@ -532,11 +595,18 @@ class SqlStatement:
                     return ColumnComment(tokens[3].value, tokens[5].value)
             elif token.ttype is Keyword and token.value == "DO":
                 return None
-            elif token.ttype is DDL and token.value == "ALTER" and tokens[1].value == "TABLE":
+            elif (
+                token.ttype is DDL
+                and token.value == "ALTER"
+                and tokens[1].value == "TABLE"
+            ):
                 if tokens[3].value == "DROP" and tokens[4].value == "COLUMN":
                     return DropColumn(tokens[2].value, tokens[5].value)
                 elif tokens[3].value == "ADD" and tokens[4].value == "COLUMN":
-                    return AddColumn(tokens[2].value, t.cast(ColumnDef, self._assemble_column(tokens[5:])))
+                    return AddColumn(
+                        tokens[2].value,
+                        t.cast(ColumnDef, self._assemble_column(tokens[5:])),
+                    )
                 elif tokens[3].value == "DROP" and tokens[4].value == "CONSTRAINT":
                     return DropConstraint(tokens[2].value, tokens[5].value)
             elif token.ttype is DDL and token.value == "DROP":
@@ -550,19 +620,18 @@ class SqlStatement:
             raise
 
     @staticmethod
-    def parse(s: str) -> t.Generator[SqlStatement, None, None]:
+    def parse(s: str) -> t.Generator[SqlStatement]:
         import sqlparse
+
         for statement in sqlparse.parse(s):
             yield SqlStatement(statement)
 
 
 class DatabaseDocumenter:
-
     def __init__(self):
         self._db_path = pathlib.Path(__file__).parent.absolute()
         self._changes: dict[int, dict[int, list[SqlDatabaseChange]]] = {}
         self.schema = DatabaseSchema()
-
 
     def build(self) -> DatabaseSchema:
         for file in self._db_path.glob("v*_*.sql"):
@@ -573,7 +642,6 @@ class DatabaseDocumenter:
                     change.apply(self.schema, major_version, minor_version)
         return self.schema
 
-
     def load_file(self, file_path: pathlib.Path):
         pieces = file_path.name[1:-4].split("_", maxsplit=1)
         if len(pieces) == 2 and pieces[0].isdigit() and pieces[1].isdigit():
@@ -583,7 +651,9 @@ class DatabaseDocumenter:
                     if change is not None:
                         self.add_change(change, int(pieces[0]), int(pieces[1]))
 
-    def add_change(self, change: SqlDatabaseChange, major_version: int, minor_version: int):
+    def add_change(
+        self, change: SqlDatabaseChange, major_version: int, minor_version: int
+    ):
         if major_version not in self._changes:
             self._changes[major_version] = {}
         if minor_version not in self._changes[major_version]:

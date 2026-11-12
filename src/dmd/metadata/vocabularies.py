@@ -11,7 +11,6 @@ from gcapp.i18n import MLString
 
 @injector.injectable
 class VocabularyRegistry(BaseRegistry):
-
     def __init__(self):
         super().__init__("vocabularies")
 
@@ -20,7 +19,7 @@ class VocabularyRegistry(BaseRegistry):
             (
                 key,
                 MLString(self[key].get("display", None) or {"und": key}),
-                MLString(self[key].get("uri", None) or {})
+                MLString(self[key].get("uri", None) or {}),
             )
             for key in self
         ]
@@ -28,13 +27,25 @@ class VocabularyRegistry(BaseRegistry):
     def vocabulary_display(self, vocabulary_name: str) -> MLString:
         return MLString(self[vocabulary_name]["display"])
 
-    def register(self, obj_name, _update_db: bool = True, terms: dict[str, dict] | None = None, **config):
+    def register(
+        self,
+        obj_name,
+        _update_db: bool = True,
+        terms: dict[str, dict] | None = None,
+        **config,
+    ):
         super().register(obj_name, _update_db, **config)
         if terms is not None:
             self.storage.update_vocabulary_terms(obj_name, terms)
 
-    def register_terms_from_csv(self, vocabulary_name: str, csv_path: pathlib.Path, replace_existing: bool = True):
+    def register_terms_from_csv(
+        self,
+        vocabulary_name: str,
+        csv_path: pathlib.Path,
+        replace_existing: bool = True,
+    ):
         import csv
+
         with open(csv_path, "r", encoding="utf-8") as csv_file:
             reader = csv.reader(csv_file)
             builder = None
@@ -45,9 +56,13 @@ class VocabularyRegistry(BaseRegistry):
                 else:
                     short_name, data = builder(line)
                     terms[short_name] = data
-            self.storage.update_vocabulary_terms(vocabulary_name, terms, replace_existing)
+            self.storage.update_vocabulary_terms(
+                vocabulary_name, terms, replace_existing
+            )
 
-    def _term_builder(self, headers: list[str] | tuple[str, ...]) -> t.Callable[[list[str] | tuple[str, ...]], tuple[str, dict[str, dict]]]:
+    def _term_builder(
+        self, headers: list[str] | tuple[str, ...]
+    ) -> t.Callable[[list[str] | tuple[str, ...]], tuple[str, dict[str, dict]]]:
         short_name: int = -1
         displays: dict[int, str] = {}
         descriptions: dict[int, str] = {}
@@ -72,28 +87,28 @@ class VocabularyRegistry(BaseRegistry):
             short_name = und_key if und_key >= 0 else en_key
         if short_name < 0:
             raise ValueError("Missing key header")
+
         def _builder(row: list[str] | tuple[str, ...]) -> tuple[str, dict[str, dict]]:
             data = {
-                "display": {
-                    val: row[key]
-                    for key, val in displays.items()
-                },
-                "description": {
-                    val: row[key]
-                    for key, val in descriptions.items()
-                }
+                "display": {val: row[key] for key, val in displays.items()},
+                "description": {val: row[key] for key, val in descriptions.items()},
             }
             return str(row[short_name]).lower().replace(" ", "_"), data
+
         return _builder
 
-    def term_options(self, vocabulary_name: str) -> list[tuple[str, MLString, MLString]]:
+    def term_options(
+        self, vocabulary_name: str
+    ) -> list[tuple[str, MLString, MLString]]:
         return [
             (
                 term_name,
                 MLString(term_def.get("display", None) or {"und": term_name}),
-                MLString(term_def.get("description", None) or {})
+                MLString(term_def.get("description", None) or {}),
             )
-            for term_name, term_def in self.storage.load_vocabulary_terms(vocabulary_name)
+            for term_name, term_def in self.storage.load_vocabulary_terms(
+                vocabulary_name
+            )
         ]
 
     def load_term(self, vocabulary_name: str, short_name: str) -> dict | None:
@@ -101,7 +116,6 @@ class VocabularyRegistry(BaseRegistry):
 
 
 class VocabularyTerm:
-
     def __init__(self, term_key: str | None = None, term_label: MLString | None = None):
         self._short_name = term_key
         self._display = term_label or MLString({"und": term_key})
@@ -126,7 +140,6 @@ class VocabularyTerm:
 
 @injector.construct
 class VocabularySelectField(ChoiceField):
-
     DATA_TYPE = "vocabulary"
 
     registry: VocabularyRegistry = auto()
@@ -134,12 +147,16 @@ class VocabularySelectField(ChoiceField):
     def _build_choices(self) -> list[tuple[str, MLString]]:
         return [
             (short_name, display_name)
-            for short_name, display_name, _ in self.registry.term_options(self._config.get("vocabulary_name", ""))
+            for short_name, display_name, _ in self.registry.term_options(
+                self._config.get("vocabulary_name", "")
+            )
         ]
 
     def _data_value(self, value: str | None, **kwargs) -> t.Any:
         if value:
-            info = self.registry.load_term(self._config.get("vocabulary_name", ""), value)
+            info = self.registry.load_term(
+                self._config.get("vocabulary_name", ""), value
+            )
             if info is not None:
                 return VocabularyTerm(value, info.get("display", None))
         if kwargs.get("none_as_blank", False):

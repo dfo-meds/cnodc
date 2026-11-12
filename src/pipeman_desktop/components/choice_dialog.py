@@ -1,7 +1,8 @@
 import tkinter as tk
-import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
 import typing as t
+from tkinter import ttk
+
 import gcapp.i18n.base as i18n
 
 
@@ -12,16 +13,17 @@ def ask_choice(*args, **kwargs):
 
 
 class ChoiceDialog(tksd.Dialog):
-
-    def __init__(self,
-                 parent,
-                 options: dict[t.Any, str],
-                 button_label: t.Optional[str] = None,
-                 title: t.Optional[str] = None,
-                 prompt: t.Optional[str] = None,
-                 default: t.Any = None):
+    def __init__(
+        self,
+        parent,
+        options: dict[t.Any, str],
+        button_label: str | None = None,
+        title: str | None = None,
+        prompt: str | None = None,
+        default: t.Any = None,
+    ):
         self.options = options
-        self.button_label = button_label or i18n.tr('desktop.ok')
+        self.button_label = button_label or i18n.tr("desktop.ok")
         self.option_display = list(options.values())
         self._prompt = prompt
         self.result_var = tk.StringVar(parent)
@@ -29,7 +31,7 @@ class ChoiceDialog(tksd.Dialog):
         if default is None:
             default = self.option_display[0] if self.option_display else None
         else:
-            default = self.options[default] if default in self.options else None
+            default = self.options.get(default, None)
         if default is not None:
             self.result_var.set(default)
         super().__init__(parent=parent, title=title)
@@ -40,9 +42,7 @@ class ChoiceDialog(tksd.Dialog):
             label = ttk.Label(parent, text=self._prompt, wraplength=300, justify="left")
             label.pack(expand=True, fill="both", padx=2, pady=2)
         opt_menu = ttk.Combobox(
-            parent,
-            textvariable=self.result_var,
-            values=self.option_display
+            parent, textvariable=self.result_var, values=self.option_display
         )
         opt_menu.pack(expand=True, fill="both", padx=2, pady=2)
         return opt_menu

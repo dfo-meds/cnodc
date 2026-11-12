@@ -1,10 +1,10 @@
 import decimal
 
-from tests.helpers.base_test_case import BaseTestCase
 from medsutil.math import _constants as constants
+from tests.helpers.base_test_case import BaseTestCase
+
 
 class TestConstants(BaseTestCase):
-
     def test_tau(self):
         self.assertIsInstance(constants.tau(), float)
         self.assertIsInstance(constants.tau(float), float)

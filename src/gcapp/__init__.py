@@ -1,1 +1,1 @@
-""" Provides a framework for GC-compliant applications with reusable tools. """
+"""Provides a framework for GC-compliant applications with reusable tools."""

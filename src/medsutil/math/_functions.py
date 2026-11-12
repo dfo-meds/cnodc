@@ -1,19 +1,27 @@
-""" Functions that handle uncertainty calculations. """
+"""Functions that handle uncertainty calculations."""
+
 import decimal
-import typing as t
 import math as _math
-from medsutil.math import types as mt, _common, collapse
-from medsutil.math._common import nominal_value, match_convert, match_units, separate_by_type
+import typing as t
+
 import medsutil.math.helpers as help
 import medsutil.math.numbers as num
-from medsutil.math._constants import DEFAULT_REL_TOL, DEFAULT_ABS_TOL
+from medsutil.math import _common, collapse
+from medsutil.math import types as mt
+from medsutil.math._common import (
+    match_convert,
+    match_units,
+    nominal_value,
+    separate_by_type,
+)
+from medsutil.math._constants import DEFAULT_ABS_TOL, DEFAULT_REL_TOL
 from medsutil.math.types import AnyNumber, MathTypeError, NumberOrIterable
 
 
 # coefficients must be highest to lowest, last one being x^0 (value is x)
 # one variable polynomials only
 def calculate_polynomial[T: AnyNumber](value: T, *coefficients: mt.AnyNumber) -> T:
-    """ Calculates a polynomial value in a single variable, given a value for the variable and for each coefficient. """
+    """Calculates a polynomial value in a single variable, given a value for the variable and for each coefficient."""
     total: mt.AnyNumber | None = None
     for coefficient in coefficients:
         if total is None:
@@ -23,190 +31,224 @@ def calculate_polynomial[T: AnyNumber](value: T, *coefficients: mt.AnyNumber) ->
     return t.cast(T, total)
 
 
-def test_compatibility(x: mt.NonScienceNumber,
-                       sx: mt.NonScienceNumber,
-                       y: mt.NonScienceNumber,
-                       sy: mt.NonScienceNumber,
-                       c: mt.NonScienceNumber = 3) -> bool:
-    """ Tests if two numbers are compatible according to NIST standards. """
+def test_compatibility(
+    x: mt.NonScienceNumber,
+    sx: mt.NonScienceNumber,
+    y: mt.NonScienceNumber,
+    sy: mt.NonScienceNumber,
+    c: mt.NonScienceNumber = 3,
+) -> bool:
+    """Tests if two numbers are compatible according to NIST standards."""
     n_x, n_sx, n_y, n_sy = match_convert(x, sx, y, sy)
-    z_score = abs(n_x - n_y) / sqrt((n_sx ** 2) + (n_sy ** 2))
+    z_score = abs(n_x - n_y) / sqrt((n_sx**2) + (n_sy**2))
     return z_score < c
 
 
 def add_in_quadrature(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Adds two numbers in quadrature (i.e. sqrt(x^2 + y^2)). """
+    """Adds two numbers in quadrature (i.e. sqrt(x^2 + y^2))."""
     if mt.is_science_number(x) or mt.is_science_number(y):
         return sn_add_in_quadrature(x, y)
     x_n, y_n = match_convert(x, y)
-    return _common.sqrt((x_n ** 2) + (y_n ** 2))
+    return _common.sqrt((x_n**2) + (y_n**2))
 
 
-@num.with_error_propagation(help.derivative_pythagoras_x, help.derivative_pythagoras_y, units_func=help.units_first)
+@num.with_error_propagation(
+    help.derivative_pythagoras_x,
+    help.derivative_pythagoras_y,
+    units_func=help.units_first,
+)
 def sn_add_in_quadrature(x: mt.AnyNumber, y: mt.AnyNumber, /):
-    """ Adds two numbers in quadrature, with error propagation. """
+    """Adds two numbers in quadrature, with error propagation."""
     x_n, y_n = match_convert(*match_units(x, y))
-    return _common.sqrt((x_n ** 2) + (y_n ** 2))
+    return _common.sqrt((x_n**2) + (y_n**2))
 
 
 def neg(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Negates a number """
+    """Negates a number"""
     return mul(-1, x)
 
 
 def sn_neg(x: mt.ScienceNumberProtocol, /) -> mt.ResolvedNumber:
-    """ Negates a number with error propagation. """
+    """Negates a number with error propagation."""
     return sn_mul(-1, x)
 
 
 def add(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Adds two numbers. """
+    """Adds two numbers."""
     if mt.is_science_number(x) or mt.is_science_number(y):
         return sn_add(x, y)
     return _common.add(x, y)
 
 
-@num.with_error_propagation(help.derivative_1, help.derivative_1, units_func=help.units_first)
+@num.with_error_propagation(
+    help.derivative_1, help.derivative_1, units_func=help.units_first
+)
 def sn_add(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Adds two numbers with error propagation. """
+    """Adds two numbers with error propagation."""
     return _common.add(*match_units(x, y))
 
 
 def sub(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Subtracts a number from another. """
+    """Subtracts a number from another."""
     if mt.is_science_number(x) or mt.is_science_number(y):
         return sn_sub(x, y)
     return _common.sub(x, y)
 
 
-@num.with_error_propagation(help.derivative_1, help.derivative_neg1, units_func=help.units_first)
+@num.with_error_propagation(
+    help.derivative_1, help.derivative_neg1, units_func=help.units_first
+)
 def sn_sub(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Subtracts a number from another, with error propagation. """
+    """Subtracts a number from another, with error propagation."""
     return _common.sub(*match_units(x, y))
 
 
 def div(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Divides a number by another. """
+    """Divides a number by another."""
     if mt.is_science_number(x) or mt.is_science_number(y):
         return sn_div(x, y)
     return _common.div(x, y)
 
 
-@num.with_error_propagation(help.derivative_numerator, help.derivative_denominator, units_func=help.units_div)
+@num.with_error_propagation(
+    help.derivative_numerator, help.derivative_denominator, units_func=help.units_div
+)
 def sn_div(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Divides a number by another, with error propagation. """
+    """Divides a number by another, with error propagation."""
     return _common.div(x, y)
 
 
 def mul(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Multiplies two numbers together. """
+    """Multiplies two numbers together."""
     if mt.is_science_number(x) or mt.is_science_number(y):
         return sn_mul(x, y)
     return _common.mul(x, y)
 
 
-@num.with_error_propagation(help.derivative_y, help.derivative_x, units_func=help.units_multiply)
+@num.with_error_propagation(
+    help.derivative_y, help.derivative_x, units_func=help.units_multiply
+)
 def sn_mul(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Multiplies two numbers together, with error propagation. """
+    """Multiplies two numbers together, with error propagation."""
     return _common.mul(x, y)
 
 
 def sqrt(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Takes the square root of a number. """
+    """Takes the square root of a number."""
     if mt.is_science_number(x):
         return sn_sqrt(x)
     return _common.sqrt(x)
 
 
-@num.with_error_propagation(lambda x: 1 / (2 * (x ** 0.5)), units_func=lambda x: f"(({help.units_first(x)})^0.5)")
+@num.with_error_propagation(
+    lambda x: 1 / (2 * (x**0.5)), units_func=lambda x: f"(({help.units_first(x)})^0.5)"
+)
 def sn_sqrt(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Takes the square root of a number, with error propagation. """
+    """Takes the square root of a number, with error propagation."""
     return _common.sqrt(x)
 
 
 def exp(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates exp(x). """
+    """Calculates exp(x)."""
     if mt.is_science_number(x):
         return sn_exp(x)
     return _common.exp(x)
 
 
-@num.with_error_propagation(lambda x: _common.exp(x), units_func = lambda x: f"(e^{help.units_first(x)})")
+@num.with_error_propagation(
+    lambda x: _common.exp(x), units_func=lambda x: f"(e^{help.units_first(x)})"
+)
 def sn_exp(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates exp(X) with error propagation. """
+    """Calculates exp(X) with error propagation."""
     return _common.exp(x)
 
 
 def ln(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates ln(x). """
+    """Calculates ln(x)."""
     if mt.is_science_number(x):
         return sn_ln(x)
     return _common.ln(x)
 
 
-@num.with_error_propagation(lambda x: 1 / x, units_func=lambda x: f"(ln {help.units_first(x)}")
+@num.with_error_propagation(
+    lambda x: 1 / x, units_func=lambda x: f"(ln {help.units_first(x)}"
+)
 def sn_ln(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates ln(x) with error propagation. """
+    """Calculates ln(x) with error propagation."""
     return _common.ln(x)
 
 
 def log10(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates log10(x)."""
+    """Calculates log10(x)."""
     if mt.is_science_number(x):
         return sn_log10(x)
     return _common.log10(x)
 
 
-@num.with_error_propagation(lambda x: 1 / (x * ln(decimal.Decimal(10))), units_func=lambda x: f"(log10 {help.units_first(x)}")
+@num.with_error_propagation(
+    lambda x: 1 / (x * ln(decimal.Decimal(10))),
+    units_func=lambda x: f"(log10 {help.units_first(x)}",
+)
 def sn_log10(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates log10(x) with error propagation. """
+    """Calculates log10(x) with error propagation."""
     return _common.log10(x)
 
 
 def log2(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates log2(x). """
+    """Calculates log2(x)."""
     if mt.is_science_number(x):
         return sn_log2(x)
     return _common.log2(x)
 
 
-@num.with_error_propagation(lambda x: 1 / (x * ln(decimal.Decimal(2))), units_func=lambda x: f"(log2 {help.units_first(x)}")
+@num.with_error_propagation(
+    lambda x: 1 / (x * ln(decimal.Decimal(2))),
+    units_func=lambda x: f"(log2 {help.units_first(x)}",
+)
 def sn_log2(x: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates log2(x) with error propagation. """
+    """Calculates log2(x) with error propagation."""
     return _common.log2(nominal_value(x))
 
 
 def log(x: mt.AnyNumber, base: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates log(x) in the given base. """
+    """Calculates log(x) in the given base."""
     if mt.is_science_number(x) or mt.is_science_number(base):
         return sn_log(x, base)
     return _common.log(x, base)
 
 
-@num.with_error_propagation(lambda x, b: 1 / (x * ln(decimal.Decimal(b))), units_func=lambda x, y: f"(log{y} {help.units_first(x)}")
+@num.with_error_propagation(
+    lambda x, b: 1 / (x * ln(decimal.Decimal(b))),
+    units_func=lambda x, y: f"(log{y} {help.units_first(x)}",
+)
 def sn_log(x: mt.AnyNumber, base: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates log(x) in the given base with error propagation. """
+    """Calculates log(x) in the given base with error propagation."""
     return _common.log(x, base)
 
 
 def pow_(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates x^y. """
+    """Calculates x^y."""
     if mt.is_science_number(x) or mt.is_science_number(y):
         return sn_pow(x, y)
     return _common.pow(x, y)
 
 
-@num.with_error_propagation(help.derivative_power_base, help.derivative_power_exponent, units_func=help.units_power)
+@num.with_error_propagation(
+    help.derivative_power_base,
+    help.derivative_power_exponent,
+    units_func=help.units_power,
+)
 def sn_pow(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates x^y with error propagation. """
+    """Calculates x^y with error propagation."""
     return _common.pow(x, y)
 
 
 def modulo(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
-    """ Calculates the modulo of x when divided by y."""
+    """Calculates the modulo of x when divided by y."""
     if mt.is_science_number(x):
         return sn_modulo(x, to_exact_int(y))
     return nominal_value(x) % to_exact_int(y)
+
 
 # Note: derivative is undefined near integer multiples of y.
 # perhaps more care should be taken here later?
@@ -221,6 +263,7 @@ def modulo(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
 
 # anyone using modulo with scinum should be aware of this!
 
+
 # however, given (x, s) mod n, if both of these hold:
 #   x mod n - 3s >= 0
 #   x mod n + 3s < n
@@ -228,12 +271,12 @@ def modulo(x: mt.AnyNumber, y: mt.AnyNumber, /) -> mt.ResolvedNumber:
 # (i.e. it's only an issue near 0 or near n)
 @num.with_error_propagation(help.derivative_1, None)
 def sn_modulo(x: mt.AnyNumber, y: int, /) -> mt.ResolvedNumber:
-    """ Calculates the modulo of x when divided by y with error propagation. """
+    """Calculates the modulo of x when divided by y with error propagation."""
     return nominal_value(x) % y
 
 
 def is_exact_int(x: mt.AnyNumber) -> bool:
-    """ Checks if x is an exact integer. """
+    """Checks if x is an exact integer."""
     try:
         _ = to_exact_int(x)
         return True
@@ -242,8 +285,8 @@ def is_exact_int(x: mt.AnyNumber) -> bool:
 
 
 def to_exact_int(x: mt.AnyNumber) -> int:
-    """ Converts x to an integer, but only if it can be done exactly.
-        :raises MathTypeError: if x is not an exact integer.
+    """Converts x to an integer, but only if it can be done exactly.
+    :raises MathTypeError: if x is not an exact integer.
     """
     nv = nominal_value(x)
     try:
@@ -259,12 +302,12 @@ def to_exact_int(x: mt.AnyNumber) -> int:
 
 
 def is_zero(x: mt.AnyNumber) -> bool:
-    """ Checks if x is zero."""
+    """Checks if x is zero."""
     return _common.is_zero(x)
 
 
 def copy_sign(take_value: mt.AnyNumber, take_sign: mt.AnyNumber) -> mt.AnyNumber:
-    """ Copies the sign of the second argument to the value of the first. """
+    """Copies the sign of the second argument to the value of the first."""
     sign_tv = sign(take_value)
     sign_ts = sign(take_sign)
     if (sign_tv == 1 and sign_ts == -1) or (sign_tv == -1 and sign_ts == 1):
@@ -273,72 +316,89 @@ def copy_sign(take_value: mt.AnyNumber, take_sign: mt.AnyNumber) -> mt.AnyNumber
 
 
 def sign(x: mt.AnyNumber) -> int | None:
-    """ Retrieves the sign of the number, or 0 if the number is zero. """
+    """Retrieves the sign of the number, or 0 if the number is zero."""
     nv = nominal_value(x)
     if _common.is_nan(x):
         return None
-    if is_zero(nv): return 0
-    elif nv > 0: return 1
-    else: return -1
+    if is_zero(nv):
+        return 0
+    elif nv > 0:
+        return 1
+    else:
+        return -1
 
 
-def is_close(x: mt.AnyNumber,
-             y: mt.AnyNumber,
-             /, *,
-             rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
-             abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL) -> bool:
-    """ Checks if two numbers are close. """
+def is_close(
+    x: mt.AnyNumber,
+    y: mt.AnyNumber,
+    /,
+    *,
+    rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
+    abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL,
+) -> bool:
+    """Checks if two numbers are close."""
     return _is_close(*match_convert(*match_units(x, y), rel_tol, abs_tol))
 
 
-def eq(x: mt.AnyNumber,
-       y: mt.AnyNumber, /) -> bool:
-    """ Checks if two numbers are equal."""
+def eq(x: mt.AnyNumber, y: mt.AnyNumber, /) -> bool:
+    """Checks if two numbers are equal."""
     if mt.is_science_number(x) and mt.is_science_number(y):
         y = y.convert(x.units)
     return nominal_value(x) == nominal_value(y)
 
 
-def gt(x: mt.AnyNumber,
-       y: mt.AnyNumber,
-       /, *,
-       rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
-       abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL) -> bool:
-    """ Checks if x > y using the tolerances to decide if they're equal. """
+def gt(
+    x: mt.AnyNumber,
+    y: mt.AnyNumber,
+    /,
+    *,
+    rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
+    abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL,
+) -> bool:
+    """Checks if x > y using the tolerances to decide if they're equal."""
     return not lte(x, y, rel_tol=rel_tol, abs_tol=abs_tol)
 
 
-def gte(x: mt.AnyNumber,
-        y: mt.AnyNumber,
-        /, *,
-        rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
-        abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL) -> bool:
-    """ Checks if x >= y using the tolerances to decide if they're equal. """
+def gte(
+    x: mt.AnyNumber,
+    y: mt.AnyNumber,
+    /,
+    *,
+    rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
+    abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL,
+) -> bool:
+    """Checks if x >= y using the tolerances to decide if they're equal."""
     nv_x, nv_y, rt, at = match_convert(*match_units(x, y), rel_tol, abs_tol)
     return nv_x > nv_y or _is_close(nv_x, nv_y, rt, at)
 
 
-def lt(x: mt.AnyNumber,
-       y: mt.AnyNumber,
-       /, *,
-       rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
-       abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL) -> bool:
-    """ Checks if x < y using the tolerances to decide if they're equal. """
+def lt(
+    x: mt.AnyNumber,
+    y: mt.AnyNumber,
+    /,
+    *,
+    rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
+    abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL,
+) -> bool:
+    """Checks if x < y using the tolerances to decide if they're equal."""
     return not gte(x, y, rel_tol=rel_tol, abs_tol=abs_tol)
 
 
-def lte(x: mt.AnyNumber,
-        y: mt.AnyNumber,
-        /, *,
-        rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
-        abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL) -> bool:
-    """ Checks if x <= y using the tolerances to decide if they're equal. """
+def lte(
+    x: mt.AnyNumber,
+    y: mt.AnyNumber,
+    /,
+    *,
+    rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
+    abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL,
+) -> bool:
+    """Checks if x <= y using the tolerances to decide if they're equal."""
     nv_x, nv_y, rt, at = match_convert(*match_units(x, y), rel_tol, abs_tol)
     return nv_x < nv_y or _is_close(nv_x, nv_y, rt, at)
 
 
 def _is_close(x, y, rel_tol, abs_tol) -> bool:
-    """ Helper function for if numbers are close. """
+    """Helper function for if numbers are close."""
     abs_diff = abs(x - y)
     abs_x = abs(x)
     abs_y = abs(y)
@@ -346,26 +406,30 @@ def _is_close(x, y, rel_tol, abs_tol) -> bool:
         actual_rel_tol = abs_x * rel_tol
     else:
         actual_rel_tol = abs_y * rel_tol
-    if actual_rel_tol > abs_tol:
-        abs_tol = actual_rel_tol
+    abs_tol = max(abs_tol, actual_rel_tol)
     return abs_diff <= abs_tol
 
 
-def between(min_v: mt.AnyNumber,
-            x: mt.AnyNumber,
-            max_v: mt.AnyNumber,
-            /, *,
-            include_lower_bound: bool = True,
-            include_upper_bound: bool = True,
-            rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
-            abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL) -> bool:
-    """ Checks if min_v <= x <= max_v.
+def between(
+    min_v: mt.AnyNumber,
+    x: mt.AnyNumber,
+    max_v: mt.AnyNumber,
+    /,
+    *,
+    include_lower_bound: bool = True,
+    include_upper_bound: bool = True,
+    rel_tol: mt.NonScienceNumber = DEFAULT_REL_TOL,
+    abs_tol: mt.NonScienceNumber = DEFAULT_ABS_TOL,
+) -> bool:
+    """Checks if min_v <= x <= max_v.
 
-        Note that include_lower_bound or include_upper_bound can be set to False to
-        exclude one or both of the bounds. Uses the tolerances to calculate if the
-        values are equal.
+    Note that include_lower_bound or include_upper_bound can be set to False to
+    exclude one or both of the bounds. Uses the tolerances to calculate if the
+    values are equal.
     """
-    nv_min, nv_x, nv_max, rt, at = match_convert(*match_units(min_v, x, max_v), rel_tol, abs_tol)
+    nv_min, nv_x, nv_max, rt, at = match_convert(
+        *match_units(min_v, x, max_v), rel_tol, abs_tol
+    )
     if include_lower_bound:
         if nv_x < nv_min and not _is_close(nv_x, nv_min, rt, at):
             return False
@@ -380,7 +444,7 @@ def between(min_v: mt.AnyNumber,
 
 
 def sum_(arg1: mt.NumberOrIterable, /, *args: mt.NumberOrIterable) -> mt.ResolvedNumber:
-    """ Sums all the given numbers with type conversion to decimal if any are decimal, otherwise float. """
+    """Sums all the given numbers with type conversion to decimal if any are decimal, otherwise float."""
     sn, dc, ns, flint = separate_by_type(collapse((arg1, args)))
     current_sum = 0
     if len(dc) > 0:
@@ -397,8 +461,10 @@ def sum_(arg1: mt.NumberOrIterable, /, *args: mt.NumberOrIterable) -> mt.Resolve
     return current_sum
 
 
-def product(arg1: mt.NumberOrIterable, /, *args: mt.NumberOrIterable) -> mt.ResolvedNumber:
-    """ Takes the product of all the given numbers with type conversion to decimal if any are decimal, otherwise float. """
+def product(
+    arg1: mt.NumberOrIterable, /, *args: mt.NumberOrIterable
+) -> mt.ResolvedNumber:
+    """Takes the product of all the given numbers with type conversion to decimal if any are decimal, otherwise float."""
     sn, dc, ns, flint = separate_by_type(collapse((arg1, args)))
     current_product = 1
     if len(dc) > 0:
@@ -416,7 +482,7 @@ def product(arg1: mt.NumberOrIterable, /, *args: mt.NumberOrIterable) -> mt.Reso
 
 
 def max_(arg1: mt.NumberOrIterable, /, *args: mt.NumberOrIterable) -> mt.ResolvedNumber:
-    """ Finds the largest value and returns it. """
+    """Finds the largest value and returns it."""
     sn, dc, ns, flint = separate_by_type(collapse((arg1, args)))
     if len(dc) > 0:
         dc.extend(decimal.Decimal(x) for x in ns)
@@ -426,7 +492,7 @@ def max_(arg1: mt.NumberOrIterable, /, *args: mt.NumberOrIterable) -> mt.Resolve
 
 
 def min_(arg1: NumberOrIterable, /, *args: NumberOrIterable) -> mt.ResolvedNumber:
-    """ Finds the smallest value and returns it. """
+    """Finds the smallest value and returns it."""
     sn, dc, ns, flint = separate_by_type(collapse((arg1, args)))
     if len(dc) > 0:
         dc.extend(decimal.Decimal(x) for x in ns)
@@ -436,33 +502,33 @@ def min_(arg1: NumberOrIterable, /, *args: NumberOrIterable) -> mt.ResolvedNumbe
 
 
 def significant_digits(std_dev: mt.AnyNumber, c: int = 2) -> int | None:
-    """ Given a standard deviation and a confidence level, calculate the first decimal place of the margin of error.
+    """Given a standard deviation and a confidence level, calculate the first decimal place of the margin of error.
 
-        For example:
+    For example:
 
-        Consider std_dev=0.005, c=2
+    Consider std_dev=0.005, c=2
 
-        test_compatibility is true iff |A-B| / sqrt(2 * (std_dev ** 2)) <= c
-        and therefore margin_of_error = |A-B| <= c * sqrt(2 * (std_dev ** 2))
-        i.e. margin_of_error is the largest possible absolute difference between A and B that leaves them compatible.
+    test_compatibility is true iff |A-B| / sqrt(2 * (std_dev ** 2)) <= c
+    and therefore margin_of_error = |A-B| <= c * sqrt(2 * (std_dev ** 2))
+    i.e. margin_of_error is the largest possible absolute difference between A and B that leaves them compatible.
 
-        Here that works out to 0.0141421, i.e. for value k we accept anything from (k-0.0141421, k+0.0141421)
+    Here that works out to 0.0141421, i.e. for value k we accept anything from (k-0.0141421, k+0.0141421)
 
-        log10 of margin_of_error is -1.84949 and the floor of that is -2.
-        This indicates that the second decimal place is uncertain.
-        The first decimal place may also vary slightly, but it is more likely to be accurate.
+    log10 of margin_of_error is -1.84949 and the floor of that is -2.
+    This indicates that the second decimal place is uncertain.
+    The first decimal place may also vary slightly, but it is more likely to be accurate.
 
-        We therefore return 2, indicating the position of the first truly uncertain decimal place.
+    We therefore return 2, indicating the position of the first truly uncertain decimal place.
 
-        In other words, given a number X and its standard deviation s, rounding X and the margin of error to
-        n = signficiant_digits(std_dev) places produces a sensible output where the margin of error has one
-        significant decimal place.
+    In other words, given a number X and its standard deviation s, rounding X and the margin of error to
+    n = signficiant_digits(std_dev) places produces a sensible output where the margin of error has one
+    significant decimal place.
 
 
     """
     sd = nominal_value(std_dev)
     if sd <= 0:
         return None
-    margin_of_error = sqrt(2 * (sd ** 2)) * c
+    margin_of_error = sqrt(2 * (sd**2)) * c
     places = _math.floor(_common.log10(margin_of_error))
     return places * -1

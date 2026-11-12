@@ -1,53 +1,52 @@
 import yaml
 
 from medsutil.dynamic import dynamic_name
+from medsutil.exceptions import CodedError
+from pipeman.processing.base_worker import BaseWorker
 from pipeman.processing.scheduled_task import ScheduledTask
 from pipeman_service.single import SingleProcessController
-from pipeman.processing.base_worker import BaseWorker
-from medsutil.exceptions import CodedError
 from tests.helpers.base_test_case import BaseTestCase
-
 
 SCHEDULED_TASK = dynamic_name(ScheduledTask)
 
-class TestBaseProcessController(BaseTestCase):
 
+class TestBaseProcessController(BaseTestCase):
     def test_signal_catching(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {
-                        'five': 5,
-                    }
+            yaml.safe_dump(
+                {
+                    "process1": {
+                        "class_name": SCHEDULED_TASK,
+                        "config": {
+                            "five": 5,
+                        },
+                    },
+                    "process2": {
+                        "class_name": SCHEDULED_TASK,
+                        "count": 4,
+                        "config": {
+                            "hello": "world",
+                        },
+                    },
                 },
-                'process2': {
-                    'class_name': SCHEDULED_TASK,
-                    'count': 4,
-                    'config': {
-                        'hello': 'world',
-                    }
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
         nc.reload_check()
         self.assertFalse(nc._halt_flag.is_set())
         self.assertEqual(nc._break_count, 0)
-        with self.assertLogs('cnodc.single_process', 'INFO'):
+        with self.assertLogs("cnodc.single_process", "INFO"):
             nc._handle_halt(1, "")
         self.assertTrue(nc._halt_flag.is_set())
         self.assertEqual(nc._break_count, 1)
-        with self.assertLogs('cnodc.single_process', 'INFO'):
+        with self.assertLogs("cnodc.single_process", "INFO"):
             nc._handle_halt(1, "")
         self.assertTrue(nc._halt_flag.is_set())
         self.assertEqual(nc._break_count, 2)
-        with self.assertLogs('cnodc.single_process', 'CRITICAL'):
-            with self.assertRaises(KeyboardInterrupt):
+        with self.assertLogs("cnodc.single_process", "CRITICAL"), self.assertRaises(KeyboardInterrupt):
                 nc._handle_halt(1, "")
         self.assertTrue(nc._halt_flag.is_set())
         self.assertEqual(nc._break_count, 3)
@@ -56,289 +55,259 @@ class TestBaseProcessController(BaseTestCase):
         file = self.temp_dir / "test.yaml"
         file.touch()
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CodedError):
+        with self.assertLogs("cnodc.single_process", "ERROR"), self.assertRaises(CodedError):
                 nc.reload_check()
 
     def test_missing_process_directory(self):
         subdir = self.temp_dir / "subdir"
         nc = SingleProcessController(
-            process_name="foo",
-            config_file_dir=subdir,
-            _no_report=True
+            process_name="foo", config_file_dir=subdir, _no_report=True
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CodedError):
+        with self.assertLogs("cnodc.single_process", "ERROR"), self.assertRaises(CodedError):
                 nc.reload_check()
 
     def test_bad_process_directory(self):
         file = self.temp_dir / "test.yaml"
         file.touch()
         nc = SingleProcessController(
-            process_name="foo",
-            config_file_dir=file,
-            _no_report=True
+            process_name="foo", config_file_dir=file, _no_report=True
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"):
-            with self.assertRaises(CodedError):
+        with self.assertLogs("cnodc.single_process", "ERROR"), self.assertRaises(CodedError):
                 nc.reload_check()
 
     def test_bad_process_missing_file(self):
         file = self.temp_dir / "test.yaml"
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertRaises(CodedError):
-            with self.assertLogs("cnodc.single_process", "ERROR"):
-                nc.reload_check()
+        with self.assertRaises(CodedError), self.assertLogs("cnodc.single_process", "ERROR"):
+            nc.reload_check()
 
     def test_bad_process_file(self):
         file = self.temp_dir / "test.yaml"
         nc = SingleProcessController(
-            process_name="foo",
-            config_file_dir=file,
-            _no_report=True
+            process_name="foo", config_file_dir=file, _no_report=True
         )
-        with self.assertRaises(CodedError):
-            with self.assertLogs("cnodc.single_process", "ERROR"):
-                nc.reload_check()
+        with self.assertRaises(CodedError), self.assertLogs("cnodc.single_process", "ERROR"):
+            nc.reload_check()
 
     def test_bad_process_no_class(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'config': {}
+            yaml.safe_dump(
+                {
+                    "process1": {"config": {}},
+                    "good": {"class_name": SCHEDULED_TASK, "config": {}},
                 },
-                'good': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {}
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertLogs('cnodc.single_process', 'ERROR'):
+        with self.assertLogs("cnodc.single_process", "ERROR"):
             nc.reload_check()
         self.assertEqual(len(nc._process_info), 1)
-        self.assertIn('good', nc._process_info)
-        self.assertNotIn('process1', nc._process_info)
+        self.assertIn("good", nc._process_info)
+        self.assertNotIn("process1", nc._process_info)
 
     def test_bad_process_invalid_object(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': 'cnodc.util.exceptions.CNODCError2',
-                    'config': {}
+            yaml.safe_dump(
+                {
+                    "process1": {
+                        "class_name": "cnodc.util.exceptions.CNODCError2",
+                        "config": {},
+                    },
+                    "good": {"class_name": SCHEDULED_TASK, "config": {}},
                 },
-                'good': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {}
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertLogs('cnodc.single_process', 'ERROR'):
+        with self.assertLogs("cnodc.single_process", "ERROR"):
             nc.reload_check()
         self.assertEqual(len(nc._process_info), 1)
-        self.assertIn('good', nc._process_info)
-        self.assertNotIn('process1', nc._process_info)
+        self.assertIn("good", nc._process_info)
+        self.assertNotIn("process1", nc._process_info)
 
     def test_bad_process_no_run_method(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': 'tests.helpers',
-                    'config': {}
+            yaml.safe_dump(
+                {
+                    "process1": {"class_name": "tests.helpers", "config": {}},
+                    "good": {"class_name": SCHEDULED_TASK, "config": {}},
                 },
-                'good': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {}
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertLogs('cnodc.single_process', 'ERROR'):
+        with self.assertLogs("cnodc.single_process", "ERROR"):
             nc.reload_check()
         self.assertEqual(len(nc._process_info), 1)
-        self.assertIn('good', nc._process_info)
-        self.assertNotIn('process1', nc._process_info)
+        self.assertIn("good", nc._process_info)
+        self.assertNotIn("process1", nc._process_info)
 
     def test_bad_process_config_warning(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': 'foobar'
+            yaml.safe_dump(
+                {
+                    "process1": {"class_name": SCHEDULED_TASK, "config": "foobar"},
+                    "good": {"class_name": SCHEDULED_TASK, "config": {}},
                 },
-                'good': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {}
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertLogs('cnodc.single_process', 'WARNING'):
+        with self.assertLogs("cnodc.single_process", "WARNING"):
             nc.reload_check()
         self.assertEqual(len(nc._process_info), 2)
-        self.assertIn('good', nc._process_info)
-        self.assertIn('process1', nc._process_info)
-        self.assertIsInstance(nc._process_info['process1']._info.config_str, str)
+        self.assertIn("good", nc._process_info)
+        self.assertIn("process1", nc._process_info)
+        self.assertIsInstance(nc._process_info["process1"]._info.config_str, str)
 
     def test_bad_process_count_warning(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': SCHEDULED_TASK,
-                    'count': 'foobar'
+            yaml.safe_dump(
+                {
+                    "process1": {"class_name": SCHEDULED_TASK, "count": "foobar"},
+                    "good": {"class_name": SCHEDULED_TASK, "config": {}},
                 },
-                'good': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {}
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertLogs('cnodc.single_process', 'WARNING'):
+        with self.assertLogs("cnodc.single_process", "WARNING"):
             nc.reload_check()
         self.assertEqual(len(nc._process_info), 2)
-        self.assertIn('good', nc._process_info)
-        self.assertIn('process1', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._info.quota, 1)
+        self.assertIn("good", nc._process_info)
+        self.assertIn("process1", nc._process_info)
+        self.assertEqual(nc._process_info["process1"]._info.quota, 1)
 
     def test_process_config_file(self):
         file = self.temp_dir / "test.yaml"
         with open(file, "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {
-                        'five': 5,
-                    }
+            yaml.safe_dump(
+                {
+                    "process1": {
+                        "class_name": SCHEDULED_TASK,
+                        "config": {
+                            "five": 5,
+                        },
+                    },
+                    "process2": {
+                        "class_name": SCHEDULED_TASK,
+                        "count": 4,
+                        "config": {
+                            "hello": "world",
+                        },
+                    },
                 },
-                'process2': {
-                    'class_name': SCHEDULED_TASK,
-                    'count': 4,
-                    'config': {
-                        'hello': 'world',
-                    }
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            _no_report=True
+            process_name="foo", config_file=file, _no_report=True
         )
         nc.reload_check()
         self.assertEqual(len(nc._process_info), 2)
-        self.assertIn('process1', nc._process_info)
-        self.assertIn('process2', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._info.worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process1']._info.quota, 1)
-        self.assertEqual(nc._process_info['process1']._info.config_str, '{"five": 5}')
-        self.assertEqual(nc._process_info['process2']._info.worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process2']._info.quota, 4)
-        self.assertEqual(nc._process_info['process2']._info.config_str, '{"hello": "world"}')
+        self.assertIn("process1", nc._process_info)
+        self.assertIn("process2", nc._process_info)
+        self.assertEqual(nc._process_info["process1"]._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info["process1"]._info.quota, 1)
+        self.assertEqual(nc._process_info["process1"]._info.config_str, '{"five": 5}')
+        self.assertEqual(nc._process_info["process2"]._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info["process2"]._info.quota, 4)
+        self.assertEqual(
+            nc._process_info["process2"]._info.config_str, '{"hello": "world"}'
+        )
 
     def test_process_config_dir(self):
         with open(self.temp_dir / "process1.yaml", "w") as h:
-            yaml.safe_dump({
-                'process1': {
-                    'class_name': SCHEDULED_TASK,
-                    'config': {
-                        'five': 5,
+            yaml.safe_dump(
+                {
+                    "process1": {
+                        "class_name": SCHEDULED_TASK,
+                        "config": {
+                            "five": 5,
+                        },
+                    },
+                },
+                h,
+            )
+        subdir = self.temp_dir / "subdir"
+        subdir.mkdir()
+        bad_ignore_file = self.temp_dir / "file.txt"
+        bad_ignore_file.touch()
+        with open(subdir / "process2.yaml", "w") as h:
+            yaml.safe_dump(
+                {
+                    "process2": {
+                        "class_name": SCHEDULED_TASK,
+                        "count": 4,
+                        "config": {
+                            "hello": "world",
+                        },
                     }
                 },
-            }, h)
-        subdir = self.temp_dir / 'subdir'
-        subdir.mkdir()
-        bad_ignore_file = self.temp_dir / 'file.txt'
-        bad_ignore_file.touch()
-        with open(subdir / 'process2.yaml', 'w') as h:
-            yaml.safe_dump({
-                'process2': {
-                    'class_name': SCHEDULED_TASK,
-                    'count': 4,
-                    'config': {
-                        'hello': 'world',
-                    }
-                }
-            }, h)
+                h,
+            )
         nc = SingleProcessController(
-            process_name="foo",
-            config_file_dir=self.temp_dir,
-            _no_report=True
+            process_name="foo", config_file_dir=self.temp_dir, _no_report=True
         )
         nc.reload_check()
         self.assertEqual(len(nc._process_info), 2)
-        self.assertIn('process1', nc._process_info)
-        self.assertIn('process2', nc._process_info)
-        self.assertEqual(nc._process_info['process1']._info.worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process1']._info.quota, 1)
-        self.assertEqual(nc._process_info['process1']._info.config_str, '{"five": 5}')
-        self.assertEqual(nc._process_info['process2']._info.worker_cls, SCHEDULED_TASK)
-        self.assertEqual(nc._process_info['process2']._info.quota, 4)
-        self.assertEqual(nc._process_info['process2']._info.config_str, '{"hello": "world"}')
+        self.assertIn("process1", nc._process_info)
+        self.assertIn("process2", nc._process_info)
+        self.assertEqual(nc._process_info["process1"]._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info["process1"]._info.quota, 1)
+        self.assertEqual(nc._process_info["process1"]._info.config_str, '{"five": 5}')
+        self.assertEqual(nc._process_info["process2"]._info.worker_cls, SCHEDULED_TASK)
+        self.assertEqual(nc._process_info["process2"]._info.quota, 4)
+        self.assertEqual(
+            nc._process_info["process2"]._info.config_str, '{"hello": "world"}'
+        )
 
     def test_process_config_reload(self):
         file = self.temp_dir / "test.yaml"
         procs = {
-            'process1': {
-                'class_name': SCHEDULED_TASK,
-                'config': {
-                    'five': 5,
-                }
+            "process1": {
+                "class_name": SCHEDULED_TASK,
+                "config": {
+                    "five": 5,
+                },
             },
-            'process2': {
-                'class_name': SCHEDULED_TASK,
-                'count': 4,
-                'config': {
-                    'hello': 'world',
-                }
-            }
+            "process2": {
+                "class_name": SCHEDULED_TASK,
+                "count": 4,
+                "config": {
+                    "hello": "world",
+                },
+            },
         }
         with open(file, "w") as h:
             yaml.safe_dump(procs, h)
-        flag_file = self.temp_dir / 'flag'
+        flag_file = self.temp_dir / "flag"
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            flag_file=flag_file,
-            _no_report=True
+            process_name="foo", config_file=file, flag_file=flag_file, _no_report=True
         )
         nc.reload_check()
         self.assertFalse(flag_file.exists())
         self.assertEqual(len(nc._process_info), 2)
         self.assertFalse(nc._check_reload())
-        del procs['process1']
-        procs['process2']['config']['hello'] = 'others'
-        procs['process3'] = {
-            'class_name': SCHEDULED_TASK,
-            'config': {},
+        del procs["process1"]
+        procs["process2"]["config"]["hello"] = "others"
+        procs["process3"] = {
+            "class_name": SCHEDULED_TASK,
+            "config": {},
         }
         with open(file, "w") as h:
             yaml.safe_dump(procs, h)
@@ -348,59 +317,54 @@ class TestBaseProcessController(BaseTestCase):
         flag_file.touch()
         nc.reload_check()
         self.assertEqual(len(nc._process_info), 3)
-        self.assertIn('process2', nc._process_info)
-        self.assertIn('process3', nc._process_info)
-        self.assertIn('process1', nc._process_info)
-        self.assertTrue(nc._process_info['process2'].is_activated())
-        self.assertTrue(nc._process_info['process3'].is_activated())
-        self.assertFalse(nc._process_info['process1'].is_activated())
+        self.assertIn("process2", nc._process_info)
+        self.assertIn("process3", nc._process_info)
+        self.assertIn("process1", nc._process_info)
+        self.assertTrue(nc._process_info["process2"].is_activated())
+        self.assertTrue(nc._process_info["process3"].is_activated())
+        self.assertFalse(nc._process_info["process1"].is_activated())
 
     def test_process_config_reload_bad_config(self):
         file = self.temp_dir / "test.yaml"
         procs = {
-            'process1': {
-                'class_name': SCHEDULED_TASK,
-                'config': {
-                    'five': 5,
-                }
+            "process1": {
+                "class_name": SCHEDULED_TASK,
+                "config": {
+                    "five": 5,
+                },
             },
-            'process2': {
-                'class_name': SCHEDULED_TASK,
-                'count': 4,
-                'config': {
-                    'hello': 'world',
-                }
-            }
+            "process2": {
+                "class_name": SCHEDULED_TASK,
+                "count": 4,
+                "config": {
+                    "hello": "world",
+                },
+            },
         }
         with open(file, "w") as h:
             yaml.safe_dump(procs, h)
-        flag_file = self.temp_dir / 'flag'
+        flag_file = self.temp_dir / "flag"
         nc = SingleProcessController(
-            process_name="foo",
-            config_file=file,
-            flag_file=flag_file,
-            _no_report=True
+            process_name="foo", config_file=file, flag_file=flag_file, _no_report=True
         )
         nc.reload_check()
         self.assertFalse(flag_file.exists())
         self.assertEqual(len(nc._process_info), 2)
         self.assertFalse(nc._check_reload())
         with self.assertRaises(ValueError):
-            nc._register_worker('process2', SCHEDULED_TASK, 4, 'monkeybar')
+            nc._register_worker("process2", SCHEDULED_TASK, 4, "monkeybar")
 
     def test_run(self):
         file = self.temp_dir / "test.yaml"
         procs = {
-            'process1': {
-                'class_name': dynamic_name(GoodTest),
+            "process1": {
+                "class_name": dynamic_name(GoodTest),
             },
         }
         with open(file, "w") as h:
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
-            process_name="process1",
-            config_file=file,
-            _no_report=True
+            process_name="process1", config_file=file, _no_report=True
         )
         nc.reload_check()
         with self.assertLogs("cnodc.single_process", "DEBUG"):
@@ -413,19 +377,17 @@ class TestBaseProcessController(BaseTestCase):
     def test_exception_run(self):
         file = self.temp_dir / "test.yaml"
         procs = {
-            'process1': {
-                'class_name': dynamic_name(BadTest),
+            "process1": {
+                "class_name": dynamic_name(BadTest),
             },
         }
         with open(file, "w") as h:
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
-            process_name="process1",
-            config_file=file,
-            _no_report=True
+            process_name="process1", config_file=file, _no_report=True
         )
         nc.reload_check()
-        with self.assertLogs('cnodc.worker.test', 'ERROR'):
+        with self.assertLogs("cnodc.worker.test", "ERROR"):
             nc.start()
         self.assertFalse(nc._process._worker._did_run)
         self.assertTrue(nc._process._worker._on_start)
@@ -435,16 +397,14 @@ class TestBaseProcessController(BaseTestCase):
     def test_bad_process_name(self):
         file = self.temp_dir / "test.yaml"
         procs = {
-            'process1': {
-                'class_name': dynamic_name(BadTest),
+            "process1": {
+                "class_name": dynamic_name(BadTest),
             },
         }
         with open(file, "w") as h:
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
-            process_name="process2",
-            config_file=file,
-            _no_report=True
+            process_name="process2", config_file=file, _no_report=True
         )
         nc.reload_check()
         with self.assertRaises(CodedError):
@@ -454,42 +414,35 @@ class TestBaseProcessController(BaseTestCase):
     def test_deactivate(self):
         file = self.temp_dir / "test.yaml"
         procs = {
-            'process1': {
-                'class_name': dynamic_name(GoodTest),
-                'count': 2,
+            "process1": {
+                "class_name": dynamic_name(GoodTest),
+                "count": 2,
             },
         }
         with open(file, "w") as h:
             yaml.safe_dump(procs, h)
         nc = SingleProcessController(
-            process_name="process1",
-            config_file=file,
-            _no_report=True
+            process_name="process1", config_file=file, _no_report=True
         )
         nc.reload_check()
-        self.assertIn('process1', nc._process_info)
-        self.assertTrue(nc._process_info['process1'].is_activated())
+        self.assertIn("process1", nc._process_info)
+        self.assertTrue(nc._process_info["process1"].is_activated())
         nc.reap_and_sow()
-        self.assertEqual(len(nc._process_info['process1']._active_runners), 2)
+        self.assertEqual(len(nc._process_info["process1"]._active_runners), 2)
         nc.deactivate_all()
-        self.assertFalse(nc._process_info['process1'].is_activated())
-        for ap_key in nc._process_info['process1']._active_runners:
-            ap = nc._process_info['process1']._active_runners[ap_key]
+        self.assertFalse(nc._process_info["process1"].is_activated())
+        for ap_key in nc._process_info["process1"]._active_runners:
+            ap = nc._process_info["process1"]._active_runners[ap_key]
             self.assertTrue(ap.end_flag.is_set())
             self.assertFalse(ap.halt_flag.is_set())
-        self.assertTrue(nc._process_info['process1'].is_active(True))
-        self.assertFalse(nc._process_info['process1'].is_active())
+        self.assertTrue(nc._process_info["process1"].is_active(True))
+        self.assertFalse(nc._process_info["process1"].is_active())
         self.assertTrue(nc.wait_for_all(0.5))
 
 
-
 class GoodTest(BaseWorker):
-
     def __init__(self, **kwargs):
-        super().__init__(
-            process_name="test",
-            process_version="1_0",
-            **kwargs)
+        super().__init__(process_name="test", process_version="1_0", **kwargs)
         self._on_start = False
         self._did_run = False
         self._on_exit = False
@@ -503,13 +456,12 @@ class GoodTest(BaseWorker):
     def _run(self):
         self._did_run = True
 
-    def on_exit(self, ex: Exception = None):
+    def on_exit(self, ex: Exception | None = None):
         self._on_exit = True
         self._exception = ex
         super().on_exit()
 
 
 class BadTest(GoodTest):
-
     def _run(self):
-        raise ValueError('oh no')
+        raise ValueError("oh no")

@@ -1,51 +1,62 @@
 import enum
 import typing as t
 
-from medsutil import ocproc2 as ocproc2, math as amath
+from medsutil import math as amath
+from medsutil import ocproc2 as ocproc2
 from medsutil.awaretime import AwareDateTime
 from medsutil.math import ScienceNumber
-
-from medsutil.ocproc2.refs import RecordRef, ChildRecordRef, RecordSetRef
+from medsutil.ocproc2.refs import ChildRecordRef, RecordRef, RecordSetRef
 from medsutil.units.structures import UnitError
 
 if t.TYPE_CHECKING:
     from medsutil.iso_duration import ISODuration
-    from medsutil.ocproc2.structures import ChildRecord, RecordSet
     from medsutil.ocproc2.elements import SingleElement
+    from medsutil.ocproc2.structures import ChildRecord, RecordSet
 
 
-def normalize_ocproc_path(path: t.Union[None, str, t.Iterable[str]]) -> str:
+def normalize_ocproc_path(path: None | str | t.Iterable[str]) -> str:
     """Normalize the path for a QC result."""
     if path is None:
-        return ''
-    actual_path = ('/'.join(path) if not isinstance(path, str) else path).strip()
-    while '//' in actual_path:
-        actual_path = actual_path.replace('//', '/')
-    return actual_path.strip('/')
+        return ""
+    actual_path = ("/".join(path) if not isinstance(path, str) else path).strip()
+    while "//" in actual_path:
+        actual_path = actual_path.replace("//", "/")
+    return actual_path.strip("/")
 
 
 if t.TYPE_CHECKING:
-    import decimal
     import datetime
+    import decimal
+
     import medsutil.types as ct
-    type _SupportedValue = None | str | float | int | bool | datetime.date | decimal.Decimal
-    type SupportedValue = _SupportedValue | t.Iterable[SupportedValue] | t.Mapping[ct.SupportsString, SupportedValue]
-    type ObjectWithMetadata = ocproc2.AbstractElement | ocproc2.BaseRecord | ocproc2.RecordSet
+
+    type _SupportedValue = (
+        None | str | float | int | bool | datetime.date | decimal.Decimal
+    )
+    type SupportedValue = (
+        _SupportedValue
+        | t.Iterable[SupportedValue]
+        | t.Mapping[ct.SupportsString, SupportedValue]
+    )
+    type ObjectWithMetadata = (
+        ocproc2.AbstractElement | ocproc2.BaseRecord | ocproc2.RecordSet
+    )
 
 type _SupportedStorage = None | str | float | int | bool
-type SupportedStorage = _SupportedStorage | list[SupportedStorage] | dict[str, SupportedStorage]
+type SupportedStorage = (
+    _SupportedStorage | list[SupportedStorage] | dict[str, SupportedStorage]
+)
+
 
 class QualityError(Exception): ...
 
 
 class QualityErrorGroup(ExceptionGroup):
-
     def __str__(self):
-        return f"Quality Errors: {";".join(str(x) for x in self.exceptions)}"
+        return f"Quality Errors: {';'.join(str(x) for x in self.exceptions)}"
 
 
 class Quality(enum.IntEnum):
-
     BAD_STRUCTURE = -1
 
     UNCHECKED = 0
@@ -61,26 +72,34 @@ class Quality(enum.IntEnum):
     @staticmethod
     def new_quality_allowed(new_quality: int | None, old_quality: int | None):
         from medsutil.ocproc2.elements import ALLOWED_QUALITY_MAP
+
         return new_quality in ALLOWED_QUALITY_MAP[old_quality]
 
 
 class RequiredQuality(enum.IntFlag):
-    NOT_DUBIOUS = enum.auto() # 1
-    NOT_MISSING = enum.auto() # 2
-    NOT_ERRONEOUS = enum.auto() # 4
-    GOOD_STRUCTURE = enum.auto() # 8
-    HAS_UNITS = enum.auto() # 16
-    HAS_VALUE = enum.auto() # 32
-    NOT_FINAL = enum.auto() # 64
-    IS_NUMERIC = enum.auto() # 128
-    IS_DATETIME = enum.auto() # 256
-    IS_INTEGER = enum.auto() # 512
-    IS_DURATION = enum.auto() # 1024
+    NOT_DUBIOUS = enum.auto()  # 1
+    NOT_MISSING = enum.auto()  # 2
+    NOT_ERRONEOUS = enum.auto()  # 4
+    GOOD_STRUCTURE = enum.auto()  # 8
+    HAS_UNITS = enum.auto()  # 16
+    HAS_VALUE = enum.auto()  # 32
+    NOT_FINAL = enum.auto()  # 64
+    IS_NUMERIC = enum.auto()  # 128
+    IS_DATETIME = enum.auto()  # 256
+    IS_INTEGER = enum.auto()  # 512
+    IS_DURATION = enum.auto()  # 1024
 
     GOOD_OR_DUBIOUS_VALUE = NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE
 
     GOOD_VALUE = NOT_DUBIOUS | NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE
-    GOOD_VALUE_WITH_UNITS = NOT_DUBIOUS | NOT_MISSING | NOT_ERRONEOUS | GOOD_STRUCTURE | HAS_VALUE | HAS_UNITS
+    GOOD_VALUE_WITH_UNITS = (
+        NOT_DUBIOUS
+        | NOT_MISSING
+        | NOT_ERRONEOUS
+        | GOOD_STRUCTURE
+        | HAS_VALUE
+        | HAS_UNITS
+    )
 
     GOOD_NUMERIC = GOOD_VALUE | IS_NUMERIC
     GOOD_DATETIME = GOOD_VALUE | IS_DATETIME
@@ -91,7 +110,6 @@ class RequiredQuality(enum.IntFlag):
 
 
 class CoordinateTracker:
-
     def __init__(self):
         self._latitude: amath.AnyNumber | None = None
         self._longitude: amath.AnyNumber | None = None
@@ -139,17 +157,23 @@ class CoordinateTracker:
 
     def update_from_record(self, record: ocproc2.BaseRecord):
         if "Latitude" in record.coordinates:
-            self._latitude = high_quality_numeric(record.coordinates["Latitude"], "degrees_north")
+            self._latitude = high_quality_numeric(
+                record.coordinates["Latitude"], "degrees_north"
+            )
         if "Longitude" in record.coordinates:
-            self._longitude = high_quality_numeric(record.coordinates["Longitude"], "degrees_east")
+            self._longitude = high_quality_numeric(
+                record.coordinates["Longitude"], "degrees_east"
+            )
         if "Depth" in record.coordinates or "Pressure" in record.coordinates:
             self._depth, self._pressure = high_quality_depth_pressure(
                 record.coordinates.get("Pressure", None),
                 record.coordinates.get("Depth", None),
-                self._latitude
+                self._latitude,
             )
         if "CentralFrequency" in record.coordinates:
-            self._central_frequency = high_quality_numeric(record.coordinates["CentralFrequency"], "Hz")
+            self._central_frequency = high_quality_numeric(
+                record.coordinates["CentralFrequency"], "Hz"
+            )
         if "ObservationNumber" in record.coordinates:
             self._obs_number = high_quality_int(record.coordinates["ObservationNumber"])
         if "WaveSensor" in record.coordinates:
@@ -160,22 +184,30 @@ class CoordinateTracker:
             self._time_offset = high_quality_duration(record.coordinates["TimeOffset"])
 
 
-def high_quality_depth_pressure(pressure_element: ocproc2.AbstractElement | None = None,
-                                depth_element: ocproc2.AbstractElement | None = None,
-                                latitude: ocproc2.AbstractElement | amath.AnyNumber | None = None) -> tuple[amath.AnyNumber | None, amath.AnyNumber | None]:
+def high_quality_depth_pressure(
+    pressure_element: ocproc2.AbstractElement | None = None,
+    depth_element: ocproc2.AbstractElement | None = None,
+    latitude: ocproc2.AbstractElement | amath.AnyNumber | None = None,
+) -> tuple[amath.AnyNumber | None, amath.AnyNumber | None]:
     pressure = high_quality_numeric(pressure_element, "dbar")
     depth = high_quality_numeric(depth_element, "m")
-    lat = high_quality_numeric(latitude, "degrees_north") if isinstance(latitude, ocproc2.AbstractElement) else latitude
+    lat = (
+        high_quality_numeric(latitude, "degrees_north")
+        if isinstance(latitude, ocproc2.AbstractElement)
+        else latitude
+    )
     if pressure is not None:
         if depth is not None:
             return pressure, depth
         if lat is not None:
-            import medsutil.seawater as seawater
+            from medsutil import seawater
+
             return pressure, seawater.eos80_depth(pressure, lat)
         return pressure, None
     elif depth is not None:
         if lat is not None:
-            import medsutil.seawater as seawater
+            from medsutil import seawater
+
             return seawater.eos80_pressure(depth, lat), depth
         return None, depth
     else:
@@ -187,15 +219,18 @@ def high_quality_datetime(v: ocproc2.AbstractElement | None) -> AwareDateTime | 
         return v.to_datetime()
     return None
 
+
 def high_quality_duration(v: ocproc2.AbstractElement | None) -> ISODuration | None:
     if v is not None and is_of_quality(v, RequiredQuality.GOOD_DURATION):
         return v.to_duration()
     return None
 
 
-def high_quality_numeric(v: ocproc2.AbstractElement | None,
-                         units: str = None,
-                         required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC) -> amath.AnyNumber | None:
+def high_quality_numeric(
+    v: ocproc2.AbstractElement | None,
+    units: str = None,
+    required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC,
+) -> amath.AnyNumber | None:
     if units is not None:
         required_quality = required_quality | RequiredQuality.HAS_UNITS
     if v is not None and is_of_quality(v, required_quality):
@@ -203,7 +238,11 @@ def high_quality_numeric(v: ocproc2.AbstractElement | None,
     return None
 
 
-def high_quality_int(v: ocproc2.AbstractElement | None, units: str = None, required_quality: RequiredQuality = RequiredQuality.GOOD_INTEGER) -> int | None:
+def high_quality_int(
+    v: ocproc2.AbstractElement | None,
+    units: str = None,
+    required_quality: RequiredQuality = RequiredQuality.GOOD_INTEGER,
+) -> int | None:
     if units is not None:
         required_quality = required_quality | RequiredQuality.HAS_UNITS
     if v is not None and is_of_quality(v, required_quality):
@@ -211,7 +250,11 @@ def high_quality_int(v: ocproc2.AbstractElement | None, units: str = None, requi
     return None
 
 
-def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None, required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC) -> float | None:
+def high_quality_float(
+    v: ocproc2.AbstractElement | None,
+    units: str = None,
+    required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC,
+) -> float | None:
     if units is not None:
         required_quality = required_quality | RequiredQuality.HAS_UNITS
     if v is not None and is_of_quality(v, required_quality):
@@ -219,13 +262,18 @@ def high_quality_float(v: ocproc2.AbstractElement | None, units: str = None, req
     return None
 
 
-def find_quality_for_protocol(element: ObjectWithMetadata, test_protocol: str) -> tuple[int | None, int | None]:
+def find_quality_for_protocol(
+    element: ObjectWithMetadata, test_protocol: str
+) -> tuple[int | None, int | None]:
     return (
         _find_quality_helper("Quality", element, test_protocol),
-        _find_quality_helper("WorkingQuality", element, test_protocol)
+        _find_quality_helper("WorkingQuality", element, test_protocol),
     )
 
-def _find_quality_helper(value_name: str, element: ObjectWithMetadata, test_protocol: str) -> int | None:
+
+def _find_quality_helper(
+    value_name: str, element: ObjectWithMetadata, test_protocol: str
+) -> int | None:
     if value_name not in element.metadata:
         return None
     for obj in element.metadata[value_name].all_values():
@@ -233,28 +281,48 @@ def _find_quality_helper(value_name: str, element: ObjectWithMetadata, test_prot
             return obj.to_int()
     return None
 
-def can_set_working_quality(element: ObjectWithMetadata, working_quality: int, test_protocol: str) -> bool:
+
+def can_set_working_quality(
+    element: ObjectWithMetadata, working_quality: int, test_protocol: str
+) -> bool:
     quality, existing_quality = find_quality_for_protocol(element, test_protocol)
     if existing_quality is None:
         existing_quality = quality
     return Quality.new_quality_allowed(working_quality, existing_quality)
 
-def set_working_quality(element: ObjectWithMetadata, working_quality: int, test_protocol: str) -> bool:
+
+def set_working_quality(
+    element: ObjectWithMetadata, working_quality: int, test_protocol: str
+) -> bool:
     if can_set_working_quality(element, working_quality, test_protocol):
         from medsutil.ocproc2.elements import SingleElement
+
         if "WorkingQuality" not in element.metadata:
-            element.metadata["WorkingQuality"] = SingleElement(working_quality, TestProtocol=test_protocol)
+            element.metadata["WorkingQuality"] = SingleElement(
+                working_quality, TestProtocol=test_protocol
+            )
         else:
-            for subelement in element.metadata['WorkingQuality'].all_values():
-                if subelement.metadata.best("TestProtocol", coerce=str, default=None) == test_protocol:
+            for subelement in element.metadata["WorkingQuality"].all_values():
+                if (
+                    subelement.metadata.best("TestProtocol", coerce=str, default=None)
+                    == test_protocol
+                ):
                     subelement.value = working_quality
                     break
             else:
-                element.metadata.append_element_to("WorkingQuality", SingleElement(working_quality, TestProtocol=test_protocol))
+                element.metadata.append_element_to(
+                    "WorkingQuality",
+                    SingleElement(working_quality, TestProtocol=test_protocol),
+                )
         return True
     return False
 
-def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: RequiredQuality, allowed_protocols: t.Iterable[str] | None = None) -> bool:
+
+def check_any_of_quality(
+    objs: list[ObjectWithMetadata],
+    required_quality: RequiredQuality,
+    allowed_protocols: t.Iterable[str] | None = None,
+) -> bool:
     any_passed: bool = False
     exs = []
     for obj in objs:
@@ -273,9 +341,11 @@ def check_any_of_quality(objs: list[ObjectWithMetadata], required_quality: Requi
     return False
 
 
-def is_of_quality(obj: ObjectWithMetadata | None,
-                  required_quality: RequiredQuality,
-                  allowed_protocols: t.Iterable[str] | None = None) -> bool:
+def is_of_quality(
+    obj: ObjectWithMetadata | None,
+    required_quality: RequiredQuality,
+    allowed_protocols: t.Iterable[str] | None = None,
+) -> bool:
     try:
         check_quality(obj, required_quality, allowed_protocols)
         return True
@@ -285,12 +355,16 @@ def is_of_quality(obj: ObjectWithMetadata | None,
 
 def combine_quality_scores(*qc_scores: int | t.Iterable[int | None] | None) -> int:
     """Converts a set of quality scores into a single score representing the worst value."""
+
     def _compress(y) -> t.Iterable[int | None]:
-        if y is None: yield None
-        elif isinstance(y, int): yield y
+        if y is None:
+            yield None
+        elif isinstance(y, int):
+            yield y
         else:
             for x in y:
                 yield from _compress(x)
+
     qc_score = None
     for x in _compress(qc_scores):
         if Quality.new_quality_allowed(x, qc_score):
@@ -298,33 +372,45 @@ def combine_quality_scores(*qc_scores: int | t.Iterable[int | None] | None) -> i
     return qc_score or 0
 
 
-def check_quality(obj: ObjectWithMetadata | None,
-                  required_quality: RequiredQuality,
-                  allowed_protocols: t.Iterable[str] | None = None):
+def check_quality(
+    obj: ObjectWithMetadata | None,
+    required_quality: RequiredQuality,
+    allowed_protocols: t.Iterable[str] | None = None,
+):
     if obj is None:
         raise QualityError("element_is_none")
 
     if isinstance(obj, ocproc2.AbstractElement):
         if RequiredQuality.HAS_VALUE in required_quality and obj.is_empty():
             raise QualityError("element_is_empty")
-        if RequiredQuality.HAS_UNITS in required_quality and not obj.metadata.has_value("Units"):
+        if RequiredQuality.HAS_UNITS in required_quality and not obj.metadata.has_value(
+            "Units"
+        ):
             raise QualityError("element_missing_units")
         if RequiredQuality.IS_INTEGER in required_quality and not obj.is_integer():
             raise QualityError("element_not_integer")
         if RequiredQuality.IS_NUMERIC in required_quality and not obj.is_numeric():
             raise QualityError("element_not_numeric")
-        if RequiredQuality.IS_DATETIME in required_quality and not obj.is_iso_datetime():
+        if (
+            RequiredQuality.IS_DATETIME in required_quality
+            and not obj.is_iso_datetime()
+        ):
             raise QualityError("element_not_datetime")
         if RequiredQuality.IS_DURATION in required_quality and not obj.is_duration():
             raise QualityError("element_not_duration")
 
     final_quality, working_quality = 0, 0
     if allowed_protocols is None:
-        if 'Quality' in obj.metadata:
-            final_quality = combine_quality_scores(x.to_int() for x in obj.metadata["Quality"].all_values())
+        if "Quality" in obj.metadata:
+            final_quality = combine_quality_scores(
+                x.to_int() for x in obj.metadata["Quality"].all_values()
+            )
 
-        if 'WorkingQuality' in obj.metadata:
-            working_quality = combine_quality_scores(final_quality, (x.to_int() for x in obj.metadata["WorkingQuality"].all_values()))
+        if "WorkingQuality" in obj.metadata:
+            working_quality = combine_quality_scores(
+                final_quality,
+                (x.to_int() for x in obj.metadata["WorkingQuality"].all_values()),
+            )
         else:
             working_quality = final_quality
 
@@ -338,36 +424,51 @@ def check_quality(obj: ObjectWithMetadata | None,
             if Quality.new_quality_allowed(check_working, working_quality):
                 working_quality = check_working
 
-    if RequiredQuality.NOT_FINAL in required_quality and final_quality != Quality.UNCHECKED:
+    if (
+        RequiredQuality.NOT_FINAL in required_quality
+        and final_quality != Quality.UNCHECKED
+    ):
         raise QualityError("element_has_final_quality")
 
-    if RequiredQuality.NOT_MISSING in required_quality and working_quality == Quality.MISSING:
+    if (
+        RequiredQuality.NOT_MISSING in required_quality
+        and working_quality == Quality.MISSING
+    ):
         raise QualityError("element_is_flagged_empty")
-    if RequiredQuality.NOT_ERRONEOUS in required_quality and working_quality == Quality.ERRONEOUS:
+    if (
+        RequiredQuality.NOT_ERRONEOUS in required_quality
+        and working_quality == Quality.ERRONEOUS
+    ):
         raise QualityError("element_is_flagged_erroneous")
-    if RequiredQuality.NOT_DUBIOUS in required_quality and working_quality == Quality.DUBIOUS:
+    if (
+        RequiredQuality.NOT_DUBIOUS in required_quality
+        and working_quality == Quality.DUBIOUS
+    ):
         raise QualityError("element_is_flagged_dubious")
 
-    if RequiredQuality.GOOD_STRUCTURE in required_quality and working_quality == Quality.BAD_STRUCTURE:
+    if (
+        RequiredQuality.GOOD_STRUCTURE in required_quality
+        and working_quality == Quality.BAD_STRUCTURE
+    ):
         raise QualityError("element_has_bad_structure")
 
 
-def pair_lists[T](*lsts: list[T], comparator: t.Callable[[T, T], float | None]) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
-    used: tuple[set[int], ...] = tuple(
-        set() for _ in lsts
-    )
-    for i in range(0, len(lsts)):
+def pair_lists[T](
+    *lsts: list[T], comparator: t.Callable[[T, T], float | None]
+) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
+    used: tuple[set[int], ...] = tuple(set() for _ in lsts)
+    for i in range(len(lsts)):
         for idx, item in enumerate(lsts[i]):
             if idx in used[i]:
                 continue
             best: list[tuple[T | None, float | None]] = []
-            for j in range(0, i):
+            for j in range(i):
                 best.append((None, None))
             best.append((item, None))
             for j in range(i + 1, len(lsts)):
                 best_idx: int | None = None
                 best_score: float | None = None
-                for k in range(0, len(lsts[j])):
+                for k in range(len(lsts[j])):
                     if k in used[j]:
                         continue
                     score = comparator(item, lsts[j][k])
@@ -382,10 +483,12 @@ def pair_lists[T](*lsts: list[T], comparator: t.Callable[[T, T], float | None]) 
             yield tuple(best)
 
 
-def dates_overlap(min_a: AwareDateTime,
-                  max_a: AwareDateTime,
-                  min_b: AwareDateTime,
-                  max_b: AwareDateTime) -> bool:
+def dates_overlap(
+    min_a: AwareDateTime,
+    max_a: AwareDateTime,
+    min_b: AwareDateTime,
+    max_b: AwareDateTime,
+) -> bool:
     if min_a > max_b or min_b > max_a:
         return False
     if max_a < min_b or max_b < min_a:
@@ -393,8 +496,11 @@ def dates_overlap(min_a: AwareDateTime,
     return True
 
 
-def pair_up_single_elements(*element_lists: list[SingleElement]) -> t.Iterable[tuple[tuple[SingleElement | None, float | None], ...]]:
+def pair_up_single_elements(
+    *element_lists: list[SingleElement],
+) -> t.Iterable[tuple[tuple[SingleElement | None, float | None], ...]]:
     yield from pair_lists(*element_lists, comparator=compare_elements)
+
 
 def compare_elements(a: SingleElement, b: SingleElement) -> float | None:
     if a.is_empty():
@@ -406,7 +512,11 @@ def compare_elements(a: SingleElement, b: SingleElement) -> float | None:
         return None
     elif a.is_iso_datetime():
         if b.is_iso_datetime():
-            return 1 if dates_overlap(*a.to_scidate().range(), *b.to_scidate().range()) else 0
+            return (
+                1
+                if dates_overlap(*a.to_scidate().range(), *b.to_scidate().range())
+                else 0
+            )
         else:
             return None
     elif b.is_iso_datetime():
@@ -436,6 +546,7 @@ def compare_elements(a: SingleElement, b: SingleElement) -> float | None:
     else:
         return None
 
+
 def compare_parameters(a: ScienceNumber, b: ScienceNumber) -> float | None:
     try:
         if a.units is not None and b.units is not None and a.units != b.units:
@@ -459,12 +570,18 @@ def compare_numeric(a: float, b: float) -> int:
         return 1
     return 0
 
-def pair_up_records[T: RecordRef | ChildRecord](*record_lists: list[T]) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
+
+def pair_up_records[T: RecordRef | ChildRecord](
+    *record_lists: list[T],
+) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
     yield from pair_lists(*record_lists, comparator=compare_child_records)
 
 
-def compare_child_records(a: ChildRecord | ChildRecordRef, b: ChildRecord | ChildRecordRef) -> float | None:
+def compare_child_records(
+    a: ChildRecord | ChildRecordRef, b: ChildRecord | ChildRecordRef
+) -> float | None:
     from medsutil.ocproc2.structures import ChildRecord
+
     a_rec = a if isinstance(a, ChildRecord) else a.record
     b_rec = b if isinstance(b, ChildRecord) else b.record
 
@@ -482,12 +599,17 @@ def compare_child_records(a: ChildRecord | ChildRecordRef, b: ChildRecord | Chil
     return agreements
 
 
-def pair_up_recordsets[T: RecordSetRef | RecordSet](*recordset_lists: list[T]) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
+def pair_up_recordsets[T: RecordSetRef | RecordSet](
+    *recordset_lists: list[T],
+) -> t.Iterable[tuple[tuple[T | None, float | None], ...]]:
     yield from pair_lists(*recordset_lists, comparator=compare_recordsets)
 
 
-def compare_recordsets(a: RecordSet | RecordSetRef, b: RecordSet | RecordSetRef) -> float | None:
+def compare_recordsets(
+    a: RecordSet | RecordSetRef, b: RecordSet | RecordSetRef
+) -> float | None:
     from medsutil.ocproc2.structures import RecordSet
+
     rs_a = a if isinstance(a, RecordSet) else a.recordset
     rs_b = b if isinstance(b, RecordSet) else b.recordset
     a_coordinates = set()
@@ -509,5 +631,7 @@ def compare_recordsets(a: RecordSet | RecordSetRef, b: RecordSet | RecordSetRef)
     len_b = len(rs_b.records)
     max_l = max(len_a, len_b)
     length_factor = (max_l - abs(len_a - len_b)) / max_l
-    element_factor = (len(coordinate_matches) + len(parameter_matches)) / len(set(*a_coordinates, *b_coordinates, *a_parameters, *b_parameters))
+    element_factor = (len(coordinate_matches) + len(parameter_matches)) / len(
+        set(*a_coordinates, *b_coordinates, *a_parameters, *b_parameters)
+    )
     return (length_factor + element_factor) / 2.0

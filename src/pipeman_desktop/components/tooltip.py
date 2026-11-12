@@ -1,10 +1,9 @@
-import gcapp.i18n.base as i18n
-import typing as t
 import tkinter as tk
+
+import gcapp.i18n.base as i18n
 
 
 class Popup:
-
     def __init__(self):
         self._window = None
 
@@ -15,8 +14,7 @@ class Popup:
             self._window.wm_geometry(f"+{x}+{y}")
             self.body(self._window)
 
-    def body(self, window):
-        ...
+    def body(self, window): ...
 
     def hide(self):
         if self._window is not None:
@@ -26,13 +24,10 @@ class Popup:
 
 
 class Tooltip(Popup):
-
-    def __init__(self,
-                 target,
-                 text: t.Union[str, dict[str, str]]):
+    def __init__(self, target, text: str | dict[str, str]):
         super().__init__()
-        target.bind('<Enter>', self._on_enter)
-        target.bind('<Leave>', self._on_leave)
+        target.bind("<Enter>", self._on_enter)
+        target.bind("<Leave>", self._on_leave)
         self._text = text
         self._target = target
         self._window = None
@@ -42,7 +37,11 @@ class Tooltip(Popup):
     def _on_enter(self, e):
         txt = self._get_text()
         if txt:
-            self.show(self._target, self._target.winfo_rootx() + 2, self._target.winfo_rooty() + self._target.winfo_height() + 2)
+            self.show(
+                self._target,
+                self._target.winfo_rootx() + 2,
+                self._target.winfo_rooty() + self._target.winfo_height() + 2,
+            )
         else:
             self.hide()
 

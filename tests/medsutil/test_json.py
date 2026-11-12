@@ -1,8 +1,8 @@
-from tests.helpers.base_test_case import BaseTestCase
 from medsutil import json
+from tests.helpers.base_test_case import BaseTestCase
+
 
 class TestJson(BaseTestCase):
-
     def test_load_dict_success(self):
         x = {"foo": "bar"}
         y = json.load_dict(json.dumps(x))
@@ -33,6 +33,7 @@ class TestJson(BaseTestCase):
 
     def test_clean_uuid(self):
         import uuid
+
         x = uuid.uuid4()
         self.assertEqual(str(x), json.clean_for_json(x))
 
@@ -42,6 +43,6 @@ class TestJson(BaseTestCase):
 
     def test_clean_for_orjson(self):
         from orjson import JSONEncodeError
+
         with self.assertRaises(JSONEncodeError):
             json._clean_for_orjson(self)
-

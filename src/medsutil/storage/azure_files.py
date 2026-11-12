@@ -16,52 +16,62 @@ connection_string = "..."
 #3: Include the SAS token in the URL (not recommended)
 
 """
+
 import typing as t
 from contextlib import contextmanager
 
 from medsutil.storage.azure import _AzureBaseHandle, wrap_azure_errors
 from medsutil.storage.interface import FeatureFlag, StatResult
 
-
 if t.TYPE_CHECKING:
-    from azure.storage.fileshare import ShareFileClient, ShareDirectoryClient, ShareClient
+    from azure.storage.fileshare import (
+        ShareClient,
+        ShareDirectoryClient,
+        ShareFileClient,
+    )
+
     import medsutil.types as ct
 
 
 class AzureFileHandle(_AzureBaseHandle):
-
     def __init__(self, *args, **kwargs):
-        super().__init__(*args,
-                         essential_domain='.file.core.windows.net',
-                         supports=FeatureFlag.DEFAULT | FeatureFlag.METADATA | FeatureFlag.CREATED_TIME,
-                         log_name='az_share',
-                         **kwargs)
+        super().__init__(
+            *args,
+            essential_domain=".file.core.windows.net",
+            supports=FeatureFlag.DEFAULT
+            | FeatureFlag.METADATA
+            | FeatureFlag.CREATED_TIME,
+            log_name="az_share",
+            **kwargs,
+        )
         self._file_client = None
         self._dir_client = None
 
     @contextmanager
-    def share_client(self) -> t.Generator[ShareClient, None, None]:
+    def share_client(self) -> t.Generator[ShareClient]:
         with self.persistent_connection("share", self._get_client, "share") as x:
             yield x
 
     @contextmanager
-    def file_client(self) -> t.Generator[ShareFileClient, None, None]:
+    def file_client(self) -> t.Generator[ShareFileClient]:
         """Build a file share client."""
         with self.share_client() as share:
             yield share.get_file_client(self._get_full_path())
 
     @contextmanager
-    def directory_client(self) -> t.Generator[ShareDirectoryClient, None, None]:
+    def directory_client(self) -> t.Generator[ShareDirectoryClient]:
         with self.share_client() as share:
             yield share.get_directory_client(self._get_full_path())
 
     def _mkdir(self, mode: int = 0o777):
         from azure.core.exceptions import ResourceExistsError
+
         try:
             with self.directory_client() as client:
                 client.create_directory()
             self._update_stat(is_dir=True, is_file=False, exists=True)
-        except ResourceExistsError: ...
+        except ResourceExistsError:
+            ...
 
     @wrap_azure_errors
     def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
@@ -69,16 +79,22 @@ class AzureFileHandle(_AzureBaseHandle):
             stream = client.download_file()
             yield from self._halt_flag.iterate(stream.chunks())
 
-    def _upload_from_seekable_file(self, readable: ct.SupportsBinarySeek, chunk_size: int = None, **kwargs):
+    def _upload_from_seekable_file(
+        self, readable: ct.SupportsBinarySeek, chunk_size: int = None, **kwargs
+    ):
         from azure.core.exceptions import ResourceExistsError
+
         from medsutil.byteseq import ByteSequenceReader
+
         readable.seek(0, 2)
         file_size = readable.tell()
         readable.seek(0)
         with self.file_client() as client_:
-            new_metadata = kwargs.pop('metadata', None)
+            new_metadata = kwargs.pop("metadata", None)
             try:
-                new_properties = client_.create_file(file_size, metadata=new_metadata or {})
+                new_properties = client_.create_file(
+                    file_size, metadata=new_metadata or {}
+                )
             except ResourceExistsError:
                 if new_metadata is not None:
                     client_.set_file_metadata(new_metadata)
@@ -95,33 +111,51 @@ class AzureFileHandle(_AzureBaseHandle):
                 is_file=True,
                 is_dir=False,
                 exists=True,
-                st_mtime=new_properties['last_modified'],
-                st_size = file_size,
-                metadata = new_metadata
+                st_mtime=new_properties["last_modified"],
+                st_size=file_size,
+                metadata=new_metadata,
             )
 
     @wrap_azure_errors
     def _streaming_write(self, chunks: t.Iterable[t.ByteString], **kwargs):
         import tempfile
-        with tempfile.SpooledTemporaryFile(mode='w+b') as stf:
+
+        with tempfile.SpooledTemporaryFile(mode="w+b") as stf:
             self._halt_flag.write_all(stf, chunks)
             self._upload_from_seekable_file(stf, **kwargs)
 
     @wrap_azure_errors
     def _remove(self):
         from azure.core.exceptions import ResourceNotFoundError
+
         try:
             with self.directory_client() as client:
                 client.delete_directory()
-            self._update_stat(is_dir=None, is_file=None, exists=False, st_size=None, st_mtime=None, metadata=None)
+            self._update_stat(
+                is_dir=None,
+                is_file=None,
+                exists=False,
+                st_size=None,
+                st_mtime=None,
+                metadata=None,
+            )
             return
-        except ResourceNotFoundError: ...
+        except ResourceNotFoundError:
+            ...
 
         try:
             with self.file_client() as client:
                 client.delete_file()
-            self._update_stat(is_dir=None, is_file=None, exists=False, st_size=None, st_mtime=None, metadata=None)
-        except ResourceNotFoundError: ...
+            self._update_stat(
+                is_dir=None,
+                is_file=None,
+                exists=False,
+                st_size=None,
+                st_mtime=None,
+                metadata=None,
+            )
+        except ResourceNotFoundError:
+            ...
 
     @wrap_azure_errors
     def full_path_within_share(self):
@@ -130,7 +164,7 @@ class AzureFileHandle(_AzureBaseHandle):
                 return client.directory_path
         else:
             with self.file_client() as client:
-                return '/'.join(client.file_path)
+                return "/".join(client.file_path)
 
     @wrap_azure_errors
     def _walk(self) -> t.Iterable[tuple[str, list[str], list[str]]]:
@@ -148,20 +182,27 @@ class AzureFileHandle(_AzureBaseHandle):
 
     def _stat(self) -> StatResult:
         from azure.core.exceptions import ResourceNotFoundError
+
         from medsutil.awaretime import AwareDateTime
+
         with self.directory_client() as client:
             try:
                 props = client.get_directory_properties()
                 return StatResult(
                     exists=True,
                     st_size=None,
-                    st_ctime=AwareDateTime.from_datetime(props.creation_time, 'Etc/UTC'),
-                    st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
+                    st_ctime=AwareDateTime.from_datetime(
+                        props.creation_time, "Etc/UTC"
+                    ),
+                    st_mtime=AwareDateTime.from_datetime(
+                        props.last_modified, "Etc/UTC"
+                    ),
                     is_dir=props.is_directory,
                     is_file=not props.is_directory,
                     metadata=props.metadata,
                 )
-            except ResourceNotFoundError: ...
+            except ResourceNotFoundError:
+                ...
 
         with self.file_client() as client:
             try:
@@ -171,17 +212,23 @@ class AzureFileHandle(_AzureBaseHandle):
                     is_dir=props.is_directory,
                     is_file=not props.is_directory,
                     metadata=props.metadata,
-                    st_ctime=AwareDateTime.from_datetime(props.creation_time, 'Etc/UTC'),
-                    st_mtime=AwareDateTime.from_datetime(props.last_modified, 'Etc/UTC'),
-                    st_size=props.size
+                    st_ctime=AwareDateTime.from_datetime(
+                        props.creation_time, "Etc/UTC"
+                    ),
+                    st_mtime=AwareDateTime.from_datetime(
+                        props.last_modified, "Etc/UTC"
+                    ),
+                    st_size=props.size,
                 )
-            except ResourceNotFoundError: ...
+            except ResourceNotFoundError:
+                ...
 
         return StatResult(exists=False)
 
     @wrap_azure_errors
     def _set_metadata(self, metadata: dict[str, str]):
         from azure.core.exceptions import ResourceNotFoundError
+
         try:
             with self.directory_client() as client:
                 client.set_directory_metadata(metadata)
@@ -196,5 +243,8 @@ class AzureFileHandle(_AzureBaseHandle):
         if not (file_path.startswith("http://") or file_path.startswith("https://")):
             return False
         from urllib.parse import urlparse
+
         pieces = urlparse(file_path)
-        return pieces.hostname is not None and pieces.hostname.endswith(".file.core.windows.net")
+        return pieces.hostname is not None and pieces.hostname.endswith(
+            ".file.core.windows.net"
+        )

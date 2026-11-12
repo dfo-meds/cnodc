@@ -33,9 +33,10 @@ if it isn't logged anyways. Especially important for debug() and trace().
 ```python
 import zrlog
 
+
 def do_stuff():
-    result = 'foobar'
-    zrlog.get_logger('do_stuff').debug("Function result: %s", result)
+    result = "foobar"
+    zrlog.get_logger("do_stuff").debug("Function result: %s", result)
 ```
 
 
@@ -43,7 +44,8 @@ def do_stuff():
 ```python
 import zrlog
 
+
 def do_stuff():
-    result = 'foobar'
-    zrlog.get_logger('do_stuff').debug(f"Function result: {result}")
+    result = "foobar"
+    zrlog.get_logger("do_stuff").debug(f"Function result: {result}")
 ```

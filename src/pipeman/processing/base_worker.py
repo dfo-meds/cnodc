@@ -5,66 +5,67 @@ import typing as t
 
 from autoinject import injector
 
-import nodb.interface as interface
+from gcapp.metrics import Gauge, Histogram
 from medsutil.cached import CachedObjectMixin, cached_method
-from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
+from medsutil.dynamic import DynamicObjectLoadError, dynamic_object
 from medsutil.exceptions import HaltInterrupt
 from medsutil.halts import HaltFlag, gzip_with_halt, ungzip_with_halt
-from gcapp.metrics import Gauge, Histogram
 from medsutil.savedata import SaveData
-
-from medsutil.storage import StorageController, FilePath
+from medsutil.storage import FilePath, StorageController
+from nodb import interface
 from pipeman.instrumented import InstrumentedObject
 
 
 class BaseWorker(CachedObjectMixin, InstrumentedObject):
     """Base class for all workers, provides common utility functions.
 
-        A worker generally is started by one of the controllers and runs until the controller
-        tells it to stop. The controller handles any parallelism such that the worker class
-        is always instantiated inside the thread/process that will be running it (i.e. you can
-        assume that __init__() and run() are called from the same thread/process).
+    A worker generally is started by one of the controllers and runs until the controller
+    tells it to stop. The controller handles any parallelism such that the worker class
+    is always instantiated inside the thread/process that will be running it (i.e. you can
+    assume that __init__() and run() are called from the same thread/process).
 
-        The controller will ensure that the run() method is called to start it. The worker should
-        then loop until one of the halt or end flags are set. The halt flag being set indicates
-        an urgent need to end the worker (e.g. the system is shutting down, the user has requested
-        the controller stop ASAP). The end flag being set indicates a less urgent need to end the
-        worker (e.g. the configuration needs to be reloaded). Worker processes should terminate as
-        soon as possible while maintaining a consistent state when the halt flag is set and at the
-        next reasonable point when the end flag is set (e.g. after the current item/execution is complete).
+    The controller will ensure that the run() method is called to start it. The worker should
+    then loop until one of the halt or end flags are set. The halt flag being set indicates
+    an urgent need to end the worker (e.g. the system is shutting down, the user has requested
+    the controller stop ASAP). The end flag being set indicates a less urgent need to end the
+    worker (e.g. the configuration needs to be reloaded). Worker processes should terminate as
+    soon as possible while maintaining a consistent state when the halt flag is set and at the
+    next reasonable point when the end flag is set (e.g. after the current item/execution is complete).
 
-        The run() method, by default, calls on_start() and then _run(). Once _run() completes, it then
-        calls on_complete() regardless of if _run() raised an error or note. Errors are logged and then
-        the run() function returns. The controller classes interpret the run() function returning as
-        the process ending and the appropriate actions are taken (i.e. the thread/subprocess will be
-        closed).
+    The run() method, by default, calls on_start() and then _run(). Once _run() completes, it then
+    calls on_complete() regardless of if _run() raised an error or note. Errors are logged and then
+    the run() function returns. The controller classes interpret the run() function returning as
+    the process ending and the appropriate actions are taken (i.e. the thread/subprocess will be
+    closed).
 
-        Sub-classes should typically implement the _run() method with a loop that uses the continue_loop()
-        function to check if it should continue, e.g.:
+    Sub-classes should typically implement the _run() method with a loop that uses the continue_loop()
+    function to check if it should continue, e.g.:
 
-        ```
-          def __run(self):
-            while self.continue_loop():
-              # do stuff
-              pass
-        ```
+    ```
+      def __run(self):
+        while self.continue_loop():
+          # do stuff
+          pass
+    ```
 
-        This will ensure the _run function returns appropriately. It should also catch and handle any errors
-        that would not prevent the worker from continuing onto the next iteration.
+    This will ensure the _run function returns appropriately. It should also catch and handle any errors
+    that would not prevent the worker from continuing onto the next iteration.
     """
 
     nodb: interface.NODB = None
 
     @injector.construct
-    def __init__(self,
-                 process_name: str,
-                 process_version: str,
-                 *,
-                 _server_name: str,
-                 _process_uuid: str,
-                 _halt_flag: HaltFlag,
-                 _end_flag: HaltFlag,
-                 _config: dict = None):
+    def __init__(
+        self,
+        process_name: str,
+        process_version: str,
+        *,
+        _server_name: str,
+        _process_uuid: str,
+        _halt_flag: HaltFlag,
+        _end_flag: HaltFlag,
+        _config: dict = None,
+    ):
         super().__init__(
             log_name=f"cnodc.worker.{process_name.lower()}",
             subsystem=process_name.lower(),
@@ -78,13 +79,13 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         self._config = _config or {}
         self._cycle_config = {}
         self._defaults = {
-            'save_file': None,
-            'max_check_delay_seconds': 1,
+            "save_file": None,
+            "max_check_delay_seconds": 1,
         }
-        self._temp_dir: t.Optional[tempfile.TemporaryDirectory] = None
-        self._save_data: t.Optional[SaveData] = None
+        self._temp_dir: tempfile.TemporaryDirectory | None = None
+        self._save_data: SaveData | None = None
         self._hook_cache = {}
-        self._events: list[str] = ['on_start', 'before_cycle', 'after_cycle', 'on_exit']
+        self._events: list[str] = ["on_start", "before_cycle", "after_cycle", "on_exit"]
         self._last_run_gauge = None
         self._run_time_histogram = None
 
@@ -95,85 +96,106 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         return self._events
 
     def run_hook(self, hook_name, **kwargs):
-        self._log.debug('Hook [%s] fired', hook_name)
+        self._log.debug("Hook [%s] fired", hook_name)
         for hook_callable in self._build_hooks(hook_name):
-            self._log.trace('Hook [%s] sent to [%s]', hook_name, hook_callable)
+            self._log.trace("Hook [%s] sent to [%s]", hook_name, hook_callable)
             hook_callable(worker=self, **kwargs)
 
     @cached_method
     def _build_hooks(self, hook_name: str) -> list[t.Callable]:
         hook_callables = []
-        hooks = self.get_merged_config(f'hook_{hook_name}')
+        hooks = self.get_merged_config(f"hook_{hook_name}")
         if hooks:
             for hook_call in hooks:
                 if isinstance(hook_call, str):
                     try:
                         hook_callables.append(dynamic_object(hook_call))
                     except DynamicObjectLoadError:
-                        self._log.exception(f"Error loading hook [{hook_call}] for [{hook_name}]")
+                        self._log.exception(
+                            f"Error loading hook [{hook_call}] for [{hook_name}]"
+                        )
                 else:
                     hook_callables.append(hook_call)
         return hook_callables
 
     def breakpoint(self):
-        """ Check if we need to break. """
-        self._log.trace('Breakpoint')
+        """Check if we need to break."""
+        self._log.trace("Breakpoint")
         self._halt_flag.breakpoint()
 
     def responsive_sleep(self, time_seconds: float):
         """Sleep for a given amount of time, with regular wake-ups to check the halt/end flags."""
-        max_delay = self.get_config('max_check_delay_seconds', default=1.0)
+        max_delay = self.get_config("max_check_delay_seconds", default=1.0)
         if time_seconds <= 0:
-            self.report(activity='', _resource_update=True)
+            self.report(activity="", _resource_update=True)
             return
         elif time_seconds < (2 * max_delay):
-            self._log.trace('Sleeping for [%s] seconds', time_seconds)
-            self.report(activity=f'sleeping {time_seconds:.2f} s', _resource_update=True)
+            self._log.trace("Sleeping for [%s] seconds", time_seconds)
+            self.report(
+                activity=f"sleeping {time_seconds:.2f} s", _resource_update=True
+            )
             time.sleep(time_seconds)
         else:
             st = time.monotonic()
             et = st
             while (et - st) < time_seconds:
                 time_to_sleep = min(max_delay, max(time_seconds - (et - st), 0.01))
-                self._log.trace('Sleeping for [%s] seconds', time_to_sleep)
-                self.report(activity=f'sleeping {time_seconds:.2f} s (halt check in {time_to_sleep:.2f} s)', _resource_update=True)
+                self._log.trace("Sleeping for [%s] seconds", time_to_sleep)
+                self.report(
+                    activity=f"sleeping {time_seconds:.2f} s (halt check in {time_to_sleep:.2f} s)",
+                    _resource_update=True,
+                )
                 time.sleep(time_to_sleep)
                 et = time.monotonic()
                 if not self.continue_loop():
                     break
 
     def continue_loop(self):
-        """Check if the halt or end flags are set (True if neither are). """
-        return self._halt_flag.check_continue(False) and self._end_flag.check_continue(False)
+        """Check if the halt or end flags are set (True if neither are)."""
+        return self._halt_flag.check_continue(False) and self._end_flag.check_continue(
+            False
+        )
 
     def get_merged_config(self, key) -> list:
         values = []
         for d in (self._cycle_config, self._config, self._defaults):
-            if key in d and d[key]:
+            if d.get(key):
                 if isinstance(d[key], (list, tuple, set)):
                     values.extend(d[key])
                 else:
                     values.append(d[key])
-        self._log.trace(f"Merged config setting from cycle [%s=%s]", key, values)
+        self._log.trace("Merged config setting from cycle [%s=%s]", key, values)
         return values
 
-    def get_config[T, Y](self, key: str, default: Y = None, coerce: t.Optional[t.Callable[[t.Any], T] | type[T]] = None, merge: bool = False) -> T | Y:
+    def get_config[T, Y](
+        self,
+        key: str,
+        default: Y = None,
+        coerce: t.Callable[[t.Any], T] | type[T] | None = None,
+        merge: bool = False,
+    ) -> T | Y:
         """Get a configuration setting by name, or the given default value if it isn't present."""
         value = ...
         if key in self._cycle_config and self._cycle_config[key] is not None:
-            self._log.trace(f"Config setting from cycle [%s=%s]", key, self._cycle_config[key])
+            self._log.trace(
+                "Config setting from cycle [%s=%s]", key, self._cycle_config[key]
+            )
             value = self._cycle_config[key]
         elif key in self._config and self._config[key] is not None:
-            self._log.trace(f"Config setting from config [%s=%s]", key, self._config[key])
+            self._log.trace(
+                "Config setting from config [%s=%s]", key, self._config[key]
+            )
             value = self._config[key]
         elif key in self._defaults and self._defaults[key] is not None:
-            self._log.trace(f"Config setting from defaults [%s=%s]", key, self._defaults[key])
+            self._log.trace(
+                "Config setting from defaults [%s=%s]", key, self._defaults[key]
+            )
             value = self._defaults[key]
         if value is not ...:
             if value is not None and coerce is not None:
                 return coerce(value)
             return value
-        self._log.trace(f"Config setting from method default [%s=%s]", key, default)
+        self._log.trace("Config setting from method default [%s=%s]", key, default)
         return default
 
     def set_cycle_config(self, values: dict):
@@ -187,29 +209,29 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         """Run the worker process with appropriate error handling."""
         exc = None
         try:
-            self.report(status='booting', activity='', _resource_update=True)
-            self._log.debug('Starting process %s', self.process_full_id)
+            self.report(status="booting", activity="", _resource_update=True)
+            self._log.debug("Starting process %s", self.process_full_id)
             self.on_start()
-            self._log.debug(f'Process %s is running', self.process_full_id)
-            self.report(status='running', activity='', _resource_update=True)
+            self._log.debug("Process %s is running", self.process_full_id)
+            self.report(status="running", activity="", _resource_update=True)
             self._run()
-            self.report(status='shutdown', activity='cleaning up')
+            self.report(status="shutdown", activity="cleaning up")
         except (HaltInterrupt, KeyboardInterrupt) as ex:
             exc = ex
-            self.report(status='halted', activity='cleaning up')
+            self.report(status="halted", activity="cleaning up")
             raise
         except Exception as ex:
             exc = ex
-            self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
-            self.report(status='errored', activity='cleaning up', _resource_update=True)
+            self._log.exception(f"{ex.__class__.__name__}: {ex!s}")
+            self.report(status="errored", activity="cleaning up", _resource_update=True)
         finally:
-            self._log.debug(f'Cleaning up %s', self.process_full_id)
+            self._log.debug("Cleaning up %s", self.process_full_id)
             self.on_exit(exc)
-            self._log.debug(f'Process %s complete', self.process_full_id)
-            if 'status' not in self._status_info:
-                self._status_info['status'] = 'unknown'
-            self._status_info['status'] += '-complete'
-            self.report(_end=True, activity='', _resource_update=True)
+            self._log.debug("Process %s complete", self.process_full_id)
+            if "status" not in self._status_info:
+                self._status_info["status"] = "unknown"
+            self._status_info["status"] += "-complete"
+            self.report(_end=True, activity="", _resource_update=True)
 
     def run_once(self):
         exc = None
@@ -218,7 +240,7 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
             self._run_once()
         except Exception as ex:
             exc = ex
-            self._log.exception(f"{ex.__class__.__name__}: {str(ex)}")
+            self._log.exception(f"{ex.__class__.__name__}: {ex!s}")
         finally:
             self.on_exit(exc)
 
@@ -236,26 +258,39 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
 
     def on_start(self):
         """Override this method to provide functionality prior to _run() being called."""
-        self._last_run_gauge = Gauge(name="last_run", documentation="When did the last execution finish?", unit="timestamp_seconds", namespace="pipeman", subsystem=self.process_full_id.replace(":", "_"), multiprocess_mode="livemostrecent")
-        self._run_time_histogram = Histogram(name="run_time", documentation="How long did the execution take to finish", unit="seconds", namespace="pipeman", subsystem=self.process_full_id.replace(":", "_"))
-        self.run_hook('on_start')
+        self._last_run_gauge = Gauge(
+            name="last_run",
+            documentation="When did the last execution finish?",
+            unit="timestamp_seconds",
+            namespace="pipeman",
+            subsystem=self.process_full_id.replace(":", "_"),
+            multiprocess_mode="livemostrecent",
+        )
+        self._run_time_histogram = Histogram(
+            name="run_time",
+            documentation="How long did the execution take to finish",
+            unit="seconds",
+            namespace="pipeman",
+            subsystem=self.process_full_id.replace(":", "_"),
+        )
+        self.run_hook("on_start")
 
     def on_exit(self, exception: Exception = None):
         """Override this method for clean-up after _run() is called."""
         if self._save_data is not None:
             self._save_data.save_file()
-        self.run_hook('on_exit', exception=exception)
+        self.run_hook("on_exit", exception=exception)
 
     def before_cycle(self):
         """Override this method to be called before each item is processed."""
-        self.run_hook('before_cycle')
+        self.run_hook("before_cycle")
 
     def after_cycle(self):
         """Override this method to be called after each item is processed."""
-        self.run_hook('after_cycle')
+        self.run_hook("after_cycle")
         self._cycle_config = {}
         if self._temp_dir is not None:
-            self._log.trace('Cleaning up temp directory')
+            self._log.trace("Cleaning up temp directory")
             self._temp_dir.cleanup()
             self._temp_dir = None
         if self._last_run_gauge is not None:
@@ -269,9 +304,9 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         return self._save_data
 
     def _save_file_name(self):
-        sn = self.get_config('save_file')
-        if sn is not None and '%process_id%' in sn:
-            sn = sn.replace('%process_id%', str(self.process_uuid))
+        sn = self.get_config("save_file")
+        if sn is not None and "%process_id%" in sn:
+            sn = sn.replace("%process_id%", str(self.process_uuid))
         return sn
 
     def temp_dir(self) -> pathlib.Path:
@@ -281,23 +316,27 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         return pathlib.Path(self._temp_dir.name)
 
     @t.overload
-    def get_handle(self, file_path: str | pathlib.Path, raise_ex: bool = True) -> FilePath: ...
+    def get_handle(
+        self, file_path: str | pathlib.Path, raise_ex: bool = True
+    ) -> FilePath: ...
 
     @t.overload
-    def get_handle(self, file_path: str | pathlib.Path) -> t.Optional[FilePath]: ...
+    def get_handle(self, file_path: str | pathlib.Path) -> FilePath | None: ...
 
     @injector.inject
-    def get_handle(self, file_path, raise_ex: bool = False, storage: StorageController = None) -> t.Optional[FilePath]:
+    def get_handle(
+        self, file_path, raise_ex: bool = False, storage: StorageController = None
+    ) -> FilePath | None:
         return storage.get_filepath(
-            file_path=file_path,
-            raise_ex=raise_ex,
-            halt_flag=self._halt_flag
+            file_path=file_path, raise_ex=raise_ex, halt_flag=self._halt_flag
         )
 
     def gzip_local_file(self, source_file, destination_file):
-        gzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)   # pragma: no coverage
+        gzip_with_halt(
+            source_file, destination_file, halt_flag=self._halt_flag
+        )  # pragma: no coverage
 
     def ungzip_local_file(self, source_file, destination_file):
-        ungzip_with_halt(source_file, destination_file, halt_flag=self._halt_flag)   # pragma: no coverage
-
-
+        ungzip_with_halt(
+            source_file, destination_file, halt_flag=self._halt_flag
+        )  # pragma: no coverage

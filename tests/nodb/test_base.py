@@ -1,7 +1,8 @@
 import datetime
 import enum
-import medsutil.json as json
+
 import nodb.base as s
+from medsutil import json
 from tests.helpers.base_test_case import BaseTestCase
 
 
@@ -12,11 +13,10 @@ class TestEnum(enum.Enum):
 
 
 class TestStuff(s.NODBBaseObject):
+    TABLE_NAME = "stuff_table"
+    PRIMARY_KEYS = ("str",)
 
-    TABLE_NAME = 'stuff_table'
-    PRIMARY_KEYS = ('str',)
-
-    ro = s.StringColumn( readonly=True)
+    ro = s.StringColumn(readonly=True)
     str = s.StringColumn()
     integer = s.IntColumn()
     boolean = s.BooleanColumn()
@@ -36,9 +36,8 @@ class TestDefaults(s.NODBBaseObject):
 
 
 class TestBaseObject(BaseTestCase):
-
     def test_default_table_name(self):
-        self.assertEqual('TestDefaults', TestDefaults.get_table_name())
+        self.assertEqual("TestDefaults", TestDefaults.get_table_name())
 
     def test_default_primary_keys(self):
         pk = TestDefaults.get_primary_keys()
@@ -47,12 +46,12 @@ class TestBaseObject(BaseTestCase):
 
     def test_default_kwargs(self):
         with self.assertRaises(TypeError):
-            td = TestDefaults(xyz="foobar")
+            _ = TestDefaults(xyz="foobar")
 
     def test_table_name(self):
         x = TestStuff()
-        self.assertEqual(x.get_table_name(), 'stuff_table')
-        self.assertEqual(TestStuff.get_table_name(), 'stuff_table')
+        self.assertEqual(x.get_table_name(), "stuff_table")
+        self.assertEqual(TestStuff.get_table_name(), "stuff_table")
 
     def test_primary_keys(self):
         x = TestStuff()
@@ -60,7 +59,7 @@ class TestBaseObject(BaseTestCase):
         cls_pks = TestStuff.get_primary_keys()
         self.assertEqual(obj_pks, cls_pks)
         self.assertEqual(1, len(obj_pks))
-        self.assertIn('str', obj_pks)
+        self.assertIn("str", obj_pks)
 
     def test_readonly(self):
         x = TestStuff()
@@ -72,36 +71,36 @@ class TestBaseObject(BaseTestCase):
         x._allow_readonly_access = True
         x.ro = "bar"
         self.assertEqual(x.ro, "bar")
-        self.assertIn('ro', x._modified_values)
+        self.assertIn("ro", x._modified_values)
 
     def test_readonly_context_override(self):
         x = TestStuff()
         with x.readonly_access():
             x.ro = "bar"
         self.assertEqual(x.ro, "bar")
-        self.assertIn('ro', x._modified_values)
+        self.assertIn("ro", x._modified_values)
 
     def test_modified(self):
         x = TestStuff()
-        x.mark_modified('ro')
-        self.assertIn('ro', x._modified_values)
+        x.mark_modified("ro")
+        self.assertIn("ro", x._modified_values)
         x.clear_modified()
-        self.assertNotIn('ro', x._modified_values)
+        self.assertNotIn("ro", x._modified_values)
 
     def test_string_field(self):
         x = TestStuff()
         x.str = 54321
         self.assertEqual(x.str, "54321")
         self.assertNotEqual(x.str, 54321)
-        self.assertIn('str', x._modified_values)
-        self.assertEqual(x.get_for_db('str'), '54321')
+        self.assertIn("str", x._modified_values)
+        self.assertEqual(x.get_for_db("str"), "54321")
 
     def test_str_field_none(self):
-        x = TestStuff(str='abc', is_new=False)
+        x = TestStuff(str="abc", is_new=False)
         x.str = None
         self.assertIsNone(x.str)
-        self.assertIn('str', x._modified_values)
-        self.assertIsNone(x.get_for_db('str'))
+        self.assertIn("str", x._modified_values)
+        self.assertIsNone(x.get_for_db("str"))
 
     def test_integer_field(self):
         x = TestStuff()
@@ -115,8 +114,8 @@ class TestBaseObject(BaseTestCase):
         x = TestStuff(integer=5, is_new=False)
         x.integer = None
         self.assertIsNone(x.integer)
-        self.assertIn('integer', x._modified_values)
-        self.assertIsNone(x.get_for_db('integer'))
+        self.assertIn("integer", x._modified_values)
+        self.assertIsNone(x.get_for_db("integer"))
 
     def test_float_field(self):
         x = TestStuff()
@@ -130,8 +129,8 @@ class TestBaseObject(BaseTestCase):
         x = TestStuff(real=5.4321, is_new=False)
         x.real = None
         self.assertIsNone(x.real)
-        self.assertIn('float', x._modified_values)
-        self.assertIsNone(x.get_for_db('float'))
+        self.assertIn("float", x._modified_values)
+        self.assertIsNone(x.get_for_db("float"))
 
     def test_bool_field(self):
         x = TestStuff()
@@ -146,126 +145,126 @@ class TestBaseObject(BaseTestCase):
         x.clear_modified()
         x.boolean = None
         self.assertIsNone(x.boolean)
-        self.assertIn('boolean', x._modified_values)
-        self.assertIsNone(x.get_for_db('boolean'))
+        self.assertIn("boolean", x._modified_values)
+        self.assertIsNone(x.get_for_db("boolean"))
 
     def test_uuid_field(self):
         x = TestStuff()
         x.uuid = 54321
         self.assertEqual(x.uuid, "54321")
         self.assertNotEqual(x.uuid, 54321)
-        self.assertIn('uuid', x._modified_values)
-        self.assertEqual(x.get_for_db('uuid'), '54321')
+        self.assertIn("uuid", x._modified_values)
+        self.assertEqual(x.get_for_db("uuid"), "54321")
 
     def test_uuid_field_none(self):
-        x = TestStuff(uuid='54321', is_new=False)
+        x = TestStuff(uuid="54321", is_new=False)
         x.uuid = None
         self.assertIsNone(x.uuid)
-        self.assertIn('uuid', x._modified_values)
-        self.assertIsNone(x.get_for_db('uuid'))
+        self.assertIn("uuid", x._modified_values)
+        self.assertIsNone(x.get_for_db("uuid"))
 
     def test_byte_field(self):
         x = TestStuff()
-        x.byte = b'12345'
-        self.assertEqual(x.byte, b'12345')
-        self.assertIn('byte', x._modified_values)
-        self.assertEqual(x.get_for_db('byte'), b'12345')
+        x.byte = b"12345"
+        self.assertEqual(x.byte, b"12345")
+        self.assertIn("byte", x._modified_values)
+        self.assertEqual(x.get_for_db("byte"), b"12345")
 
     def test_byte_field_none(self):
-        x = TestStuff(byte=b'12345', is_new=False)
+        x = TestStuff(byte=b"12345", is_new=False)
         x.byte = None
         self.assertIsNone(x.byte)
-        self.assertIn('byte', x._modified_values)
-        self.assertIsNone(x.get_for_db('byte'))
+        self.assertIn("byte", x._modified_values)
+        self.assertIsNone(x.get_for_db("byte"))
 
     def test_datetime_field_date_only(self):
         x = TestStuff()
         test = datetime.datetime(2015, 10, 1, 0, 0, 0).astimezone()
-        x.date_time = '2015-10-01'
+        x.date_time = "2015-10-01"
         self.assertEqual(x.date_time, test)
-        self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T00:00:00-04:00')
+        self.assertIn("datetime", x._modified_values)
+        self.assertEqual(x.get_for_db("datetime"), "2015-10-01T00:00:00-04:00")
 
     def test_datetime_field(self):
         x = TestStuff()
         test = datetime.datetime(2015, 10, 1, 1, 2, 3).astimezone()
-        x.date_time = '2015-10-01T01:02:03'
+        x.date_time = "2015-10-01T01:02:03"
         self.assertSameTime(x.date_time, test)
-        self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03-04:00')
+        self.assertIn("datetime", x._modified_values)
+        self.assertEqual(x.get_for_db("datetime"), "2015-10-01T01:02:03-04:00")
 
     def test_datetime_field_with_zone(self):
         x = TestStuff()
-        test = datetime.datetime(2015, 10, 1, 1, 2, 3, tzinfo=datetime.timezone.utc)
-        x.date_time = '2015-10-01T01:02:03+00:00'
+        test = datetime.datetime(2015, 10, 1, 1, 2, 3, tzinfo=datetime.UTC)
+        x.date_time = "2015-10-01T01:02:03+00:00"
         self.assertSameTime(x.date_time, test)
-        self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03+00:00')
+        self.assertIn("datetime", x._modified_values)
+        self.assertEqual(x.get_for_db("datetime"), "2015-10-01T01:02:03+00:00")
 
     def test_datetime_field_no_t(self):
         x = TestStuff()
         test = datetime.datetime(2015, 10, 1, 1, 2, 3).astimezone()
-        x.date_time = '2015-10-01 01:02:03'
+        x.date_time = "2015-10-01 01:02:03"
         self.assertSameTime(x.date_time, test)
-        self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03-04:00')
+        self.assertIn("datetime", x._modified_values)
+        self.assertEqual(x.get_for_db("datetime"), "2015-10-01T01:02:03-04:00")
 
     def test_datetime_field_actual(self):
         x = TestStuff()
         test = datetime.datetime(2015, 10, 1, 1, 2, 3).astimezone()
         x.date_time = test
         self.assertSameTime(x.date_time, test)
-        self.assertIn('datetime', x._modified_values)
-        self.assertEqual(x.get_for_db('datetime'), '2015-10-01T01:02:03-04:00')
+        self.assertIn("datetime", x._modified_values)
+        self.assertEqual(x.get_for_db("datetime"), "2015-10-01T01:02:03-04:00")
 
     def test_datetime_field_none(self):
         x = TestStuff(date_time=datetime.datetime(2015, 1, 2, 3, 4, 5), is_new=False)
         x.date_time = None
         self.assertIsNone(x.date_time)
-        self.assertIn('datetime', x._modified_values)
-        self.assertIsNone(x.get_for_db('datetime'))
+        self.assertIn("datetime", x._modified_values)
+        self.assertIsNone(x.get_for_db("datetime"))
 
     def test_date_field(self):
         x = TestStuff()
-        x.date_ = '2015-01-02'
+        x.date_ = "2015-01-02"
         self.assertEqual(x.date_, datetime.date(2015, 1, 2))
-        self.assertIn('date', x._modified_values)
-        self.assertEqual(x.get_for_db('date'), '2015-01-02')
+        self.assertIn("date", x._modified_values)
+        self.assertEqual(x.get_for_db("date"), "2015-01-02")
 
     def test_date_field_obj(self):
         x = TestStuff()
         x.date_ = datetime.date(2015, 1, 2)
         self.assertEqual(x.date_, datetime.date(2015, 1, 2))
-        self.assertIn('date', x._modified_values)
-        self.assertEqual(x.get_for_db('date'), '2015-01-02')
+        self.assertIn("date", x._modified_values)
+        self.assertEqual(x.get_for_db("date"), "2015-01-02")
 
     def test_date_field_none(self):
         x = TestStuff(date_=datetime.date(2015, 1, 2), is_new=False)
         x.date_ = None
         self.assertIsNone(x.date_)
-        self.assertIn('date', x._modified_values)
-        self.assertIsNone(x.get_for_db('date'))
+        self.assertIn("date", x._modified_values)
+        self.assertIsNone(x.get_for_db("date"))
 
     def test_enum_field(self):
         x = TestStuff()
         x.enum = TestEnum.ONE
         self.assertIs(x.enum, TestEnum.ONE)
-        self.assertIn('enum', x._modified_values)
-        self.assertEqual(x.get_for_db('enum'), TestEnum.ONE.value)
+        self.assertIn("enum", x._modified_values)
+        self.assertEqual(x.get_for_db("enum"), TestEnum.ONE.value)
 
     def test_enum_field_str(self):
         x = TestStuff()
         x.enum = TestEnum.ONE.value
         self.assertIs(x.enum, TestEnum.ONE)
-        self.assertIn('enum', x._modified_values)
-        self.assertEqual(x.get_for_db('enum'), TestEnum.ONE.value)
+        self.assertIn("enum", x._modified_values)
+        self.assertEqual(x.get_for_db("enum"), TestEnum.ONE.value)
 
     def test_enum_field_none(self):
         x = TestStuff(enum=TestEnum.ONE, is_new=False)
         x.enum = None
         self.assertIsNone(x.enum)
-        self.assertIn('enum', x._modified_values)
-        self.assertIsNone(x.get_for_db('enum'))
+        self.assertIn("enum", x._modified_values)
+        self.assertIsNone(x.get_for_db("enum"))
 
     def test_json_field_list(self):
         x = TestStuff()
@@ -282,14 +281,14 @@ class TestBaseObject(BaseTestCase):
         self.assertEqual(x.get_for_db("json_list"), json.dumps(["hello", "world"]))
 
     def test_json_field_list_none(self):
-        x = TestStuff(json_list=['hello', 'world'], is_new=False)
+        x = TestStuff(json_list=["hello", "world"], is_new=False)
         x.json_list = None
         self.assertIsNone(x.json_list)
         self.assertIn("json_list", x._modified_values)
         self.assertIsNone(x.get_for_db("json_list"))
 
     def test_json_field_none(self):
-        x = TestStuff(json_={'hello': 'world'}, is_new=False)
+        x = TestStuff(json_={"hello": "world"}, is_new=False)
         x.json_ = None
         self.assertIsNone(x.json_)
         self.assertIn("json", x._modified_values)
@@ -312,4 +311,4 @@ class TestBaseObject(BaseTestCase):
     def test_set_unknown_from_db(self):
         x = TestStuff()
         with self.assertRaises(KeyError):
-            x.set_from_db('not_a_value', 'foobar')
+            x.set_from_db("not_a_value", "foobar")

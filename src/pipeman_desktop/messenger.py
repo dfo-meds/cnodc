@@ -1,12 +1,13 @@
-from autoinject import injector
 import queue
 import tkinter as tk
+
+from autoinject import injector
+
 import gcapp.i18n.base as i18n
 
 
 @injector.injectable_global
 class CrossThreadMessenger:
-
     def __init__(self):
         self._messages = queue.SimpleQueue()
 
@@ -25,4 +26,3 @@ class CrossThreadMessenger:
     def close(self):
         while not self._messages.empty():
             self._messages.get_nowait()
-

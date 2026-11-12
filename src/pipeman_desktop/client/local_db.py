@@ -1,25 +1,24 @@
 import datetime
-import itertools
 import json
-import sqlite3
 import pathlib
+import sqlite3
+import typing as t
 
 import zrlog
 from autoinject import injector
-import typing as t
 
 from gcapp.i18n import TranslatableError
 
 
-class LocalDatabaseError(TranslatableError): CODE_SPACE = "LOCAL-DB"
+class LocalDatabaseError(TranslatableError):
+    CODE_SPACE = "LOCAL-DB"
 
 
 class CursorWrapper:
-
     def __init__(self, cursor: sqlite3.Cursor):
         self._cursor = cursor
         self._in_tx = False
-        self._log = zrlog.get_logger('cnodc.desktop.db')
+        self._log = zrlog.get_logger("cnodc.desktop.db")
 
     def __enter__(self):
         return self
@@ -31,7 +30,7 @@ class CursorWrapper:
             self.rollback()
         self._cursor.close()
 
-    def execute(self, sql: str, parameters: t.Optional[t.Union[tuple, list]] = None):
+    def execute(self, sql: str, parameters: tuple | list | None = None):
         self._log.debug(f"{sql}\n{parameters}")
         if parameters:
             return self._cursor.execute(sql, parameters)
@@ -49,27 +48,27 @@ class CursorWrapper:
 
     def commit(self):
         if self._in_tx:
-            self.execute('COMMIT')
+            self.execute("COMMIT")
             self._in_tx = False
 
     def rollback(self):
         if self._in_tx:
-            self.execute('ROLLBACK')
+            self.execute("ROLLBACK")
             self._in_tx = False
 
     def begin_transaction(self):
         if not self._in_tx:
-            self.execute('BEGIN TRANSACTION')
+            self.execute("BEGIN TRANSACTION")
             self._in_tx = True
 
     def truncate_table(self, table_name: str):
-        self.execute(f'DELETE FROM {table_name}')
+        self.execute(f"DELETE FROM {table_name}")
 
     def insert(self, table_name: str, values: dict) -> int:
         keys = list(values.keys())
         actual_values = [self._clean_for_insert(values[k]) for k in keys]
-        value_placeholders = ','.join('?' for _ in keys)
-        q = f'INSERT INTO {table_name}({",".join(keys)}) VALUES ({value_placeholders})'
+        value_placeholders = ",".join("?" for _ in keys)
+        q = f"INSERT INTO {table_name}({','.join(keys)}) VALUES ({value_placeholders})"
         self.execute(q, actual_values)
         return t.cast(int, self._cursor.lastrowid)
 
@@ -77,17 +76,17 @@ class CursorWrapper:
         v_keys = list(values.keys())
         w_keys = list(where.keys())
         actual_values = []
-        set_clause = ', '.join(f'{key} = ?' for key in v_keys)
+        set_clause = ", ".join(f"{key} = ?" for key in v_keys)
         actual_values.extend([self._clean_for_insert(values[k]) for k in v_keys])
-        where_clause = ' AND '.join(f'{key} = ?' for key in w_keys)
+        where_clause = " AND ".join(f"{key} = ?" for key in w_keys)
         actual_values.extend([self._clean_for_insert(where[k]) for k in w_keys])
-        q = f'UPDATE {table_name} SET {set_clause} WHERE {where_clause}'
+        q = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
         self.execute(q, actual_values)
 
     def delete(self, table_name: str, values: dict):
         keys = list(values.keys())
-        clause = ' AND '.join(f'{key} = ?' for key in keys)
-        q = f'DELETE FROM {table_name} WHERE {clause}'
+        clause = " AND ".join(f"{key} = ?" for key in keys)
+        q = f"DELETE FROM {table_name} WHERE {clause}"
         self.execute(q, [values[x] for x in keys])
 
     def _clean_for_insert(self, value):
@@ -101,15 +100,18 @@ class CursorWrapper:
 
 @injector.injectable
 class LocalDatabase:
-
     def __init__(self):
-        self._database_file = pathlib.Path('~/.pipemandesktop.local.db').expanduser().absolute().resolve()
+        self._database_file = (
+            pathlib.Path("~/.pipemandesktop.local.db").expanduser().absolute().resolve()
+        )
         self._connection = None
         self.get_connection()
 
     def get_connection(self):
         if self._connection is None:
-            self._connection = sqlite3.connect(self._database_file, isolation_level=None)
+            self._connection = sqlite3.connect(
+                self._database_file, isolation_level=None
+            )
             self._create_db()
         return self._connection
 
@@ -117,9 +119,8 @@ class LocalDatabase:
         return CursorWrapper(self.get_connection().cursor())
 
     def _create_db(self):
-        sql_file = pathlib.Path(__file__).absolute().resolve().parent / 'local_db.sql'
+        sql_file = pathlib.Path(__file__).absolute().resolve().parent / "local_db.sql"
         if not sql_file.exists():
             raise LocalDatabaseError("error.no_schema_file", 1000)
-        with open(sql_file, 'r', encoding='utf-8') as h:
-            with self.cursor() as cur:
-                cur.execute_script(h.read())
+        with open(sql_file, "r", encoding="utf-8") as h, self.cursor() as cur:
+            cur.execute_script(h.read())

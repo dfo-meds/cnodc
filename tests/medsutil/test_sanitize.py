@@ -4,40 +4,30 @@ import math
 
 import numpy as np
 
-from medsutil.sanitize import utf_normalize_string, unnumpy, coerce
+from medsutil import sanitize
+from medsutil.sanitize import coerce, unnumpy, utf_normalize_string
 from tests.helpers.base_test_case import BaseTestCase
-import medsutil.sanitize as sanitize
 
 
 class TestDataSanitization(BaseTestCase):
-
     def test_json_cleaning(self):
         tests = [
-            (datetime.date(2015, 1, 2), '2015-01-02'),
-            (datetime.datetime(2015, 1, 2, 3, 4, 5), '2015-01-02T03:04:05'),
-            ('abc', 'abc'),
+            (datetime.date(2015, 1, 2), "2015-01-02"),
+            (datetime.datetime(2015, 1, 2, 3, 4, 5), "2015-01-02T03:04:05"),
+            ("abc", "abc"),
             (5, 5),
             (4.5, 4.5),
-            ([datetime.date(2015, 1, 2), 'foo', 5], ['2015-01-02', 'foo', 5]),
-            ({
-                'date': datetime.date(2015, 1, 2)
-            }, {
-                'date': '2015-01-02'
-            }),
-            ({
-                'dates': [datetime.date(2015, 1, 2)]
-            }, {
-                'dates': ['2015-01-02']
-            }),
-            ([
-                {
-                    'dates': [datetime.date(2015, 1, 2)]
-                }
-            ], [
-                {
-                    'dates': ['2015-01-02'],
-                }
-            ])
+            ([datetime.date(2015, 1, 2), "foo", 5], ["2015-01-02", "foo", 5]),
+            ({"date": datetime.date(2015, 1, 2)}, {"date": "2015-01-02"}),
+            ({"dates": [datetime.date(2015, 1, 2)]}, {"dates": ["2015-01-02"]}),
+            (
+                [{"dates": [datetime.date(2015, 1, 2)]}],
+                [
+                    {
+                        "dates": ["2015-01-02"],
+                    }
+                ],
+            ),
         ]
         for in_value, expected in tests:
             with self.subTest(input=in_value, expected=expected):
@@ -45,10 +35,10 @@ class TestDataSanitization(BaseTestCase):
 
     def test_nfc_normalization(self):
         tests = [
-            ('\u212B', '\u00C5'),
-            ('\u0041\u030A', '\u00C5'),
-            ('a\x01b', 'ab'),
-            ('abc', 'abc'),
+            ("\u212b", "\u00c5"),
+            ("\u0041\u030a", "\u00c5"),
+            ("a\x01b", "ab"),
+            ("abc", "abc"),
             ("a\nb", "a\nb"),
             ("a\r\nb", "a\nb"),
             ("a\x00b", "ab"),
@@ -78,7 +68,7 @@ class TestDataSanitization(BaseTestCase):
             (np.array(5.5).item(), 5.5, float),
             (5, 5, int),
             (5.5, 5.5, float),
-            ('hello', 'hello', str),
+            ("hello", "hello", str),
             (decimal.Decimal("5.5"), decimal.Decimal("5.5"), decimal.Decimal),
             (np.array(math.nan).item(), None, None),
             ([1, 2], [1, 2], list),

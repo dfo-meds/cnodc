@@ -1,10 +1,14 @@
-from medsutil.ocproc2 import OCProc2Ontology, OCProc2ElementInfo, OCProc2ChildRecordTypeInfo
+from medsutil.ocproc2 import (
+    OCProc2ChildRecordTypeInfo,
+    OCProc2ElementInfo,
+    OCProc2Ontology,
+)
 from tests.helpers.base_test_case import BaseTestCase
 
 
 def _build_ontology(temp_dir, content: str):
-    file = temp_dir / 'test.ttl'
-    with open(file, 'w') as h:
+    file = temp_dir / "test.ttl"
+    with open(file, "w") as h:
         h.write("""
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
@@ -104,11 +108,13 @@ cnodc:elements rdf:type skos:ConceptScheme .
         h.write(content)
     return OCProc2Ontology(file)
 
-class TestBasicOntology(BaseTestCase):
 
+class TestBasicOntology(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.ontology = _build_ontology(self.temp_dir, """
+        self.ontology = _build_ontology(
+            self.temp_dir,
+            """
 cnodc:Parameter rdf:type skos:Concept ;
   skos:prefLabel "Parameter"@en ;
   skos:prefLabel "Parameter but French"@fr ;
@@ -211,22 +217,149 @@ rstypes:Type2  rdf:type skos:Concept ;
 rstypes:Type3  rdf:type skos:Concept ;
   skos:inScheme rstypes:recordSetTypes .
   
-        """)
+        """,
+        )
 
-    TEST_INFO = [
-        ('Parameter',   True,   "m",    "decimal",          5.0,    10.0,   None,                       "parameters",           "Time", {'seaSurfaceSalinity'},                         False),
-        ('Parameter2',  False,),
-        ('Parameter3',  True,   None,   "string",           None,   None,   {"one", "two", "three"},    "metadata",             None,   {'subSurfaceSalinity', 'seaSurfaceSalinity'},   False),
-        ('Parameter4',  True,   None,   "dateTimeStamp",    None,   None,   None,                       "coordinates",          None,   None,                                           False),
-        ('Parameter5',  True,   None,   "integer",          5,      None,   None,                       "metadata:platform",    None,   None,                                           True),
-        ('Parameter6',  True,   None,   "List",             None,   None,   None,                       "metadata:element",     None,   None,                                           True),
-        ('Parameter7',  True,   None,   "date",             None,   None,   None,                       "metadata:mission",     None,   None,                                           True),
-        ('Parameter8',  True,   None,   "Element",          None,   None,   None,                       "metadata:parent",      None,   None,                                           False),
-        ('Parameter9',  False,),
-        ('Parameter10', True,   None,   "integer",          None,   10,     {2, 4, 6, 8},               "metadata:product",     None,   None,                                           False),
-        ('Parameter11', True,   None,   "integer",          None,   None,   None,                       "metadata:record",      None,   None,                                           False),
-        ('Parameter12', True,   None,   "string",           None,   None,   {"one"},                    None,                   None,   None,                                           False),
-    ]
+    TEST_INFO = (
+        (
+            "Parameter",
+            True,
+            "m",
+            "decimal",
+            5.0,
+            10.0,
+            None,
+            "parameters",
+            "Time",
+            {"seaSurfaceSalinity"},
+            False,
+        ),
+        (
+            "Parameter2",
+            False,
+        ),
+        (
+            "Parameter3",
+            True,
+            None,
+            "string",
+            None,
+            None,
+            {"one", "two", "three"},
+            "metadata",
+            None,
+            {"subSurfaceSalinity", "seaSurfaceSalinity"},
+            False,
+        ),
+        (
+            "Parameter4",
+            True,
+            None,
+            "dateTimeStamp",
+            None,
+            None,
+            None,
+            "coordinates",
+            None,
+            None,
+            False,
+        ),
+        (
+            "Parameter5",
+            True,
+            None,
+            "integer",
+            5,
+            None,
+            None,
+            "metadata:platform",
+            None,
+            None,
+            True,
+        ),
+        (
+            "Parameter6",
+            True,
+            None,
+            "List",
+            None,
+            None,
+            None,
+            "metadata:element",
+            None,
+            None,
+            True,
+        ),
+        (
+            "Parameter7",
+            True,
+            None,
+            "date",
+            None,
+            None,
+            None,
+            "metadata:mission",
+            None,
+            None,
+            True,
+        ),
+        (
+            "Parameter8",
+            True,
+            None,
+            "Element",
+            None,
+            None,
+            None,
+            "metadata:parent",
+            None,
+            None,
+            False,
+        ),
+        (
+            "Parameter9",
+            False,
+        ),
+        (
+            "Parameter10",
+            True,
+            None,
+            "integer",
+            None,
+            10,
+            {2, 4, 6, 8},
+            "metadata:product",
+            None,
+            None,
+            False,
+        ),
+        (
+            "Parameter11",
+            True,
+            None,
+            "integer",
+            None,
+            None,
+            None,
+            "metadata:record",
+            None,
+            None,
+            False,
+        ),
+        (
+            "Parameter12",
+            True,
+            None,
+            "string",
+            None,
+            None,
+            {"one"},
+            None,
+            None,
+            None,
+            False,
+        ),
+    )
 
     def test_ontology_is_defined(self):
         for info in TestBasicOntology.TEST_INFO:
@@ -237,39 +370,50 @@ rstypes:Type3  rdf:type skos:Concept ;
         for info in TestBasicOntology.TEST_INFO:
             with self.subTest(parameter=info[0]):
                 if info[1]:
-                    self.assertIsInstance(self.ontology.info(info[0]), OCProc2ElementInfo)
+                    self.assertIsInstance(
+                        self.ontology.info(info[0]), OCProc2ElementInfo
+                    )
                 else:
                     self.assertIsNone(self.ontology.info(info[0]))
 
     def test_label_both(self):
-        self.assertEqual(self.ontology.info("Parameter").label('en'), 'Parameter')
-        self.assertEqual(self.ontology.info("Parameter").label('fr'), 'Parameter but French')
+        self.assertEqual(self.ontology.info("Parameter").label("en"), "Parameter")
+        self.assertEqual(
+            self.ontology.info("Parameter").label("fr"), "Parameter but French"
+        )
 
     def test_label_english_only(self):
-        self.assertEqual(self.ontology.info("Parameter3").label('en'), 'Parameter3')
-        self.assertEqual(self.ontology.info("Parameter3").label('fr'), 'Parameter3')
+        self.assertEqual(self.ontology.info("Parameter3").label("en"), "Parameter3")
+        self.assertEqual(self.ontology.info("Parameter3").label("fr"), "Parameter3")
 
     def test_label_french_only(self):
-        self.assertEqual(self.ontology.info("Parameter4").label('fr'), 'Parameter4')
-        self.assertEqual(self.ontology.info("Parameter4").label('en'), 'Parameter4')
+        self.assertEqual(self.ontology.info("Parameter4").label("fr"), "Parameter4")
+        self.assertEqual(self.ontology.info("Parameter4").label("en"), "Parameter4")
 
     def test_label_undefined(self):
-        self.assertEqual(self.ontology.info("Parameter5").label('en'), 'Parameter5')
-        self.assertEqual(self.ontology.info("Parameter5").label('fr'), 'Parameter5')
+        self.assertEqual(self.ontology.info("Parameter5").label("en"), "Parameter5")
+        self.assertEqual(self.ontology.info("Parameter5").label("fr"), "Parameter5")
 
     def test_label_omitted(self):
-        self.assertEqual(self.ontology.info("Parameter6").label('en'), 'Parameter6')
-        self.assertEqual(self.ontology.info("Parameter6").label('fr'), 'Parameter6')
+        self.assertEqual(self.ontology.info("Parameter6").label("en"), "Parameter6")
+        self.assertEqual(self.ontology.info("Parameter6").label("fr"), "Parameter6")
 
     def test_documentation(self):
-        self.assertEqual(self.ontology.info("Parameter").documentation('en'), 'Documentation')
-        self.assertEqual(self.ontology.info("Parameter").documentation('fr'), 'Documentation but French')
+        self.assertEqual(
+            self.ontology.info("Parameter").documentation("en"), "Documentation"
+        )
+        self.assertEqual(
+            self.ontology.info("Parameter").documentation("fr"),
+            "Documentation but French",
+        )
 
     def test_preferred_unit(self):
         for info in TestBasicOntology.TEST_INFO:
             with self.subTest(parameter=info[0]):
                 if info[1] and info[2]:
-                    self.assertEqual(info[2], self.ontology.info(info[0]).preferred_unit)
+                    self.assertEqual(
+                        info[2], self.ontology.info(info[0]).preferred_unit
+                    )
                     self.assertEqual(info[2], self.ontology.preferred_unit(info[0]))
                 else:
                     self.assertIsNone(self.ontology.preferred_unit(info[0]))
@@ -305,7 +449,9 @@ rstypes:Type3  rdf:type skos:Concept ;
         for info in TestBasicOntology.TEST_INFO:
             with self.subTest(parameter=info[0]):
                 if info[1] and info[6] is not None:
-                    self.assertEqual(info[6], self.ontology.info(info[0]).allowed_values)
+                    self.assertEqual(
+                        info[6], self.ontology.info(info[0]).allowed_values
+                    )
                     self.assertEqual(info[6], self.ontology.allowed_values(info[0]))
                 else:
                     self.assertIsNone(self.ontology.allowed_values(info[0]))
@@ -332,8 +478,12 @@ rstypes:Type3  rdf:type skos:Concept ;
         for info in TestBasicOntology.TEST_INFO:
             with self.subTest(parameter=info[0]):
                 if info[1] and info[9] is not None:
-                    self.assertEqual(info[9], self.ontology.info(info[0]).essential_ocean_vars)
-                    self.assertEqual(info[9], self.ontology.essential_ocean_vars(info[0]))
+                    self.assertEqual(
+                        info[9], self.ontology.info(info[0]).essential_ocean_vars
+                    )
+                    self.assertEqual(
+                        info[9], self.ontology.essential_ocean_vars(info[0])
+                    )
                 else:
                     self.assertIsNone(self.ontology.essential_ocean_vars(info[0]))
 
@@ -350,36 +500,45 @@ rstypes:Type3  rdf:type skos:Concept ;
                     self.assertIsNone(self.ontology.allow_many(info[0]))
 
     def test_two_coordinate_recordset(self):
-        self.assertTrue(self.ontology.recordset_exists('Type1'))
-        self.assertIsInstance(self.ontology.recordset_info('Type1'), OCProc2ChildRecordTypeInfo)
-        self.assertEqual(self.ontology.recordset_info('Type1').label('en'), 'hello')
-        self.assertEqual(self.ontology.recordset_info('Type1').documentation('en'), 'hello2')
-        self.assertIn({'Parameter1'}, self.ontology.recordset_info('Type1').coordinates)
-        self.assertIn({'Parameter3'}, self.ontology.recordset_info('Type1').coordinates)
-        self.assertIn({'Parameter1'}, self.ontology.coordinates('Type1'))
-        self.assertIn({'Parameter3'}, self.ontology.coordinates('Type1'))
+        self.assertTrue(self.ontology.recordset_exists("Type1"))
+        self.assertIsInstance(
+            self.ontology.recordset_info("Type1"), OCProc2ChildRecordTypeInfo
+        )
+        self.assertEqual(self.ontology.recordset_info("Type1").label("en"), "hello")
+        self.assertEqual(
+            self.ontology.recordset_info("Type1").documentation("en"), "hello2"
+        )
+        self.assertIn({"Parameter1"}, self.ontology.recordset_info("Type1").coordinates)
+        self.assertIn({"Parameter3"}, self.ontology.recordset_info("Type1").coordinates)
+        self.assertIn({"Parameter1"}, self.ontology.coordinates("Type1"))
+        self.assertIn({"Parameter3"}, self.ontology.coordinates("Type1"))
 
     def test_one_coordinate_recordset(self):
-        self.assertTrue(self.ontology.recordset_exists('Type2'))
-        self.assertIsInstance(self.ontology.recordset_info('Type2'), OCProc2ChildRecordTypeInfo)
-        self.assertEqual(self.ontology.recordset_info('Type2').coordinates, [{'Parameter1'}])
-        self.assertEqual(self.ontology.coordinates('Type2'), [{'Parameter1'}])
+        self.assertTrue(self.ontology.recordset_exists("Type2"))
+        self.assertIsInstance(
+            self.ontology.recordset_info("Type2"), OCProc2ChildRecordTypeInfo
+        )
+        self.assertEqual(
+            self.ontology.recordset_info("Type2").coordinates, [{"Parameter1"}]
+        )
+        self.assertEqual(self.ontology.coordinates("Type2"), [{"Parameter1"}])
 
     def test_no_coordinate_recordset(self):
-        self.assertTrue(self.ontology.recordset_exists('Type3'))
-        self.assertIsInstance(self.ontology.recordset_info('Type3'), OCProc2ChildRecordTypeInfo)
-        self.assertEqual(len(self.ontology.recordset_info('Type3').coordinates), 0)
-        self.assertIsNone(self.ontology.coordinates('Type3'))
+        self.assertTrue(self.ontology.recordset_exists("Type3"))
+        self.assertIsInstance(
+            self.ontology.recordset_info("Type3"), OCProc2ChildRecordTypeInfo
+        )
+        self.assertEqual(len(self.ontology.recordset_info("Type3").coordinates), 0)
+        self.assertIsNone(self.ontology.coordinates("Type3"))
 
     def test_bad_recordset(self):
-        self.assertFalse(self.ontology.recordset_exists('Type4'))
-        self.assertIsNone(self.ontology.recordset_info('Type4'))
-        self.assertIsNone(self.ontology.coordinates('Type4'))
+        self.assertFalse(self.ontology.recordset_exists("Type4"))
+        self.assertIsNone(self.ontology.recordset_info("Type4"))
+        self.assertIsNone(self.ontology.coordinates("Type4"))
 
 
 class TestActualOntology(BaseTestCase):
-
     def test_ontology_loads(self):
         ont = OCProc2Ontology()
-        self.assertTrue(ont.exists('Temperature'))
-        self.assertTrue(ont.recordset_exists('PROFILE'))
+        self.assertTrue(ont.exists("Temperature"))
+        self.assertTrue(ont.recordset_exists("PROFILE"))

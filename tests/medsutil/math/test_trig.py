@@ -1,9 +1,9 @@
 import decimal
-import sys
-
-from tests.helpers.base_test_case import BaseTestCase, sub_tests
 import math
-from medsutil.math import _trig as trig, ScienceNumber
+
+from medsutil.math import ScienceNumber
+from medsutil.math import _trig as trig
+from tests.helpers.base_test_case import BaseTestCase, sub_tests
 
 SOME_ANGLES = [
     0,
@@ -27,16 +27,16 @@ SOME_RATIOS = [
     0,
     math.sqrt(3) / 2,
     math.sqrt(2) / 2,
-    1/2,
+    1 / 2,
     1,
     math.sqrt(3) / -2,
     math.sqrt(2) / -2,
-    -1/2,
-    -1
+    -1 / 2,
+    -1,
 ]
 
-class TestTrig(BaseTestCase):
 
+class TestTrig(BaseTestCase):
     @sub_tests(SOME_ANGLES)
     def test_cos_float(self, angle):
         self.assertAlmostEqual(math.cos(angle), trig.cos(angle))
@@ -73,7 +73,9 @@ class TestTrig(BaseTestCase):
 
     @sub_tests(SOME_RATIOS)
     def test_asin_decimal(self, ratio):
-        self.assertAlmostEqual(math.asin(ratio), float(trig.asin(decimal.Decimal(ratio))))
+        self.assertAlmostEqual(
+            math.asin(ratio), float(trig.asin(decimal.Decimal(ratio)))
+        )
 
     @sub_tests(SOME_RATIOS)
     def test_asin_scinum(self, ratio):
@@ -86,7 +88,7 @@ class TestTrig(BaseTestCase):
             # by
             self.assertGreater(scinum.std_dev, 474531)
         else:
-            self.assertAlmostEqual(1 / math.sqrt(1 - (ratio ** 2)) * 0.01, scinum.std_dev)
+            self.assertAlmostEqual(1 / math.sqrt(1 - (ratio**2)) * 0.01, scinum.std_dev)
 
     @sub_tests(SOME_RATIOS)
     def test_acos_float(self, ratio):
@@ -94,7 +96,9 @@ class TestTrig(BaseTestCase):
 
     @sub_tests(SOME_RATIOS)
     def test_acos_decimal(self, ratio):
-        self.assertAlmostEqual(math.acos(ratio), float(trig.acos(decimal.Decimal(ratio))))
+        self.assertAlmostEqual(
+            math.acos(ratio), float(trig.acos(decimal.Decimal(ratio)))
+        )
 
     @sub_tests(SOME_RATIOS)
     def test_acos_scinum(self, ratio):
@@ -105,7 +109,7 @@ class TestTrig(BaseTestCase):
             # see above
             self.assertGreater(scinum.std_dev, 474531)
         else:
-            self.assertAlmostEqual(1 / math.sqrt(1 - (ratio ** 2)) * 0.01, scinum.std_dev)
+            self.assertAlmostEqual(1 / math.sqrt(1 - (ratio**2)) * 0.01, scinum.std_dev)
 
     @sub_tests(SOME_RATIOS)
     def test_atan_float(self, ratio):
@@ -113,7 +117,9 @@ class TestTrig(BaseTestCase):
 
     @sub_tests(SOME_RATIOS)
     def test_atan_decimal(self, ratio):
-        self.assertAlmostEqual(math.atan(ratio), float(trig.atan(decimal.Decimal(ratio))))
+        self.assertAlmostEqual(
+            math.atan(ratio), float(trig.atan(decimal.Decimal(ratio)))
+        )
 
     @sub_tests(SOME_RATIOS)
     def test_atan_scinum(self, ratio):
@@ -121,41 +127,43 @@ class TestTrig(BaseTestCase):
         actual = trig.atan(ScienceNumber(ratio, std_dev=0.01))
         self.assertIsInstance(actual, ScienceNumber)
         self.assertAlmostEqual(expected, float(actual))
-        self.assertAlmostEqual(actual.std_dev, (1 / (1 + (ratio ** 2))) * 0.01)
+        self.assertAlmostEqual(actual.std_dev, (1 / (1 + (ratio**2))) * 0.01)
 
     @sub_tests(SOME_ANGLES)
     def test_degrees(self, angle):
         self.assertAlmostEqual(math.degrees(angle), trig.degrees(angle))
 
-    @sub_tests([
-        x for x in range(0, 720, 5)
-    ])
+    @sub_tests([x for x in range(0, 720, 5)])
     def test_radians(self, x):
         self.assertAlmostEqual(math.radians(x), trig.radians(x))
 
     @sub_tests(SOME_ANGLES)
     def test_degrees_scinum(self, angle):
-        expected, actual = math.degrees(angle), trig.degrees(ScienceNumber(angle, std_dev=0.01))
+        expected, actual = (
+            math.degrees(angle),
+            trig.degrees(ScienceNumber(angle, std_dev=0.01)),
+        )
         self.assertIsInstance(actual, ScienceNumber)
         self.assertAlmostEqual(expected, float(actual))
         self.assertAlmostEqual(actual.std_dev, (180 / 3.14159265358) * 0.01)
 
-
-    @sub_tests([
-        x for x in range(0, 720, 15)
-    ])
+    @sub_tests([x for x in range(0, 720, 15)])
     def test_radians_scinum(self, x):
-        expected, actual = math.radians(x), trig.radians(ScienceNumber(x, std_dev=0.0001))
+        expected, actual = (
+            math.radians(x),
+            trig.radians(ScienceNumber(x, std_dev=0.0001)),
+        )
         self.assertIsInstance(actual, ScienceNumber)
         self.assertAlmostEqual(expected, float(actual))
         self.assertAlmostEqual(actual.std_dev, (3.14159265358 / 180) * 0.0001)
 
-    @sub_tests([
-        (5, 5),
-        (-5, 5),
-        (5, -5),
-        (-5, -5),
-    ])
+    @sub_tests(
+        [
+            (5, 5),
+            (-5, 5),
+            (5, -5),
+            (-5, -5),
+        ]
+    )
     def test_atan2(self, x, y):
         self.assertAlmostEqual(math.atan2(x, y), trig.atan2(x, y))
-

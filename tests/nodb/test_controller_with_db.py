@@ -1,23 +1,33 @@
 import datetime
+import typing as t
 import uuid
 from contextlib import contextmanager
-import typing as t
-
-from nodb.controller import PostgresController, NODBPostgresController
-from nodb.access import NODBUser, NODBSession, UserStatus
-from nodb.interface import NODBError
 
 from medsutil.awaretime import AwareDateTime
+from nodb.access import NODBSession, NODBUser, UserStatus
+from nodb.controller import NODBPostgresController, PostgresController
+from nodb.interface import NODBError
 from tests.helpers.base_test_case import BaseTestCase, skip_long_test
 from tests.helpers.mock_containers import NODBContainer
 
+
 @skip_long_test
 class TestControllerInstanceNoMock(BaseTestCase):
-
     DB_TABLES = (
-        'nodb_upload_workflows', 'nodb_permissions', 'nodb_users', 'nodb_logins', 'nodb_sessions',
-        'nodb_scanned_files', 'nodb_source_files', 'nodb_platforms', 'nodb_qc_batches', 'nodb_missions', 'nodb_obs',
-        'nodb_obs_data', 'nodb_queues', 'nodb_working'
+        "nodb_upload_workflows",
+        "nodb_permissions",
+        "nodb_users",
+        "nodb_logins",
+        "nodb_sessions",
+        "nodb_scanned_files",
+        "nodb_source_files",
+        "nodb_platforms",
+        "nodb_qc_batches",
+        "nodb_missions",
+        "nodb_obs",
+        "nodb_obs_data",
+        "nodb_queues",
+        "nodb_working",
     )
 
     @classmethod
@@ -25,98 +35,107 @@ class TestControllerInstanceNoMock(BaseTestCase):
         cls.start_container(NODBContainer())
         cls.real_nodb = NODBPostgresController(
             dbname="nodb",
-            user = "example",
-            password = "example",
-            host = "localhost",
-            port = 5432,
+            user="example",
+            password="example",
+            host="localhost",
+            port=5432,
         )
 
     def test_structure(self):
         with self.real_nodb as db:
             with db.cursor() as cur:
-                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = 'public'")
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = 'public'"
+                )
                 table_names = [res[0] for res in cur.fetch_stream(25)]
                 for table in TestControllerInstanceNoMock.DB_TABLES:
                     with self.subTest(table_name=table):
                         self.assertIn(table, table_names)
 
     @contextmanager
-    def real_nodb_test(self, *args) -> t.Generator[tuple[PostgresController, t.Any], t.Any, t.Any]:
-        with self.real_nodb as db:
-            with db.cursor() as cur:
-                try:
-                    yield db, cur
-                except NODBError:
-                    db.rollback()
-                    raise
-                finally:
-                    for table in args:
-                        cur.execute(f'TRUNCATE {table} CASCADE')
-                    db.commit()
+    def real_nodb_test(
+        self, *args
+    ) -> t.Generator[tuple[PostgresController, t.Any], t.Any, t.Any]:
+        with self.real_nodb as db, db.cursor() as cur:
+            try:
+                yield db, cur
+            except NODBError:
+                db.rollback()
+                raise
+            finally:
+                for table in args:
+                    cur.execute(f"TRUNCATE {table} CASCADE")
+                db.commit()
 
     def test_user_management(self):
-        with self.real_nodb_test('nodb_users') as (db, cur):
+        with self.real_nodb_test("nodb_users") as (db, cur):
             user = NODBUser(
-                username='foobar2',
+                username="foobar2",
             )
-            user.set_password('test')
+            user.set_password("test")
             db.insert_object(user)
             db.commit()
-            cur.execute('SELECT username, phash, salt, old_phash, old_salt, old_expiry, status FROM nodb_users')
+            cur.execute(
+                "SELECT username, phash, salt, old_phash, old_salt, old_expiry, status FROM nodb_users"
+            )
             users = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(users))
-            self.assertEqual(users[0][0], 'foobar2')
+            self.assertEqual(users[0][0], "foobar2")
             self.assertEqual(bytes(users[0][1]), user.phash)
             self.assertEqual(bytes(users[0][2]), user.salt)
             self.assertIsNone(users[0][3])
             self.assertIsNone(users[0][4])
             self.assertIsNone(users[0][5])
-            self.assertEqual(users[0][6], 'ACTIVE')
-            self.assertTrue(user.check_password('test'))
-            self.assertFalse(user.check_password('test2'))
-            user.set_password('test2', old_expiry_seconds=60)
-            self.assertTrue(user.check_password('test2'))
+            self.assertEqual(users[0][6], "ACTIVE")
+            self.assertTrue(user.check_password("test"))
+            self.assertFalse(user.check_password("test2"))
+            user.set_password("test2", old_expiry_seconds=60)
+            self.assertTrue(user.check_password("test2"))
             with self.assertLogs("medsutil.secure", "NOTICE"):
-                self.assertTrue(user.check_password('test'))
-            self.assertFalse(user.check_password('test3'))
+                self.assertTrue(user.check_password("test"))
+            self.assertFalse(user.check_password("test3"))
             user.status = UserStatus.INACTIVE
             db.update_object(user)
             db.commit()
-            cur.execute('SELECT username, phash, salt, old_phash, old_salt, old_expiry, status FROM nodb_users')
+            cur.execute(
+                "SELECT username, phash, salt, old_phash, old_salt, old_expiry, status FROM nodb_users"
+            )
             users = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(users))
-            self.assertEqual(users[0][0], 'foobar2')
+            self.assertEqual(users[0][0], "foobar2")
             self.assertEqual(bytes(users[0][1]), user.phash)
             self.assertEqual(bytes(users[0][2]), user.salt)
             self.assertEqual(bytes(users[0][3]), user.old_phash)
             self.assertEqual(bytes(users[0][4]), user.old_salt)
             self.assertIsNotNone(users[0][5])
-            self.assertEqual(users[0][6], 'INACTIVE')
-            user2 = NODBUser.find_by_username(db, 'foobar2')
+            self.assertEqual(users[0][6], "INACTIVE")
+            user2 = NODBUser.find_by_username(db, "foobar2")
             self.assertIsNotNone(user2)
-            self.assertTrue(user2.check_password('test2'))
+            self.assertTrue(user2.check_password("test2"))
             self.assertEqual(user.phash, user2.phash)
-            self.assertIsNone(NODBUser.find_by_username(db, 'bar99'))
+            self.assertIsNone(NODBUser.find_by_username(db, "bar99"))
 
     def test_record_login(self):
-        with self.real_nodb_test('nodb_logins', 'nodb_users') as (db, cur):
-            user = NODBUser(username='foobar3')
+        with self.real_nodb_test("nodb_logins", "nodb_users") as (db, cur):
+            user = NODBUser(username="foobar3")
             db.insert_object(user)
             db.commit()
-            db.record_login('foobar3', '127.0.0.1', True, False)
+            db.record_login("foobar3", "127.0.0.1", True, False)
             db.commit()
-            cur.execute("SELECT username, db_created_date, remote_addr FROM nodb_logins WHERE username = 'foobar3'")
+            cur.execute(
+                "SELECT username, db_created_date, remote_addr FROM nodb_logins WHERE username = 'foobar3'"
+            )
             logins = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(logins))
-            self.assertEqual(logins[0][0], 'foobar3')
+            self.assertEqual(logins[0][0], "foobar3")
             self.assertIsNotNone(logins[0][1])
             now = AwareDateTime.utcnow()
             self.assertLessEqual((now - logins[0][1]).total_seconds(), 2)
-            self.assertEqual(logins[0][2], '127.0.0.1')
+            self.assertEqual(logins[0][2], "127.0.0.1")
 
     def test_session_management(self):
-        with self.real_nodb_test('nodb_sessions', 'nodb_users') as (db, cur):
-            user = NODBUser(username='foobar', identifier=5)
+        with self.real_nodb_test("nodb_sessions", "nodb_users") as (db, cur):
+            user = NODBUser(username="foobar", identifier=5)
             db.insert_object(user)
             db.commit()
             now = AwareDateTime.utcnow()
@@ -125,23 +144,28 @@ class TestControllerInstanceNoMock(BaseTestCase):
                 start_time=now,
                 expiry_time=now + datetime.timedelta(days=1),
                 user_id=5,
-                session_data={'monkey': 'butt'}
+                session_data={"monkey": "butt"},
             )
             db.insert_object(session)
-            cur.execute('SELECT session_id, start_time, expiry_time, user_id, session_data FROM nodb_sessions')
+            cur.execute(
+                "SELECT session_id, start_time, expiry_time, user_id, session_data FROM nodb_sessions"
+            )
             sessions = [x for x in cur.fetch_stream(25)]
             self.assertEqual(1, len(sessions))
             self.assertEqual(sessions[0][0], session.session_id)
             self.assertEqual(sessions[0][1], session.start_time)
             self.assertEqual(sessions[0][2], session.expiry_time)
             self.assertEqual(sessions[0][3], user.identifier)
-            self.assertEqual(sessions[0][4], {'monkey': 'butt'})
+            self.assertEqual(sessions[0][4], {"monkey": "butt"})
             session2 = NODBSession.find_by_session_id(db, session.session_id)
             self.assertEqual(session.expiry_time, session2.expiry_time)
             db.delete_session(session.session_id)
-            cur.execute('SELECT session_id, start_time, expiry_time, user_id, session_data FROM nodb_sessions')
+            cur.execute(
+                "SELECT session_id, start_time, expiry_time, user_id, session_data FROM nodb_sessions"
+            )
             sessions = [x for x in cur.fetch_stream(25)]
             self.assertEqual(0, len(sessions))
+
 
 """
 

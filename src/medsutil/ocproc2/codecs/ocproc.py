@@ -8,34 +8,34 @@ from medsutil.ocproc2.codecs.meds.structs import MedsEncoding, unpack
 
 
 class _MedsCodec(BaseCodec):
-
     def __init__(self, *args, **kwargs):
         super().__init__(
-            *args,
-            is_encoder=True,
-            is_decoder=True,
-            force_single_mode=True,
-            **kwargs
+            *args, is_encoder=True, is_decoder=True, force_single_mode=True, **kwargs
         )
         self.converter = MedsConverter()
 
     def encoding(self) -> MedsEncoding:
         raise NotImplementedError
 
-    def _decode_single_message(self, data: t.ByteString, options: dict) -> t.Iterable[ParentRecord]:
+    def _decode_single_message(
+        self, data: t.ByteString, options: dict
+    ) -> t.Iterable[ParentRecord]:
         for station in unpack(self._as_byte_sequence([data]), self.encoding()):
             yield self.converter.station_to_ocproc2(station, self.encoding())
 
-    def _encode_single_record(self, record: ParentRecord, options: dict) -> ct.ByteStrings:
+    def _encode_single_record(
+        self, record: ParentRecord, options: dict
+    ) -> ct.ByteStrings:
         if "__index" not in options:
             options["__index"] = 1
         else:
             options["__index"] += 1
-        yield from self.converter.ocproc2_to_station(record).encode(self.encoding(), options["__index"])
+        yield from self.converter.ocproc2_to_station(record).encode(
+            self.encoding(), options["__index"]
+        )
 
 
 class OCPROCCodec(_MedsCodec):
-
     def __init__(self, *args, **kwargs):
         super().__init__(log_name="cnodc.codecs.ocproc1", *args, **kwargs)
 
@@ -44,7 +44,6 @@ class OCPROCCodec(_MedsCodec):
 
 
 class MEDSASCIICodec(_MedsCodec):
-
     def __init__(self, *args, **kwargs):
         super().__init__(log_name="cnodc.codecs.medsascii", *args, **kwargs)
 

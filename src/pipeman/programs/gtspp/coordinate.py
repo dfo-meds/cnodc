@@ -1,17 +1,16 @@
-import medsutil.ocproc2 as ocproc2
-from medsutil.ocproc2.util import Quality
-from pipeman.programs.qc.base import review, DeepDiveChecker
+from medsutil import ocproc2
 from medsutil.ocproc2.refs import ElementRef, ParentRecordRef
+from medsutil.ocproc2.util import Quality
+from pipeman.programs.qc.base import DeepDiveChecker, review
 
 
 class GTSPPCoordinateCheck(DeepDiveChecker):
-
     def __init__(self):
         super().__init__(
-            test_protocol='gtspp',
-            test_name='coordinate_check',
-            test_version='1.0',
-            test_tags=['GTSPP_1.2', 'GTSPP_1.3']
+            test_protocol="gtspp",
+            test_name="coordinate_check",
+            test_version="1.0",
+            test_tags=["GTSPP_1.2", "GTSPP_1.3"],
         )
 
     def parent_record_check(self, ref: ParentRecordRef):

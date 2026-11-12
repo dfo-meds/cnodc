@@ -1,7 +1,6 @@
 import datetime
 import pathlib
 import tempfile
-import typing as t
 
 import flask
 from autoinject import injector
@@ -10,31 +9,47 @@ from gcflask.user import current_user
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import OCProc2Action
-from nodb.interface import NODB, LOCK_EXPIRY_TIME, NODBInstance
-from nodb.observations import NODBWorkingRecord, NODBPlatform, PlatformStatus, NODBSourceFile, NODBObservationData
+from nodb.interface import LOCK_EXPIRY_TIME, NODB, NODBInstance
+from nodb.observations import (
+    NODBObservationData,
+    NODBPlatform,
+    NODBSourceFile,
+    NODBWorkingRecord,
+    PlatformStatus,
+)
 from nodb.queue import NODBQueueItem
-from pipeman.processing.payloads import Payload, BatchPayload, SourceFilePayload, WorkingRecordPayload, \
-    stream_payload_working_records, WorkflowPayload, FilePayload, MergedFilePayload, stream_payload_observations
+from pipeman.processing.payloads import (
+    BatchPayload,
+    FilePayload,
+    MergedFilePayload,
+    Payload,
+    SourceFilePayload,
+    WorkflowPayload,
+    WorkingRecordPayload,
+    stream_payload_observations,
+    stream_payload_working_records,
+)
 
 
-class NODBAPIError(CodedError): CODE_SPACE = "NODB-API"
+class NODBAPIError(CodedError):
+    CODE_SPACE = "NODB-API"
+
 
 from pipeman_desktop.util import ReviewResult
 
-class NODBController:
 
+class NODBController:
     nodb: NODB = None
 
     @injector.construct
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
     def get_queue_report(self) -> dict:
         with self.nodb as db:
             return {
                 "success": True,
                 "message": "Success",
-                "ready": [x for x in db.fetch_queue_ready_summary()]
+                "ready": [x for x in db.fetch_queue_ready_summary()],
             }
 
     def stream_file_information(self, queue_uuid: str, app_id: str):
@@ -47,20 +62,37 @@ class NODBController:
             elif isinstance(payload, FilePayload):
                 data.append(self._build_file_info(payload))
             elif isinstance(payload, WorkingRecordPayload):
-                wr = payload.load_working_record(db, limit_fields=("source_file_uuid", "received_date"))
-                if wr is not None and wr.source_file_uuid is not None and wr.received_date is not None:
-                    data.append(self._build_source_file_info(
-                        NODBSourceFile.find_by_uuid(db, wr.source_file_uuid, wr.received_date)
-                    ))
+                wr = payload.load_working_record(
+                    db, limit_fields=("source_file_uuid", "received_date")
+                )
+                if (
+                    wr is not None
+                    and wr.source_file_uuid is not None
+                    and wr.received_date is not None
+                ):
+                    data.append(
+                        self._build_source_file_info(
+                            NODBSourceFile.find_by_uuid(
+                                db, wr.source_file_uuid, wr.received_date
+                            )
+                        )
+                    )
             elif isinstance(payload, BatchPayload):
                 sf_ids: set[tuple[str, datetime.date]]
-                for record in payload.load_batch(db).stream_working_records(db, limit_fields=("source_file_uuid", "received_date")):
-                    if record.source_file_uuid is not None and record.received_date is not None:
+                for record in payload.load_batch(db).stream_working_records(
+                    db, limit_fields=("source_file_uuid", "received_date")
+                ):
+                    if (
+                        record.source_file_uuid is not None
+                        and record.received_date is not None
+                    ):
                         sf_ids.add((record.source_file_uuid, record.received_date))
                 for sf_uuid, sf_date in sf_ids:
-                    data.append(self._build_source_file_info(
-                        NODBSourceFile.find_by_uuid(db, sf_uuid, sf_date)
-                    ))
+                    data.append(
+                        self._build_source_file_info(
+                            NODBSourceFile.find_by_uuid(db, sf_uuid, sf_date)
+                        )
+                    )
             return {
                 "success": True,
                 "message": "Success",
@@ -96,13 +128,17 @@ class NODBController:
         else:
             return None
 
-    def fetch_next_queue_item(self,
-                              queue_name: str,
-                              escalation_level: int,
-                              app_id: str,
-                              subqueue_name: str | None = None) -> dict:
+    def fetch_next_queue_item(
+        self,
+        queue_name: str,
+        escalation_level: int,
+        app_id: str,
+        subqueue_name: str | None = None,
+    ) -> dict:
         with self.nodb as db:
-            item = db.fetch_next_queue_item(queue_name, app_id, subqueue_name, escalation_level)
+            item = db.fetch_next_queue_item(
+                queue_name, app_id, subqueue_name, escalation_level
+            )
             if item is not None:
                 db.commit()
                 actions = {}
@@ -110,23 +146,52 @@ class NODBController:
                 try:
                     payload = Payload.from_queue_item(item)
                     error_mode = payload.metadata.get("error-mode", "batch")
-                    if isinstance(payload, (BatchPayload, SourceFilePayload, WorkingRecordPayload)):
+                    if isinstance(
+                        payload, (BatchPayload, SourceFilePayload, WorkingRecordPayload)
+                    ):
                         actions["stream"] = {
-                            "endpoint": flask.url_for("desktop.stream_queue_item_records", _external=True, queue_uuid=item.queue_uuid),
+                            "endpoint": flask.url_for(
+                                "desktop.stream_queue_item_records",
+                                _external=True,
+                                queue_uuid=item.queue_uuid,
+                            ),
                         }
                     if isinstance(payload, (MergedFilePayload,)):
                         actions["observations"] = {
-                            "endpoint": flask.url_for("desktop.stream_observations", _external=True, queue_uuid=item.queue_uuid),
+                            "endpoint": flask.url_for(
+                                "desktop.stream_observations",
+                                _external=True,
+                                queue_uuid=item.queue_uuid,
+                            ),
                         }
-                    if isinstance(payload, (SourceFilePayload, FilePayload, MergedFilePayload)):
+                    if isinstance(
+                        payload, (SourceFilePayload, FilePayload, MergedFilePayload)
+                    ):
                         actions["download"] = {
-                            "endpoint": flask.url_for("desktop.download_file", _external=True, queue_uuid=item.queue_uuid),
+                            "endpoint": flask.url_for(
+                                "desktop.download_file",
+                                _external=True,
+                                queue_uuid=item.queue_uuid,
+                            ),
                         }
-                    if isinstance(payload, (SourceFilePayload, FilePayload, WorkingRecordPayload, BatchPayload, MergedFilePayload)):
+                    if isinstance(
+                        payload,
+                        (
+                            SourceFilePayload,
+                            FilePayload,
+                            WorkingRecordPayload,
+                            BatchPayload,
+                            MergedFilePayload,
+                        ),
+                    ):
                         actions["file-info"] = {
-                            "endpoint": flask.url_for("desktop.stream_file_information", _external=True, queue_uuid=item.queue_uuid),
+                            "endpoint": flask.url_for(
+                                "desktop.stream_file_information",
+                                _external=True,
+                                queue_uuid=item.queue_uuid,
+                            ),
                         }
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
                 return {
@@ -137,17 +202,31 @@ class NODBController:
                     "queue_name": item.queue_name,
                     "subqueue_name": item.subqueue_name,
                     "queue_uuid": item.queue_uuid,
-                    "test_protocol": item.data.get("metadata", {}).get("review_protocol", "nodb"),
+                    "test_protocol": item.data.get("metadata", {}).get(
+                        "review_protocol", "nodb"
+                    ),
                     "actions": {
                         "renew": {
-                            "endpoint": flask.url_for("desktop.renew_queue_item", _external=True, queue_uuid=item.queue_uuid),
+                            "endpoint": flask.url_for(
+                                "desktop.renew_queue_item",
+                                _external=True,
+                                queue_uuid=item.queue_uuid,
+                            ),
                         },
                         "close": {
-                            "endpoint": flask.url_for("desktop.close_qc_queue_item", _external=True, queue_uuid=item.queue_uuid),
+                            "endpoint": flask.url_for(
+                                "desktop.close_qc_queue_item",
+                                _external=True,
+                                queue_uuid=item.queue_uuid,
+                            ),
                         },
-                        **actions
+                        **actions,
                     },
-                    "locked_until": (item.locked_since + datetime.timedelta(seconds=LOCK_EXPIRY_TIME)).isoformat() if item.locked_since is not None else None,
+                    "locked_until": (
+                        item.locked_since + datetime.timedelta(seconds=LOCK_EXPIRY_TIME)
+                    ).isoformat()
+                    if item.locked_since is not None
+                    else None,
                 }
             else:
                 return {
@@ -171,7 +250,10 @@ class NODBController:
                     "success": True,
                     "message": "Success",
                     "queue_uuid": queue_uuid,
-                    "locked_until": (AwareDateTime.utcnow() + datetime.timedelta(seconds=LOCK_EXPIRY_TIME)).isoformat()
+                    "locked_until": (
+                        AwareDateTime.utcnow()
+                        + datetime.timedelta(seconds=LOCK_EXPIRY_TIME)
+                    ).isoformat(),
                 }
             else:
                 return {
@@ -181,7 +263,9 @@ class NODBController:
                     "locked_until": None,
                 }
 
-    def _find_queue_item(self, db: NODBInstance, queue_uuid: str, app_id: str) -> NODBQueueItem:
+    def _find_queue_item(
+        self, db: NODBInstance, queue_uuid: str, app_id: str
+    ) -> NODBQueueItem:
         item: NODBQueueItem | None = NODBQueueItem.find_by_uuid(db, queue_uuid)
         if item is None:
             raise NODBAPIError("No such queue item")
@@ -190,39 +274,43 @@ class NODBController:
         return item
 
     def download_file(self, queue_uuid: str):
-        with tempfile.TemporaryDirectory() as tempdir:
-            with self.nodb as db:
-                item = NODBQueueItem.find_by_uuid(db, queue_uuid)
-                if item is None:
-                    raise NODBAPIError("no such queue item")
-                payload = Payload.from_queue_item(item)
-                if isinstance(payload, SourceFilePayload):
-                    local_file = payload.download_from_db(db, pathlib.Path(tempdir))
-                elif isinstance(payload, FilePayload):
-                    local_file = payload.download(pathlib.Path(tempdir))
-                else:
-                    raise NODBAPIError("Invalid file to download")
-                return flask.send_file(local_file, as_attachment=True)
+        with tempfile.TemporaryDirectory() as tempdir, self.nodb as db:
+            item = NODBQueueItem.find_by_uuid(db, queue_uuid)
+            if item is None:
+                raise NODBAPIError("no such queue item")
+            payload = Payload.from_queue_item(item)
+            if isinstance(payload, SourceFilePayload):
+                local_file = payload.download_from_db(db, pathlib.Path(tempdir))
+            elif isinstance(payload, FilePayload):
+                local_file = payload.download(pathlib.Path(tempdir))
+            else:
+                raise NODBAPIError("Invalid file to download")
+            return flask.send_file(local_file, as_attachment=True)
 
-    def close_qc_item(self,
-                      queue_uuid: str,
-                      app_id: str,
-                      review_result: ReviewResult) -> dict:
+    def close_qc_item(
+        self, queue_uuid: str, app_id: str, review_result: ReviewResult
+    ) -> dict:
         with self.nodb as db:
             item = self._find_queue_item(db, queue_uuid, app_id)
             payload = WorkflowPayload.from_queue_item(item)
             if review_result is ReviewResult.RECHECK:
-                payload.followup_queue = payload.metadata.get("recheck-queue", "missing_next_queue")
+                payload.followup_queue = payload.metadata.get(
+                    "recheck-queue", "missing_next_queue"
+                )
                 payload.enqueue(db, "qc_forward")
                 item.mark_complete(db)
             elif review_result is ReviewResult.CONTINUE:
-                payload.followup_queue = payload.metadata.get("next-queue", "missing_next_queue")
+                payload.followup_queue = payload.metadata.get(
+                    "next-queue", "missing_next_queue"
+                )
                 payload.enqueue(db, "qc_forward")
                 item.mark_complete(db)
             elif review_result is ReviewResult.STOP:
                 item.mark_complete(db)
             elif review_result is ReviewResult.ERROR:
-                payload.enqueue(db, payload.metadata.get("error-queue", "missing_next_queue"))
+                payload.enqueue(
+                    db, payload.metadata.get("error-queue", "missing_next_queue")
+                )
                 item.mark_failed(db)
             elif review_result is ReviewResult.ESCALATE:
                 item.release(db, escalation_level=(item.escalation_level or 0) + 1)
@@ -230,27 +318,24 @@ class NODBController:
                 item.release(db, escalation_level=(item.escalation_level or 0) - 1)
             else:
                 item.release(db)
-            return {
-                "success": True,
-                "message": "Success"
-            }
+            return {"success": True, "message": "Success"}
 
     SEND_WORKING_KEYS = {
-        'working_uuid',
-        'received_date',
-        'source_file_uuid',
-        'message_idx',
-        'record_idx',
-        'platform_uuid',
-        'data_mode',
-        'quality_checks',
+        "working_uuid",
+        "received_date",
+        "source_file_uuid",
+        "message_idx",
+        "record_idx",
+        "platform_uuid",
+        "data_mode",
+        "quality_checks",
     }
 
     SEND_OBSERVATION_KEYS = {
-        'obs_uuid',
-        'received_date',
-        'data_mode',
-        'quality_checks',
+        "obs_uuid",
+        "received_date",
+        "data_mode",
+        "quality_checks",
     }
 
     def stream_queue_observations(self, queue_uuid: str, app_id: str) -> dict:
@@ -260,12 +345,16 @@ class NODBController:
             content = []
             for record in stream_payload_observations(db, payload):
                 record_data = {
-                    key: getattr(record, key)
-                    for key in self.SEND_OBSERVATION_KEYS
+                    key: getattr(record, key) for key in self.SEND_OBSERVATION_KEYS
                 }
                 record_data["actions"] = {
                     "fetch": {
-                        "endpoint": flask.url_for("desktop.fetch_observation", record_uuid=record.obs_uuid, record_date=record.received_date.isoformat(), _external=True),
+                        "endpoint": flask.url_for(
+                            "desktop.fetch_observation",
+                            record_uuid=record.obs_uuid,
+                            record_date=record.received_date.isoformat(),
+                            _external=True,
+                        ),
                     },
                 }
                 content.append(record_data)
@@ -282,16 +371,23 @@ class NODBController:
             content = []
             for record in stream_payload_working_records(db, payload):
                 record_data = {
-                    key: getattr(record, key)
-                    for key in self.SEND_WORKING_KEYS
+                    key: getattr(record, key) for key in self.SEND_WORKING_KEYS
                 }
                 record_data["actions"] = {
                     "fetch": {
-                        "endpoint": flask.url_for("desktop.fetch_working_record", record_uuid=record.working_uuid, _external=True),
+                        "endpoint": flask.url_for(
+                            "desktop.fetch_working_record",
+                            record_uuid=record.working_uuid,
+                            _external=True,
+                        ),
                     },
                     "save": {
-                        "endpoint": flask.url_for("desktop.save_working_record", record_uuid=record.working_uuid, _external=True),
-                    }
+                        "endpoint": flask.url_for(
+                            "desktop.save_working_record",
+                            record_uuid=record.working_uuid,
+                            _external=True,
+                        ),
+                    },
                 }
                 content.append(record_data)
             return {
@@ -301,10 +397,7 @@ class NODBController:
             }
 
     def save_record_actions(self, working_uuid: str, actions: list[dict]):
-        _ = [
-            OCProc2Action.import_from_map(x)
-            for x in actions
-        ]
+        _ = [OCProc2Action.import_from_map(x) for x in actions]
         with self.nodb as db:
             record = NODBWorkingRecord.find_by_uuid(db, working_uuid)
             if record is None:
@@ -316,10 +409,7 @@ class NODBController:
                 record.metadata["proposed_actions"] = actions
                 db.update_object(record)
                 db.commit()
-                return {
-                    "success": True,
-                    "message": "Record updated"
-                }
+                return {"success": True, "message": "Record updated"}
 
     def stream_observation(self, record_uuid: str, received_date: str):
         with self.nodb as db:
@@ -372,29 +462,31 @@ class NODBController:
                     "message": "Success",
                     "data": {
                         "actions": self._platform_actions(platform.platform_uuid),
-                        **platform.to_map()
-                    }
+                        **platform.to_map(),
+                    },
                 }
 
-    def create_platform(self,
-                        wmo_id: str | None,
-                        wigos_id: str | None,
-                        platform_name: str | None,
-                        platform_id: str | None,
-                        platform_type: str | None,
-                        ship_code: str | None,
-                        start_date: AwareDateTime | None,
-                        end_date: AwareDateTime | None,
-                        status: PlatformStatus,
-                        embargo_data_days: int | None,
-                        meds_id: str | None,
-                        skip_speed_check: bool,
-                        skip_land_check: bool,
-                        mandatory_review: bool,
-                        dedupe_time_window: float | None,
-                        dedupe_distance_window: float | None,
-                        top_speed: str | float | None,
-                        map_to_uuid: str | None) -> dict:
+    def create_platform(
+        self,
+        wmo_id: str | None,
+        wigos_id: str | None,
+        platform_name: str | None,
+        platform_id: str | None,
+        platform_type: str | None,
+        ship_code: str | None,
+        start_date: AwareDateTime | None,
+        end_date: AwareDateTime | None,
+        status: PlatformStatus,
+        embargo_data_days: int | None,
+        meds_id: str | None,
+        skip_speed_check: bool,
+        skip_land_check: bool,
+        mandatory_review: bool,
+        dedupe_time_window: float | None,
+        dedupe_distance_window: float | None,
+        top_speed: str | float | None,
+        map_to_uuid: str | None,
+    ) -> dict:
         with self.nodb as db:
             if map_to_uuid is not None:
                 other = NODBPlatform.find_by_uuid(db, map_to_uuid)
@@ -432,7 +524,7 @@ class NODBController:
                 "data": {
                     "platform_uuid": platform.platform_uuid,
                     "actions": self._platform_actions(platform.platform_uuid),
-                }
+                },
             }
 
     def _platform_actions(self, platform_uuid: str) -> dict:
@@ -442,7 +534,7 @@ class NODBController:
                 "endpoint": flask.url_for(
                     "desktop.fetch_platform_record",
                     platform_uuid=platform_uuid,
-                    _external=True
+                    _external=True,
                 )
             }
         if current_user().require_all("pipeman.update_platforms"):
@@ -450,31 +542,33 @@ class NODBController:
                 "endpoint": flask.url_for(
                     "desktop.update_platform_record",
                     platform_uuid=platform_uuid,
-                    _external=True
+                    _external=True,
                 )
             }
         return actions
 
-    def update_platform(self,
-                        platform_uuid: str,
-                        wmo_id: str | None,
-                        wigos_id: str | None,
-                        platform_name: str | None,
-                        platform_id: str | None,
-                        platform_type: str | None,
-                        ship_code: str | None,
-                        start_date: AwareDateTime | None,
-                        end_date: AwareDateTime | None,
-                        status: PlatformStatus,
-                        embargo_data_days: int | None,
-                        skip_speed_check: bool,
-                        skip_land_check: bool,
-                        meds_id: str | None,
-                        mandatory_review: bool,
-                        dedupe_time_window: float | None,
-                        dedupe_distance_window: float | None,
-                        top_speed: str | float | None,
-                        map_to_uuid: str | None):
+    def update_platform(
+        self,
+        platform_uuid: str,
+        wmo_id: str | None,
+        wigos_id: str | None,
+        platform_name: str | None,
+        platform_id: str | None,
+        platform_type: str | None,
+        ship_code: str | None,
+        start_date: AwareDateTime | None,
+        end_date: AwareDateTime | None,
+        status: PlatformStatus,
+        embargo_data_days: int | None,
+        skip_speed_check: bool,
+        skip_land_check: bool,
+        meds_id: str | None,
+        mandatory_review: bool,
+        dedupe_time_window: float | None,
+        dedupe_distance_window: float | None,
+        top_speed: str | float | None,
+        map_to_uuid: str | None,
+    ):
         with self.nodb as db:
             platform = NODBPlatform.find_by_uuid(db, platform_uuid)
             if platform is None:
@@ -488,7 +582,7 @@ class NODBController:
                     if other is None:
                         return {
                             "success": False,
-                            "message": "map_to_uuid set to invalid platform"
+                            "message": "map_to_uuid set to invalid platform",
                         }
                 platform.wmo_id = wmo_id
                 platform.wigos_id = wigos_id
@@ -516,29 +610,31 @@ class NODBController:
                     "message": "Success",
                 }
 
-    def search_stations(self,
-                        time_frame: AwareDateTime | None,
-                        wmo_id: str | None,
-                        wigos_id: str | None,
-                        platform_id: str | None,
-                        platform_name: str | None,
-                        ship_code: str | None) -> dict:
+    def search_stations(
+        self,
+        time_frame: AwareDateTime | None,
+        wmo_id: str | None,
+        wigos_id: str | None,
+        platform_id: str | None,
+        platform_name: str | None,
+        ship_code: str | None,
+    ) -> dict:
         with self.nodb as db:
             results = []
-            for x in NODBPlatform.search(db,
-                                         in_service_time=time_frame,
-                                         wmo_id=wmo_id,
-                                         wigos_id=wigos_id,
-                                         platform_id=platform_id,
-                                         platform_name=platform_name,
-                                         ship_code=ship_code,
-                                         key_only=True):
-                results.append({
-                    "platform_uuid": x.platform_uuid,
-                    "actions": self._platform_actions(x.platform_uuid),
-                })
-            return {
-                "success": True,
-                "message": "Success",
-                "data": results
-            }
+            for x in NODBPlatform.search(
+                db,
+                in_service_time=time_frame,
+                wmo_id=wmo_id,
+                wigos_id=wigos_id,
+                platform_id=platform_id,
+                platform_name=platform_name,
+                ship_code=ship_code,
+                key_only=True,
+            ):
+                results.append(
+                    {
+                        "platform_uuid": x.platform_uuid,
+                        "actions": self._platform_actions(x.platform_uuid),
+                    }
+                )
+            return {"success": True, "message": "Success", "data": results}

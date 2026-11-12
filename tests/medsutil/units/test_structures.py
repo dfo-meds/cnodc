@@ -1,5 +1,6 @@
 import decimal
 import unittest as ut
+
 import medsutil.units.structures as uns
 from medsutil.exceptions import CodedError
 
@@ -12,13 +13,12 @@ BAD_OFFSET = uns.Offset(REAL, SIMPLE_UNIT)
 QUOTIENT = uns.Quotient(INTEGER, REAL)
 PRODUCT = uns.Product(INTEGER, REAL)
 EXPONENT = uns.Exponent(SIMPLE_UNIT, INTEGER)
-LINEAR_FUNCTION1 = uns.LinearFunction(decimal.Decimal("5"), decimal.Decimal("10"))
-LINEAR_FUNCTION2 = uns.LinearFunction(decimal.Decimal("5"), decimal.Decimal("-10"))
-LINEAR_FUNCTION3 = uns.LinearFunction(decimal.Decimal("5"), decimal.Decimal("0"))
+LINEAR_FUNCTION1 = uns.LinearFunction(decimal.Decimal(5), decimal.Decimal(10))
+LINEAR_FUNCTION2 = uns.LinearFunction(decimal.Decimal(5), decimal.Decimal(-10))
+LINEAR_FUNCTION3 = uns.LinearFunction(decimal.Decimal(5), decimal.Decimal(0))
 
 
 class TestStructures(ut.TestCase):
-
     def test_bad_comparisons(self):
         self.assertNotEqual(INTEGER, SIMPLE_UNIT)
         self.assertNotEqual(SIMPLE_UNIT, REAL)
@@ -42,8 +42,8 @@ class TestStructures(ut.TestCase):
         self.assertEqual(repr(LINEAR_FUNCTION3), "5x")
 
     def test_simple_linear_function_ops(self):
-        self.assertIs(LINEAR_FUNCTION1, LINEAR_FUNCTION1.power(decimal.Decimal("1")))
-        self.assertIs(LINEAR_FUNCTION1, LINEAR_FUNCTION1.shift(decimal.Decimal("0")))
+        self.assertIs(LINEAR_FUNCTION1, LINEAR_FUNCTION1.power(decimal.Decimal(1)))
+        self.assertIs(LINEAR_FUNCTION1, LINEAR_FUNCTION1.shift(decimal.Decimal(0)))
 
     def test_bad_log_unit_info(self):
         with self.assertRaises(CodedError):
@@ -62,27 +62,59 @@ class TestStructures(ut.TestCase):
         self.assertEqual(uns.Real("30.0"), p.standardize())
 
     def test_standardize_exp(self):
-        p = uns.Product(uns.Exponent(uns.Integer("5"), uns.Integer("2")), uns.Integer("6"))
-        self.assertEqual(uns.Real(f"150.0"), p.standardize())
+        p = uns.Product(
+            uns.Exponent(uns.Integer("5"), uns.Integer("2")), uns.Integer("6")
+        )
+        self.assertEqual(uns.Real("150.0"), p.standardize())
 
     def test_standardize_exp_rev(self):
-        p = uns.Product(uns.Integer("6"), uns.Exponent(uns.Integer("5"), uns.Integer("2")))
-        self.assertEqual(uns.Real(f"150.0"), p.standardize())
+        p = uns.Product(
+            uns.Integer("6"), uns.Exponent(uns.Integer("5"), uns.Integer("2"))
+        )
+        self.assertEqual(uns.Real("150.0"), p.standardize())
 
     def test_standardize_long(self):
-        p = uns.Product(uns.Integer("6"), uns.Product(uns.Integer("10"), uns.Product(uns.Integer("5"), uns.SimpleUnit("km"))))
-        self.assertEqual(uns.Product(uns.Real(f"300.0"), uns.SimpleUnit("km")), p.standardize())
-
-    def test_standardize_exponents(self):
-        self.assertEqual(uns.Real("9.0"), uns.Exponent(uns.Integer("3"), uns.Integer("2")).standardize())
-        self.assertEqual(uns.SimpleUnit("kg"), uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("1")).standardize())
-        self.assertEqual(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("6")), uns.Exponent(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")), uns.Integer("3")).standardize())
-        self.assertEqual(
-            uns.Product(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")), uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2"))),
-            uns.Exponent(uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m")), uns.Integer("2")).standardize()
+        p = uns.Product(
+            uns.Integer("6"),
+            uns.Product(
+                uns.Integer("10"), uns.Product(uns.Integer("5"), uns.SimpleUnit("km"))
+            ),
         )
         self.assertEqual(
-            uns.Product(uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")),
-                        uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2"))),
-            uns.Exponent(uns.Quotient(uns.SimpleUnit("kg"), uns.SimpleUnit("m")), uns.Integer("2")).standardize()
+            uns.Product(uns.Real("300.0"), uns.SimpleUnit("km")), p.standardize()
+        )
+
+    def test_standardize_exponents(self):
+        self.assertEqual(
+            uns.Real("9.0"),
+            uns.Exponent(uns.Integer("3"), uns.Integer("2")).standardize(),
+        )
+        self.assertEqual(
+            uns.SimpleUnit("kg"),
+            uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("1")).standardize(),
+        )
+        self.assertEqual(
+            uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("6")),
+            uns.Exponent(
+                uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")), uns.Integer("3")
+            ).standardize(),
+        )
+        self.assertEqual(
+            uns.Product(
+                uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")),
+                uns.Exponent(uns.SimpleUnit("m"), uns.Integer("2")),
+            ),
+            uns.Exponent(
+                uns.Product(uns.SimpleUnit("kg"), uns.SimpleUnit("m")), uns.Integer("2")
+            ).standardize(),
+        )
+        self.assertEqual(
+            uns.Product(
+                uns.Exponent(uns.SimpleUnit("kg"), uns.Integer("2")),
+                uns.Exponent(uns.SimpleUnit("m"), uns.Integer("-2")),
+            ),
+            uns.Exponent(
+                uns.Quotient(uns.SimpleUnit("kg"), uns.SimpleUnit("m")),
+                uns.Integer("2"),
+            ).standardize(),
         )

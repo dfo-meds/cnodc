@@ -1,3 +1,4 @@
+import dataclasses
 import datetime
 import functools
 import logging
@@ -7,19 +8,17 @@ import shutil
 import threading
 import traceback
 import uuid
-import typing as t
 from unittest import SkipTest
 
 import zrlog
 
+from medsutil.awaretime import AwareDateTime
+from medsutil.halts import HaltFlag
 from nodb.interface import NODB
 from nodb.queue import NODBQueueItem
 from nodb.workflow import NODBUploadWorkflow
 from pipeman.processing.base_worker import BaseWorker
-from medsutil.halts import HaltFlag
-from medsutil.awaretime import AwareDateTime
 from tests.helpers.base_test_case import BaseTestCase
-import dataclasses
 
 
 @dataclasses.dataclass
@@ -33,12 +32,11 @@ class WorkerEvent:
 
 
 class WorkflowTestResult(logging.Handler):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.worker_events: list[WorkerEvent] = []
         self.logs: list[logging.LogRecord] = []
-        self._log = zrlog.get_logger('workflow.test_result')
+        self._log = zrlog.get_logger("workflow.test_result")
 
     def start(self):
         logging.getLogger().addHandler(self)
@@ -51,13 +49,13 @@ class WorkflowTestResult(logging.Handler):
         self.logs.append(record)
 
     def _recursive_traceback(self, e: BaseException):
-        s = ''
+        s = ""
         if e.__cause__ is not None:
             s += self._recursive_traceback(e.__cause__)
-            s += '\n the above was a direct cause of the following exception:\n'
+            s += "\n the above was a direct cause of the following exception:\n"
         if e.__traceback__:
-            s += ''.join(traceback.format_tb(e.__traceback__))
-        s += f"\n{e.__class__.__name__}: {str(e)}"
+            s += "".join(traceback.format_tb(e.__traceback__))
+        s += f"\n{e.__class__.__name__}: {e!s}"
         return s
 
     def pretty_print(self):
@@ -66,15 +64,23 @@ class WorkflowTestResult(logging.Handler):
             ts = datetime.datetime.fromtimestamp(log.created).astimezone()
             s = f"[{ts.strftime('%H:%M:%S.%f')}] {log.getMessage()} [{log.name}:{log.levelname.upper()}]"
             if log.exc_info and log.exc_info[1]:
-                s += f"\n{'='*50}\n"
+                s += f"\n{'=' * 50}\n"
                 s += self._recursive_traceback(log.exc_info[1])
-                s += f"{'='*50}"
+                s += f"{'=' * 50}"
             entries.append((ts, s, idx))
         for idx, event in enumerate(self.worker_events):
-            entries.append((event.event_time ,f"[{event.event_time.strftime('%H:%M:%S.%f')}] {event.event_name} [{event.process_name} {event.process_version}]", idx))
+            entries.append(
+                (
+                    event.event_time,
+                    f"[{event.event_time.strftime('%H:%M:%S.%f')}] {event.event_name} [{event.process_name} {event.process_version}]",
+                    idx,
+                )
+            )
         zeros = math.ceil(math.log10(len(entries)))
+
         def _sort(a: tuple[datetime.datetime, str, int]) -> int:
-            return int(a[0].timestamp() * (10 ** zeros)) + a[2]
+            return int(a[0].timestamp() * (10**zeros)) + a[2]
+
         entries.sort(key=_sort)
         for entry in entries:
             print(entry[1])
@@ -86,7 +92,7 @@ class WorkflowTestResult(logging.Handler):
         return wc
 
     def _register_worker_hook(self, wc, hook_name):
-        hook_key = f'hook_{hook_name}'
+        hook_key = f"hook_{hook_name}"
         cb = functools.partial(self._add_worker_event, event_name=hook_name)
         if hook_key not in wc:
             wc[hook_key] = [cb]
@@ -96,51 +102,65 @@ class WorkflowTestResult(logging.Handler):
             wc[hook_key].append(cb)
 
     def _add_worker_event(self, worker: BaseWorker, *args, event_name: str, **kwargs):
-        self._log.info(f"Saw event [%s] from [%s %s]", event_name, worker.process_name, worker.process_version)
-        self.worker_events.append(WorkerEvent(
-            event_time=AwareDateTime.utcnow(),
-            process_name=worker.process_name,
-            process_version=worker.process_version,
-            process_id=worker.process_uuid,
-            event_name=event_name,
-            keyword_args=kwargs
-        ))
+        self._log.info(
+            "Saw event [%s] from [%s %s]",
+            event_name,
+            worker.process_name,
+            worker.process_version,
+        )
+        self.worker_events.append(
+            WorkerEvent(
+                event_time=AwareDateTime.utcnow(),
+                process_name=worker.process_name,
+                process_version=worker.process_version,
+                process_id=worker.process_uuid,
+                event_name=event_name,
+                keyword_args=kwargs,
+            )
+        )
 
 
 class MockWorkflow:
-
     def __init__(self, nodb: NODB, halt_flag=None, end_flag=None):
         self.nodb = nodb
         self.halt_flag = halt_flag or HaltFlag(threading.Event())
         self.end_flag = end_flag or HaltFlag(threading.Event())
         self._worker_info: list[tuple[type[BaseWorker], dict]] = []
         self._workers: list[BaseWorker] = []
-        self._last_items: t.Optional[set[str]] = None
+        self._last_items: set[str] | None = None
         self._log = zrlog.get_logger("cnodc.testing.mock_workflow")
 
-    def add_workflow(self,
-                     workflow_name: str,
-                     working_dir: t.Union[str,dict],
-                     processing_steps: list[t.Union[str, dict]],
-                     validation: str = None,
-                     additional_dirs: list[t.Union[str, dict]] = None):
+    def add_workflow(
+        self,
+        workflow_name: str,
+        working_dir: str | dict,
+        processing_steps: list[str | dict],
+        validation: str | None = None,
+        additional_dirs: list[str | dict] | None = None,
+    ):
         wf = NODBUploadWorkflow(workflow_name=workflow_name)
-        wf.set_config({
-            'label': {'und': 'TEST'},
-            'working_target': {
-                'directory': working_dir,
-            } if isinstance(working_dir, str) else working_dir,
-            'additional_targets': [
-                {'directory': x} if isinstance(x, str) else x
-                for x in additional_dirs or []
-            ],
-            'steps': {
-                f'step{idx}': {'order': idx, 'name': x} if not isinstance(x, dict) else x
-                for idx, x in enumerate(processing_steps)
-            },
-            'validation': validation,
-            'accept_user_filename': True,
-        })
+        wf.set_config(
+            {
+                "label": {"und": "TEST"},
+                "working_target": {
+                    "directory": working_dir,
+                }
+                if isinstance(working_dir, str)
+                else working_dir,
+                "additional_targets": [
+                    {"directory": x} if isinstance(x, str) else x
+                    for x in additional_dirs or []
+                ],
+                "steps": {
+                    f"step{idx}": {"order": idx, "name": x}
+                    if not isinstance(x, dict)
+                    else x
+                    for idx, x in enumerate(processing_steps)
+                },
+                "validation": validation,
+                "accept_user_filename": True,
+            }
+        )
         with self.nodb as db:
             check_wf = NODBUploadWorkflow.find_by_name(db, workflow_name)
             if check_wf is not None:
@@ -149,21 +169,30 @@ class MockWorkflow:
             db.insert_object(wf)
             db.commit()
 
-    def add_worker(self, worker_cls: type[BaseWorker], worker_config: dict = None):
+    def add_worker(self, worker_cls: type[BaseWorker], worker_config: dict | None = None):
         self._worker_info.append((worker_cls, worker_config or {}))
 
-    def test_file(self, source_file: pathlib.Path, target_directory: pathlib.Path, max_cycles: int = None):
-        self._log.debug("Starting with test file %s in [%s]", source_file, target_directory)
+    def test_file(
+        self,
+        source_file: pathlib.Path,
+        target_directory: pathlib.Path,
+        max_cycles: int | None = None,
+    ):
+        self._log.debug(
+            "Starting with test file %s in [%s]", source_file, target_directory
+        )
         shutil.copy(source_file, target_directory / source_file.name)
         return self._run_test(max_cycles)
 
-    def test_queue_item(self, queue_item: NODBQueueItem, max_cycles: int = None) -> WorkflowTestResult:
+    def test_queue_item(
+        self, queue_item: NODBQueueItem, max_cycles: int | None = None
+    ) -> WorkflowTestResult:
         with self.nodb as db:
             db.insert_object(queue_item)
             db.commit()
         return self._run_test(max_cycles)
 
-    def _run_test(self, max_cycles: int = None):
+    def _run_test(self, max_cycles: int | None = None):
         max_cycles = max_cycles or 50
         test_result = WorkflowTestResult()
         test_result.start()
@@ -185,11 +214,13 @@ class MockWorkflow:
     def _have_items_changed(self):
         current_items = set()
         with self.nodb as db:
-            current_items.update('__'.join(item) for item in db.load_queue_items())
+            current_items.update("__".join(item) for item in db.load_queue_items())
         if self._last_items:
-            self._log.notice('Current items [%s]', current_items.difference(self._last_items))
+            self._log.notice(
+                "Current items [%s]", current_items.difference(self._last_items)
+            )
         else:
-            self._log.notice('Current items [%s]', current_items.difference(set()))
+            self._log.notice("Current items [%s]", current_items.difference(set()))
         if self._last_items is None or current_items.difference(self._last_items):
             self._last_items = current_items
             return True
@@ -203,10 +234,10 @@ class MockWorkflow:
                 _config={},
                 _halt_flag=self.halt_flag,
                 _end_flag=self.end_flag,
-                _server_name='test',
+                _server_name="test",
             )
             worker._config = test_result.update_worker_config(worker, worker_config)
-            if hasattr(worker, 'nodb'):
+            if hasattr(worker, "nodb"):
                 worker.nodb = self.nodb
             self._workers.append(worker)
             worker.on_start()
@@ -214,7 +245,7 @@ class MockWorkflow:
 
 class BaseWorkflowTestCase(BaseTestCase):
 
-    def assertEventDidOccur(self, process_name: str, event_name: str, msg: str = None):
+    def assertEventDidOccur(self, process_name: str, event_name: str, msg: str | None = None):
         unique_events = set()
         for x in self.workflow_result.worker_events:
             if x.process_name == process_name:
@@ -222,13 +253,19 @@ class BaseWorkflowTestCase(BaseTestCase):
                     return x
                 else:
                     unique_events.add(x.event_name)
-        raise self.failureException(msg or f"Event {process_name}:{event_name} not found (found {','.join(unique_events)})")
+        raise self.failureException(
+            msg
+            or f"Event {process_name}:{event_name} not found (found {','.join(unique_events)})"
+        )
 
-
-    def assertEventDidNotOccur(self, process_name: str, event_name: str, msg: str = None):
+    def assertEventDidNotOccur(
+        self, process_name: str, event_name: str, msg: str | None = None
+    ):
         for x in self.workflow_result.worker_events:
             if x.event_name == event_name and x.process_name == process_name:
-                raise self.failureException(msg or f"Event {process_name}:{event_name} found unexpectedly!")
+                raise self.failureException(
+                    msg or f"Event {process_name}:{event_name} found unexpectedly!"
+                )
 
     @classmethod
     def setUpClass(cls):
@@ -236,9 +273,11 @@ class BaseWorkflowTestCase(BaseTestCase):
             super().setUpClass()
             workflow = MockWorkflow(cls.real_nodb)
             cls.workflow_result = cls.build_and_run_workflow(workflow)
-        except Exception as ex:
-            zrlog.get_logger('test_glider_decode').exception(f'An error occurred while processing this workflow')
-            raise SkipTest('an error occurred during start')
+        except Exception:
+            zrlog.get_logger("test_glider_decode").exception(
+                "An error occurred while processing this workflow"
+            )
+            raise SkipTest("an error occurred during start")
 
     @classmethod
     def build_and_run_workflow(cls, workflow: MockWorkflow) -> WorkflowTestResult: ...

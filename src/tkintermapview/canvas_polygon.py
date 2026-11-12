@@ -1,23 +1,26 @@
-import tkinter
 import sys
-from typing import TYPE_CHECKING, Callable
+import tkinter
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .map_widget import TkinterMapView
 
-from .utility_functions import decimal_to_osm, osm_to_decimal
+from .utility_functions import decimal_to_osm
 
 
 class CanvasPolygon:
-    def __init__(self,
-                 map_widget: "TkinterMapView",
-                 position_list: list,
-                 outline_color: str = "#3e97cb",
-                 fill_color: str = "gray95",
-                 border_width: int = 5,
-                 command: Callable = None,
-                 name: str = None,
-                 data: any = None):
+    def __init__(
+        self,
+        map_widget: TkinterMapView,
+        position_list: list,
+        outline_color: str = "#3e97cb",
+        fill_color: str = "gray95",
+        border_width: int = 5,
+        command: Callable | None = None,
+        name: str | None = None,
+        data=None,
+    ):
 
         self.map_widget = map_widget
         self.position_list = position_list  # list with decimal positions
@@ -61,7 +64,9 @@ class CanvasPolygon:
         elif sys.platform.startswith("win"):
             self.map_widget.canvas.config(cursor="hand2")
         else:
-            self.map_widget.canvas.config(cursor="hand2")  # not tested what it looks like on Linux!
+            self.map_widget.canvas.config(
+                cursor="hand2"
+            )  # not tested what it looks like on Linux!
 
     def mouse_leave(self, event=None):
         self.map_widget.canvas.config(cursor="arrow")
@@ -73,8 +78,14 @@ class CanvasPolygon:
     def get_canvas_pos(self, position, widget_tile_width, widget_tile_height):
         tile_position = decimal_to_osm(*position, round(self.map_widget.zoom))
 
-        canvas_pos_x = ((tile_position[0] - self.map_widget.upper_left_tile_pos[0]) / widget_tile_width) * self.map_widget.width
-        canvas_pos_y = ((tile_position[1] - self.map_widget.upper_left_tile_pos[1]) / widget_tile_height) * self.map_widget.height
+        canvas_pos_x = (
+            (tile_position[0] - self.map_widget.upper_left_tile_pos[0])
+            / widget_tile_width
+        ) * self.map_widget.width
+        canvas_pos_y = (
+            (tile_position[1] - self.map_widget.upper_left_tile_pos[1])
+            / widget_tile_height
+        ) * self.map_widget.height
 
         return canvas_pos_x, canvas_pos_y
 
@@ -84,13 +95,35 @@ class CanvasPolygon:
         self.last_position_list_length = len(self.position_list)
 
         # get current tile size of map widget
-        widget_tile_width = self.map_widget.lower_right_tile_pos[0] - self.map_widget.upper_left_tile_pos[0]
-        widget_tile_height = self.map_widget.lower_right_tile_pos[1] - self.map_widget.upper_left_tile_pos[1]
+        widget_tile_width = (
+            self.map_widget.lower_right_tile_pos[0]
+            - self.map_widget.upper_left_tile_pos[0]
+        )
+        widget_tile_height = (
+            self.map_widget.lower_right_tile_pos[1]
+            - self.map_widget.upper_left_tile_pos[1]
+        )
 
         # if only moving happened and len(self.position_list) did not change, shift current positions, else calculate new position_list
-        if move is True and self.last_upper_left_tile_pos is not None and new_line_length is False:
-            x_move = ((self.last_upper_left_tile_pos[0] - self.map_widget.upper_left_tile_pos[0]) / widget_tile_width) * self.map_widget.width
-            y_move = ((self.last_upper_left_tile_pos[1] - self.map_widget.upper_left_tile_pos[1]) / widget_tile_height) * self.map_widget.height
+        if (
+            move is True
+            and self.last_upper_left_tile_pos is not None
+            and new_line_length is False
+        ):
+            x_move = (
+                (
+                    self.last_upper_left_tile_pos[0]
+                    - self.map_widget.upper_left_tile_pos[0]
+                )
+                / widget_tile_width
+            ) * self.map_widget.width
+            y_move = (
+                (
+                    self.last_upper_left_tile_pos[1]
+                    - self.map_widget.upper_left_tile_pos[1]
+                )
+                / widget_tile_height
+            ) * self.map_widget.height
 
             for i in range(0, len(self.position_list) * 2, 2):
                 self.canvas_polygon_positions[i] += x_move
@@ -98,30 +131,44 @@ class CanvasPolygon:
         else:
             self.canvas_polygon_positions = []
             for position in self.position_list:
-                canvas_position = self.get_canvas_pos(position, widget_tile_width, widget_tile_height)
+                canvas_position = self.get_canvas_pos(
+                    position, widget_tile_width, widget_tile_height
+                )
                 self.canvas_polygon_positions.append(canvas_position[0])
                 self.canvas_polygon_positions.append(canvas_position[1])
 
         if not self.deleted:
             if self.canvas_polygon is None:
                 self.map_widget.canvas.delete(self.canvas_polygon)
-                self.canvas_polygon = self.map_widget.canvas.create_polygon(self.canvas_polygon_positions,
-                                                                            width=self.border_width,
-                                                                            outline=self.outline_color,
-                                                                            joinstyle=tkinter.ROUND,
-                                                                            stipple="gray25",
-                                                                            tag="polygon")
+                self.canvas_polygon = self.map_widget.canvas.create_polygon(
+                    self.canvas_polygon_positions,
+                    width=self.border_width,
+                    outline=self.outline_color,
+                    joinstyle=tkinter.ROUND,
+                    stipple="gray25",
+                    tag="polygon",
+                )
                 if self.fill_color is None:
                     self.map_widget.canvas.itemconfig(self.canvas_polygon, fill="")
                 else:
-                    self.map_widget.canvas.itemconfig(self.canvas_polygon, fill=self.fill_color)
+                    self.map_widget.canvas.itemconfig(
+                        self.canvas_polygon, fill=self.fill_color
+                    )
 
                 if self.command is not None:
-                    self.map_widget.canvas.tag_bind(self.canvas_polygon, "<Enter>", self.mouse_enter)
-                    self.map_widget.canvas.tag_bind(self.canvas_polygon, "<Leave>", self.mouse_leave)
-                    self.map_widget.canvas.tag_bind(self.canvas_polygon, "<Button-1>", self.click)
+                    self.map_widget.canvas.tag_bind(
+                        self.canvas_polygon, "<Enter>", self.mouse_enter
+                    )
+                    self.map_widget.canvas.tag_bind(
+                        self.canvas_polygon, "<Leave>", self.mouse_leave
+                    )
+                    self.map_widget.canvas.tag_bind(
+                        self.canvas_polygon, "<Button-1>", self.click
+                    )
             else:
-                self.map_widget.canvas.coords(self.canvas_polygon, self.canvas_polygon_positions)
+                self.map_widget.canvas.coords(
+                    self.canvas_polygon, self.canvas_polygon_positions
+                )
         else:
             self.map_widget.canvas.delete(self.canvas_polygon)
             self.canvas_polygon = None

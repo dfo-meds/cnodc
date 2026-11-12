@@ -1,28 +1,33 @@
-""" Provides the SaveData class which keeps a mapping of data saved on the hard drive. """
+"""Provides the SaveData class which keeps a mapping of data saved on the hard drive."""
 
 import pathlib
-import typing as t
 
 import zrlog
 
-from medsutil import json
 import medsutil.types as mt
+from medsutil import json
 
 
 class SaveData:
     """Represents data that should be saved to the hard drive while running a process.
-        Note that save data may be wiped if running on a virtual machine, so process workers
-        cannot rely on the data being there and should have sensible default behaviour.
+    Note that save data may be wiped if running on a virtual machine, so process workers
+    cannot rely on the data being there and should have sensible default behaviour.
 
-        Save data must be compatible with JSON objects.
+    Save data must be compatible with JSON objects.
     """
 
-    def __init__(self, save_file: t.Union[str, pathlib.Path, None], raise_on_save_fail: bool = False):
+    def __init__(
+        self,
+        save_file: str | pathlib.Path | None,
+        raise_on_save_fail: bool = False,
+    ):
         """
         :param save_file: The path of the save file.
         :param raise_on_save_fail: If True, failure to save data is an error.
         """
-        self._save_file = pathlib.Path(save_file) if isinstance(save_file, str) else save_file
+        self._save_file = (
+            pathlib.Path(save_file) if isinstance(save_file, str) else save_file
+        )
         self._file_loaded: bool = False
         self._save_failed: bool = False
         self._raise_on_save_fail: bool = raise_on_save_fail
@@ -40,7 +45,9 @@ class SaveData:
         self.load_file()
         return key in self._values
 
-    def get(self, item: str, default: mt.SupportsExtendedJson = None) -> mt.SupportsExtendedJson:
+    def get(
+        self, item: str, default: mt.SupportsExtendedJson = None
+    ) -> mt.SupportsExtendedJson:
         self.load_file()
         if item in self._values:
             return self._values[item]
@@ -55,7 +62,9 @@ class SaveData:
                     with open(self._save_file, "r") as h:
                         self._values = json.loads(h.read()) or {}
                 except OSError:
-                    zrlog.get_logger("cnodc.save_file").exception("Exception while opening save file")
+                    zrlog.get_logger("cnodc.save_file").exception(
+                        "Exception while opening save file"
+                    )
 
     def save_file(self):
         """Save the data to disk."""
@@ -67,5 +76,7 @@ class SaveData:
             except OSError:
                 if self._raise_on_save_fail:
                     raise
-                zrlog.get_logger("cnodc.save_file").exception("Exception while saving save data")
+                zrlog.get_logger("cnodc.save_file").exception(
+                    "Exception while saving save data"
+                )
                 self._save_failed = True

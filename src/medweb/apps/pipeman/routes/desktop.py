@@ -1,7 +1,7 @@
-from gcflask.i18n_url import MultiLanguageBlueprint
-from gcflask.security import security_check, require_permission, api_error_handling
 from autoinject import injector
 
+from gcflask.i18n_url import MultiLanguageBlueprint
+from gcflask.security import api_error_handling, require_permission, security_check
 from gcflask.util import json_param
 from medsutil.awaretime import AwareDateTime
 from medweb.apps.pipeman.nodb_manager import NODBController, ReviewResult
@@ -30,16 +30,22 @@ def lock_next_queue_item(nodb: NODBController = None):
     escalation_level = json_param("escalation_level", int, 0)
 
     # Security checks
-    require_permission([f"pipeman.handle_queue_items.{queue_name}", "pipeman.handle_queue_items.all"], require_any=True)
+    require_permission(
+        [f"pipeman.handle_queue_items.{queue_name}", "pipeman.handle_queue_items.all"],
+        require_any=True,
+    )
     if escalation_level > 0:
-        require_permission([f"pipeman.handle_queue_items.escalated.{queue_name}", "pipeman.handle_queue_items.escalated.all"], require_any=True)
+        require_permission(
+            [
+                f"pipeman.handle_queue_items.escalated.{queue_name}",
+                "pipeman.handle_queue_items.escalated.all",
+            ],
+            require_any=True,
+        )
 
     # Delegate to controller
     return nodb.fetch_next_queue_item(
-        queue_name,
-        escalation_level,
-        app_id,
-        subqueue_name
+        queue_name, escalation_level, app_id, subqueue_name
     )
 
 
@@ -69,6 +75,7 @@ def close_qc_queue_item(queue_uuid: str, nodb: NODBController = None):
 @injector.inject
 def download_file(queue_uuid: str, nodb: NODBController = None):
     return nodb.download_file(queue_uuid)
+
 
 @desktop.route("/internal/queues/<queue_uuid>/file-info", methods=["POST"])
 @security_check("pipeman.view_file_info")
@@ -107,10 +114,7 @@ def fetch_working_record(record_uuid: str, nodb: NODBController = None):
 @api_error_handling
 @injector.inject
 def save_working_record(record_uuid: str, nodb: NODBController = None):
-    return nodb.save_record_actions(
-        record_uuid,
-        json_param("actions")
-    )
+    return nodb.save_record_actions(record_uuid, json_param("actions"))
 
 
 @desktop.route("/internal/queues/<queue_uuid>/observations", methods=["GET"])
@@ -133,7 +137,7 @@ def fetch_observation(record_uuid: str, record_date: str, nodb: NODBController =
 @security_check("pipeman.view_platforms")
 @api_error_handling
 @injector.inject
-def find_platform_by_uuid( nodb: NODBController = None):
+def find_platform_by_uuid(nodb: NODBController = None):
     return nodb.fetch_platform(json_param("platform_uuid", coerce=str))
 
 
@@ -156,8 +160,12 @@ def create_platform_record(nodb: NODBController = None):
         platform_name=json_param("platform_name", coerce=str, default=None),
         platform_id=json_param("platform_id", coerce=str, default=None),
         platform_type=json_param("platform_type", coerce=str, default=None),
-        start_date=json_param("start_date", coerce=AwareDateTime.fromisoformat, default=None),
-        end_date=json_param("end_date", coerce=AwareDateTime.fromisoformat, default=None),
+        start_date=json_param(
+            "start_date", coerce=AwareDateTime.fromisoformat, default=None
+        ),
+        end_date=json_param(
+            "end_date", coerce=AwareDateTime.fromisoformat, default=None
+        ),
         ship_code=json_param("ship_code", coerce=str, default=None),
         status=json_param("status", coerce=PlatformStatus),
         meds_id=json_param("meds_id", coerce=str),
@@ -166,7 +174,9 @@ def create_platform_record(nodb: NODBController = None):
         skip_land_check=json_param("skip_land_check", coerce=bool, default=False),
         mandatory_review=json_param("mandatory_review", coerce=bool, default=False),
         dedupe_time_window=json_param("dedupe_time_window", coerce=float, default=None),
-        dedupe_distance_window=json_param("dedupe_distance_window", coerce=float, default=None),
+        dedupe_distance_window=json_param(
+            "dedupe_distance_window", coerce=float, default=None
+        ),
         top_speed=json_param("top_speed", coerce=str, default=None),
         map_to_uuid=json_param("map_to_uuid", coerce=str, default=None),
     )
@@ -184,8 +194,12 @@ def update_platform_record(platform_uuid: str, nodb: NODBController = None):
         platform_name=json_param("platform_name", coerce=str, default=None),
         platform_id=json_param("platform_id", coerce=str, default=None),
         platform_type=json_param("platform_type", coerce=str, default=None),
-        start_date=json_param("start_date", coerce=AwareDateTime.fromisoformat, default=None),
-        end_date=json_param("end_date", coerce=AwareDateTime.fromisoformat, default=None),
+        start_date=json_param(
+            "start_date", coerce=AwareDateTime.fromisoformat, default=None
+        ),
+        end_date=json_param(
+            "end_date", coerce=AwareDateTime.fromisoformat, default=None
+        ),
         status=json_param("status", coerce=PlatformStatus),
         ship_code=json_param("ship_code", coerce=str, default=None),
         meds_id=json_param("meds_id", coerce=str),
@@ -194,10 +208,13 @@ def update_platform_record(platform_uuid: str, nodb: NODBController = None):
         skip_land_check=json_param("skip_land_check", coerce=bool, default=False),
         mandatory_review=json_param("mandatory_review", coerce=bool, default=False),
         dedupe_time_window=json_param("dedupe_time_window", coerce=float, default=None),
-        dedupe_distance_window=json_param("dedupe_distance_window", coerce=float, default=None),
+        dedupe_distance_window=json_param(
+            "dedupe_distance_window", coerce=float, default=None
+        ),
         top_speed=json_param("top_speed", coerce=str, default=None),
         map_to_uuid=json_param("map_to_uuid", coerce=str, default=None),
     )
+
 
 @desktop.route("/internal/platforms/search", methods=["GET"])
 @security_check("pipeman.view_platforms")
@@ -209,6 +226,8 @@ def search_platforms(nodb: NODBController = None):
         wigos_id=json_param("wigos_id", coerce=str, default=None),
         platform_id=json_param("platform_id", coerce=str, default=None),
         platform_name=json_param("platform_name", coerce=str, default=None),
-        time_frame=json_param("time_frame", coerce=AwareDateTime.fromisoformat, default=None),
+        time_frame=json_param(
+            "time_frame", coerce=AwareDateTime.fromisoformat, default=None
+        ),
         ship_code=json_param("ship_code", coerce=str, default=None),
     )

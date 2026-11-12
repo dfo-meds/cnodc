@@ -1,8 +1,8 @@
+import flask
+from autoinject import injector
+
 from gcflask.i18n_url import MultiLanguageBlueprint
 from gcflask.security import web_error_handling
-from autoinject import injector
-import flask
-
 from nodb import NODB
 from nodb.workflow import NODBUploadWorkflow
 
@@ -15,22 +15,23 @@ status = MultiLanguageBlueprint("status", __name__)
 def dashboard(nodb: NODB):
     with nodb as db:
         processes = [
-            process
-            for process in db.fetch_processes()
-            if process['exited'] != 'Y'
+            process for process in db.fetch_processes() if process["exited"] != "Y"
         ]
         items = db.fetch_queue_summary()
         workflow_links = []
         for tag in db.fetch_queue_tags():
-            workflow_links.append((tag, flask.url_for("status.status", workflow_name=tag)))
+            workflow_links.append(
+                (tag, flask.url_for("status.status", workflow_name=tag))
+            )
         return flask.render_template(
             "status.html",
             title="Pipeman Status",
             processes=processes,
             items=items,
             item_keys=sorted(items.keys()),
-            workflow_links=workflow_links
+            workflow_links=workflow_links,
         )
+
 
 @status.route("/internal/status/<workflow_name>", methods=["GET"])
 @web_error_handling

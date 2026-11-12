@@ -3,14 +3,13 @@ Provides a lazy-loading dictionary and list class.
 
 These objects only load their values upon demand.
 """
+
 import itertools
 import typing as t
 
 
-
 class LazyLoadDict[KeyType, UnloadedType, LoadedType]:
-
-    __slots__ = ('_dict', '_loaded')
+    __slots__ = ("_dict", "_loaded")
 
     def __init__(self):
         self._dict: dict[KeyType, UnloadedType | LoadedType] = {}
@@ -46,13 +45,13 @@ class LazyLoadDict[KeyType, UnloadedType, LoadedType]:
         try:
             all_keys = set(itertools.chain(self.keys(), other.keys()))
             return all(self[k] == other[k] for k in all_keys)
-        except (KeyError, AttributeError):
+        except KeyError, AttributeError:
             return False
 
     def keys(self) -> t.KeysView[KeyType]:
         return self._dict.keys()
 
-    def values(self) -> t.Generator[LoadedType, None, None]:
+    def values(self) -> t.Generator[LoadedType]:
         for key in self._dict.keys():
             yield self._load(key)
 
@@ -85,7 +84,12 @@ class LazyLoadDict[KeyType, UnloadedType, LoadedType]:
 
     def to_mapping(self) -> dict[KeyType, UnloadedType]:
         return {
-            x: (self._dict[x] if not self._loaded[x] else self._unload_item(self._dict[x])) for x in self._dict
+            x: (
+                self._dict[x]
+                if not self._loaded[x]
+                else self._unload_item(self._dict[x])
+            )
+            for x in self._dict
         }
 
     def _load_item(self, value: UnloadedType) -> LoadedType:
@@ -102,7 +106,7 @@ class LazyLoadDict[KeyType, UnloadedType, LoadedType]:
 class LazyLoadList[UnloadedType, LoadedType]:
     """This class holds a list of dictionaries and maps them into objects as they are needed."""
 
-    __slots__ = ('_list', '_loaded')
+    __slots__ = ("_list", "_loaded")
 
     def __init__(self):
         self._list: list[LoadedType | UnloadedType] = []
@@ -155,12 +159,12 @@ class LazyLoadList[UnloadedType, LoadedType]:
         raise NotImplementedError
 
     def iterate_with_load(self) -> t.Iterable[LoadedType]:
-        for idx in range(0, len(self._list)):
+        for idx in range(len(self._list)):
             yield self._load(idx)
 
     def to_mapping(self) -> list[UnloadedType]:
         l = []
-        for idx in range(0, len(self._list)):
+        for idx in range(len(self._list)):
             if not self._loaded[idx]:
                 l.append(self._list[idx])
             else:
@@ -172,4 +176,4 @@ class LazyLoadList[UnloadedType, LoadedType]:
 
     def from_mapping(self, map_: list):
         self._list = map_
-        self._loaded = [False for _ in range(0, len(self._list))]
+        self._loaded = [False for _ in range(len(self._list))]

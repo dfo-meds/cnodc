@@ -1,21 +1,21 @@
+from autoinject import injector
+
 from medsutil.ocproc2 import QCResult
+from medsutil.ocproc2.refs import ParentRecordRef
 from nodb.interface import NODB
 from pipeman.programs.qc.base import DeepDiveChecker
-from medsutil.ocproc2.refs import ParentRecordRef
-from autoinject import injector
 
 
 class GTSPPMandatoryManualReviewTest(DeepDiveChecker):
-
     nodb: NODB = None
 
     @injector.construct
     def __init__(self):
         super().__init__(
-            test_protocol='gtspp',
-            test_name='mandatory_review',
-            test_version='1.0',
-            test_tags=['GTSPP_5.1']
+            test_protocol="gtspp",
+            test_name="mandatory_review",
+            test_version="1.0",
+            test_tags=["GTSPP_5.1"],
         )
 
     def parent_record_check(self, ref: ParentRecordRef):

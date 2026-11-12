@@ -1,16 +1,17 @@
 import tkinter as tk
-import tkinter.ttk as ttk
 import tkinter.simpledialog as tksd
-import typing as t
-from medsutil import ocproc2
-import gcapp.i18n.base as i18n
+from tkinter import ttk
+
 from autoinject import injector
 
+import gcapp.i18n.base as i18n
+from medsutil import ocproc2
 from medsutil.awaretime import AwareDateTime
 from medsutil.iso_duration import ISODuration
 from pipeman_desktop.i18n import OCProc2Translator
 
 InputType = int | AwareDateTime | str | None
+
 
 def ask_ocproc2(*args, **kwargs) -> InputType:
     dialog = OCProc2Entry(*args, **kwargs)
@@ -19,20 +20,21 @@ def ask_ocproc2(*args, **kwargs) -> InputType:
 
 
 class OCProc2Entry(tksd.Dialog):
-
     ocproc_translator: OCProc2Translator = None
 
     @injector.construct
-    def __init__(self,
-                 parent,
-                 element_name: str,
-                 data_type: str,
-                 min_value: float | int | None = None,
-                 max_value: float | int | None = None,
-                 allowed_values: list[str | int] | None = None,
-                 current_element: ocproc2.SingleElement | None = None,
-                 button_label: t.Optional[str] = None):
-        self.button_label = button_label or i18n.tr('desktop.ok')
+    def __init__(
+        self,
+        parent,
+        element_name: str,
+        data_type: str,
+        min_value: float | None = None,
+        max_value: float | None = None,
+        allowed_values: list[str | int] | None = None,
+        current_element: ocproc2.SingleElement | None = None,
+        button_label: str | None = None,
+    ):
+        self.button_label = button_label or i18n.tr("desktop.ok")
         self.element_name = element_name
         self.data_type = data_type
         self.min_value = min_value
@@ -68,7 +70,13 @@ class OCProc2Entry(tksd.Dialog):
         if self.data_type in {"dateTimeStamp", "date"}:
             prompt.append(i18n.tr("dialog.ocproc2_entry.time_info"))
         if self.min_value is not None and self.max_value is not None:
-            prompt.append(i18n.tr("dialog.ocproc2_entry.range", min_value=self.min_value, max_value=self.max_value))
+            prompt.append(
+                i18n.tr(
+                    "dialog.ocproc2_entry.range",
+                    min_value=self.min_value,
+                    max_value=self.max_value,
+                )
+            )
         elif self.min_value is not None:
             prompt.append(i18n.tr("dialog.ocproc2_entry.min", min_value=self.min_value))
         elif self.max_value is not None:
@@ -80,7 +88,7 @@ class OCProc2Entry(tksd.Dialog):
             return ttk.Combobox(
                 parent,
                 textvariable=self.result_var,
-                values=[str(x) for x in self.allowed_values]
+                values=[str(x) for x in self.allowed_values],
             )
         else:
             return ttk.Entry(
@@ -102,9 +110,7 @@ class OCProc2Entry(tksd.Dialog):
         if self.allowed_values is not None:
             if result in self.allowed_values:
                 return True
-            if result.isdigit() and int(result) in self.allowed_values:
-                return True
-            return False
+            return result.isdigit() and int(result) in self.allowed_values
         elif self.data_type == "integer":
             return result.isdigit()
         elif self.data_type in {"dateTimeStamp", "date"}:

@@ -1,4 +1,3 @@
-import typing as t
 
 from nodb.queue import NODBQueueItem
 from pipeman.processing.payload_worker import BatchWorkflowWorker
@@ -8,12 +7,11 @@ from pipeman.processing.scheduled_task import ScheduledTask
 
 
 class ExampleWorker(BatchWorkflowWorker):
-
     def __init__(self, **kwargs):
         super().__init__(
-            process_name="some_unique_name",    # A unique name to identify this code
-            process_version="1.0",              # version number
-            **kwargs                            # additional parameters passed on start-up
+            process_name="some_unique_name",  # A unique name to identify this code
+            process_version="1.0",  # version number
+            **kwargs,  # additional parameters passed on start-up
         )
 
     # called when the worker is first built
@@ -23,10 +21,12 @@ class ExampleWorker(BatchWorkflowWorker):
     def before_queue_item(self, item: NODBQueueItem): ...
 
     # called to process a queue item and its payload
-    def process_payload(self, payload: BatchPayload) -> t.Optional[QueueItemResult]: ...
+    def process_payload(self, payload: BatchPayload) -> QueueItemResult | None: ...
 
     # called after a queue item has been processed and the result saved to the database
-    def after_queue_item(self, queue_item: NODBQueueItem, exception: Exception | None): ...
+    def after_queue_item(
+        self, queue_item: NODBQueueItem, exception: Exception | None
+    ): ...
 
     # called when the worker is shutting down
     def on_exit(self, exception: Exception = None): ...
@@ -40,12 +40,11 @@ class ExampleWorker(BatchWorkflowWorker):
 
 
 class ExampleTask(ScheduledTask):
-
     def __init__(self, **kwargs):
         super().__init__(
-            process_name="some_unique_name",    # A unique name to identify this code
-            process_version="1.0",              # version number
-            **kwargs                            # additional parameters passed on start-up
+            process_name="some_unique_name",  # A unique name to identify this code
+            process_version="1.0",  # version number
+            **kwargs,  # additional parameters passed on start-up
         )
 
         # you can set a delay (this is 3 hours after last run finished)

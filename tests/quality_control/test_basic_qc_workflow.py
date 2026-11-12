@@ -1,5 +1,5 @@
-from medsutil.ocproc2 import QCResult, SingleElement
 from medsutil import ocproc2
+from medsutil.ocproc2 import QCResult, SingleElement
 from medsutil.ocproc2.refs import ParentRecordRef
 from medsutil.ocproc2.util import RequiredQuality
 from pipeman.programs.qc.base import DeepDiveChecker
@@ -7,9 +7,10 @@ from tests.helpers.base_test_case import BaseTestCase
 
 
 class BoringParentRecordCheck(DeepDiveChecker):
-
     def __init__(self, rq: RequiredQuality):
-        super().__init__(test_protocol="boring", test_name="boring_parent", test_version="1.0")
+        super().__init__(
+            test_protocol="boring", test_name="boring_parent", test_version="1.0"
+        )
         self._rq = rq
 
     def parent_record_check(self, ref: ParentRecordRef):
@@ -20,7 +21,6 @@ class BoringParentRecordCheck(DeepDiveChecker):
 
 
 class TestBoringParentRecordCheck(BaseTestCase):
-
     def test_check_boring_fail_empty(self):
         pr = ocproc2.ParentRecord()
         checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
@@ -35,7 +35,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
         pr = ocproc2.ParentRecord()
         pr.metadata["Boring"] = 3
         checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
-        qc_result, flags = checker.run_record_check(pr, self.db)
+        qc_result, _ = checker.run_record_check(pr, self.db)
         self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
         self.assertIn("Boring", pr.metadata)
         self.assertNotIn("Quality", pr.metadata["Boring"].metadata)
@@ -45,7 +45,7 @@ class TestBoringParentRecordCheck(BaseTestCase):
         pr = ocproc2.ParentRecord()
         pr.metadata["Boring"] = 5
         checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
-        qc_result, flag = checker.run_record_check(pr, self.db)
+        qc_result, _ = checker.run_record_check(pr, self.db)
         self.assertIs(qc_result.result, QCResult.PASS)
         self.assertIn("Boring", pr.metadata)
         self.assertNotIn("Quality", pr.metadata["Boring"].metadata)
@@ -53,9 +53,11 @@ class TestBoringParentRecordCheck(BaseTestCase):
 
     def test_check_boring_skip_already_erroneous(self):
         pr = ocproc2.ParentRecord()
-        pr.metadata["Boring"] = ocproc2.SingleElement(None, Quality=SingleElement(4, TestProtocol="nodb"))
+        pr.metadata["Boring"] = ocproc2.SingleElement(
+            None, Quality=SingleElement(4, TestProtocol="nodb")
+        )
         checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
-        qc_result, flag = checker.run_record_check(pr, self.db)
+        qc_result, _ = checker.run_record_check(pr, self.db)
         self.assertIs(qc_result.result, QCResult.SKIP)
         self.assertIn("Boring", pr.metadata)
         self.assertNotIn("WorkingQuality", pr.metadata["Boring"].metadata)
@@ -63,9 +65,11 @@ class TestBoringParentRecordCheck(BaseTestCase):
 
     def test_check_boring_pass_while_dubious(self):
         pr = ocproc2.ParentRecord()
-        pr.metadata["Boring"] = ocproc2.SingleElement(5, Quality=SingleElement(3, TestProtocol="nodb"))
+        pr.metadata["Boring"] = ocproc2.SingleElement(
+            5, Quality=SingleElement(3, TestProtocol="nodb")
+        )
         checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
-        qc_result, flag = checker.run_record_check(pr, self.db)
+        qc_result, _ = checker.run_record_check(pr, self.db)
         self.assertIs(qc_result.result, QCResult.PASS)
         self.assertIn("Boring", pr.metadata)
         self.assertIn("WorkingQuality", pr.metadata["Boring"].metadata)
@@ -74,13 +78,13 @@ class TestBoringParentRecordCheck(BaseTestCase):
 
     def test_check_boring_fail_while_dubious(self):
         pr = ocproc2.ParentRecord()
-        pr.metadata["Boring"] = ocproc2.SingleElement(4, Quality=SingleElement(3, TestProtocol="nodb"))
+        pr.metadata["Boring"] = ocproc2.SingleElement(
+            4, Quality=SingleElement(3, TestProtocol="nodb")
+        )
         checker = BoringParentRecordCheck(RequiredQuality.NOT_ERRONEOUS)
-        qc_result, flag = checker.run_record_check(pr, self.db)
+        qc_result, _ = checker.run_record_check(pr, self.db)
         self.assertIs(qc_result.result, QCResult.MANUAL_REVIEW)
         self.assertIn("Boring", pr.metadata)
         self.assertIn("WorkingQuality", pr.metadata["Boring"].metadata)
         self.assertEqual(pr.metadata["Boring"].metadata["WorkingQuality"].value, 4)
         self.assertEqual(pr.metadata["Boring"].metadata["Quality"].value, 3)
-
-

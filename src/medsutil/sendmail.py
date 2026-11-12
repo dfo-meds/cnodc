@@ -1,4 +1,4 @@
-""" Support for sending emails.
+"""Support for sending emails.
 
 Emails can be sent in either "immediate" or "delayed" mode.
 
@@ -24,16 +24,17 @@ To send an email, inject EmailController where you need it and use either send_t
             self.emails.send_email("Subject", "Text", to_emails=["noone@example.com"])
 
 """
+
 import pathlib
 import ssl
-import typing as t
 import threading
+import typing as t
 
-from autoinject import injector, auto
 import zirconium as zr
 import zrlog
+from autoinject import auto, injector
 
-from medsutil.exceptions import exception_kwargs_for_email, CodedError
+from medsutil.exceptions import CodedError, exception_kwargs_for_email
 
 if t.TYPE_CHECKING:
     import email
@@ -41,14 +42,14 @@ if t.TYPE_CHECKING:
 
 
 class DelayedEmailController(t.Protocol):
-    """ A protocol that describes something which sends emails on delay. """
+    """A protocol that describes something which sends emails on delay."""
 
     def send_delayed(self, kwargs: dict) -> bool: ...
 
 
 @injector.register(DelayedEmailController)
 class DelayedEmailNotSupportedController:
-    """ The default method for delaying emails, which is not to delay them. """
+    """The default method for delaying emails, which is not to delay them."""
 
     def __init__(self): ...
 
@@ -59,7 +60,7 @@ class DelayedEmailNotSupportedController:
 
 @injector.injectable_global
 class EmailController:
-    """ Email controller responsible for sending emails. """
+    """Email controller responsible for sending emails."""
 
     config: zr.ApplicationConfig = auto()
     delayed: DelayedEmailController = auto()
@@ -70,7 +71,9 @@ class EmailController:
         self._connect_args: dict[str, str | int | None | float | SSLContext] = {
             "host": self.config.as_str(("email", "host"), default=""),
             "port": self.config.as_int(("email", "port"), default=0),
-            'local_hostname': self.config.as_str(("email", "local_hostname"), default=None),
+            "local_hostname": self.config.as_str(
+                ("email", "local_hostname"), default=None
+            ),
             "timeout": self.config.as_float(("email", "timeout_seconds"), default=5.0),
         }
         self._login_args: dict[str, str | None] = {
@@ -78,36 +81,51 @@ class EmailController:
             "password": self.config.as_str(("email", "password"), default=None),
         }
         self._use_ssl: bool = self.config.as_bool(("email", "use_ssl"), default=False)
-        self._start_tls: bool = self.config.as_bool(("email", "start_tls"), default=False) and not self._use_ssl
-        self._from_email: str = self.config.as_str(("email", "send_from"), default="no-reply@example.com")
-        self._dummy_send: bool = self.config.as_bool(("email", "no_send"), default=False) or not self._connect_args['host']
-        self.admin_emails: list[str] = self.config.as_list(("email", "admin_emails"), default=[])
+        self._start_tls: bool = (
+            self.config.as_bool(("email", "start_tls"), default=False)
+            and not self._use_ssl
+        )
+        self._from_email: str = self.config.as_str(
+            ("email", "send_from"), default="no-reply@example.com"
+        )
+        self._dummy_send: bool = (
+            self.config.as_bool(("email", "no_send"), default=False)
+            or not self._connect_args["host"]
+        )
+        self.admin_emails: list[str] = self.config.as_list(
+            ("email", "admin_emails"), default=[]
+        )
         self._template_cache = {}
         self._lock = threading.Lock()
         self._email_jinja_env = None
         if self._use_ssl:
             import ssl
-            self._connect_args['context'] = ssl.create_default_context()
+
+            self._connect_args["context"] = ssl.create_default_context()
 
     def send_error_report(self, ex: BaseException, immediate: bool = True):
-        """ Sends an error report to the administrators. """
+        """Sends an error report to the administrators."""
         self.send_template(
             "error",
             to_emails=self.admin_emails,
             immediate=immediate,
-            **exception_kwargs_for_email(ex)
+            **exception_kwargs_for_email(ex),
         )
 
-    def send_template(self,
-                      template_name: str,
-                      template_lang: str,
-                      to_emails: list[str] | str | None = None,
-                      cc_emails: list[str] | str | None = None,
-                      bcc_emails: list[str] | str | None = None,
-                      immediate: bool = False,
-                      **template_args: t.Any):
-        """ Sends an email based on the given template to the given email addresses. """
-        subject, message_txt, message_html = self._get_template_content(template_name, template_lang, template_args)
+    def send_template(
+        self,
+        template_name: str,
+        template_lang: str,
+        to_emails: list[str] | str | None = None,
+        cc_emails: list[str] | str | None = None,
+        bcc_emails: list[str] | str | None = None,
+        immediate: bool = False,
+        **template_args: t.Any,
+    ):
+        """Sends an email based on the given template to the given email addresses."""
+        subject, message_txt, message_html = self._get_template_content(
+            template_name, template_lang, template_args
+        )
         return self.send_email(
             subject,
             message_txt,
@@ -115,59 +133,66 @@ class EmailController:
             to_emails,
             cc_emails,
             bcc_emails,
-            immediate
+            immediate,
         )
 
-    def _get_template_content(self, name: str, lang: str, kwargs: dict[str, t.Any]) -> tuple[str, str, str]:
-        """ Retrieves the content of an email from the file. """
+    def _get_template_content(
+        self, name: str, lang: str, kwargs: dict[str, t.Any]
+    ) -> tuple[str, str, str]:
+        """Retrieves the content of an email from the file."""
         message_txt = self._render_template_content(name, lang, "txt", kwargs)
         message_html = self._render_template_content(name, lang, "html", kwargs)
-        subject = self._render_template_content(name + ".subject", lang, "txt", kwargs).strip("\r\n\t ")
+        subject = self._render_template_content(
+            name + ".subject", lang, "txt", kwargs
+        ).strip("\r\n\t ")
         return (subject or f"{name}"), message_txt, message_html
 
-    def _render_template_content(self, name: str, lang: str, extension: str, kwargs: dict[str, t.Any]) -> str:
-        """ Renders a jinja2 template for email content. """
+    def _render_template_content(
+        self, name: str, lang: str, extension: str, kwargs: dict[str, t.Any]
+    ) -> str:
+        """Renders a jinja2 template for email content."""
         import jinja2
+
         base_path = pathlib.Path(__file__).absolute().parent / ".email_templates"
         if self._email_jinja_env is None:
-            extra_template_folders = self.config.as_list(("email", "template_folders"), default=None)
+            extra_template_folders = self.config.as_list(
+                ("email", "template_folders"), default=None
+            )
             if extra_template_folders:
                 extra_template_folders = [
-                    pathlib.Path(x)
-                    for x in reversed(extra_template_folders)
+                    pathlib.Path(x) for x in reversed(extra_template_folders)
                 ]
             else:
                 extra_template_folders = []
             self._email_jinja_env = jinja2.Environment(
                 loader=jinja2.FileSystemLoader([base_path, *extra_template_folders]),
-                autoescape=jinja2.select_autoescape()
+                autoescape=jinja2.select_autoescape(),
             )
-        file_name_options = [
-            f"{name}.{lang}.{extension}",
-            f"{name}.{extension}"
-        ]
+        file_name_options = [f"{name}.{lang}.{extension}", f"{name}.{extension}"]
         try:
             template = self._email_jinja_env.select_template(file_name_options)
             return template.render(**kwargs)
         except jinja2.TemplatesNotFound:
-            return ''
+            return ""
 
-    def send_email(self,
-                   subject: str,
-                   message_txt: str | None = None,
-                   message_html: str | None = None,
-                   to_emails: list[str] | str | None = None,
-                   cc_emails: list[str] | str | None = None,
-                   bcc_emails: list[str] | str | None = None,
-                   immediate: bool = False) -> bool:
-        """ Sends an email with the given content to the given emails. """
+    def send_email(
+        self,
+        subject: str,
+        message_txt: str | None = None,
+        message_html: str | None = None,
+        to_emails: list[str] | str | None = None,
+        cc_emails: list[str] | str | None = None,
+        bcc_emails: list[str] | str | None = None,
+        immediate: bool = False,
+    ) -> bool:
+        """Sends an email with the given content to the given emails."""
         kwargs = {
             "to_emails": to_emails,
             "subject": subject.replace("\r", "").replace("\n", " "),
             "message_txt": message_txt,
             "message_html": message_html,
             "cc_emails": cc_emails,
-            "bcc_emails": bcc_emails
+            "bcc_emails": bcc_emails,
         }
         if immediate:
             return self.direct_send_email(**kwargs)
@@ -175,11 +200,11 @@ class EmailController:
             return self.delayed_send_email(**kwargs)
 
     def delayed_send_email(self, **kwargs) -> bool:
-        """ Delayed email send. """
+        """Delayed email send."""
         return self.delayed.send_delayed(kwargs)
 
     def direct_send_email(self, **kwargs) -> bool:
-        """ Direct email send. """
+        """Direct email send."""
         try:
             return self.bare_direct_send_email(**kwargs)
         except CodedError:
@@ -187,22 +212,24 @@ class EmailController:
             return self.delayed_send_email(**kwargs)
 
     def direct_send_email_from_delayed(self, **kwargs) -> bool:
-        """ Direct send email from delayed. """
+        """Direct send email from delayed."""
         try:
             return self.bare_direct_send_email(**kwargs)
         except CodedError:
             self._log.exception("Failed to send an email (delayed)")
             return False
 
-    def bare_direct_send_email(self,
-                               to_emails: list[str] | str | None,
-                               subject: str,
-                               message_txt: str = None,
-                               message_html: str = None,
-                               cc_emails: list[str] | str | None = None,
-                               bcc_emails: list[str] | str | None = None,
-                               _no_output: bool = False) -> bool:
-        """ Actually sends the email. """
+    def bare_direct_send_email(
+        self,
+        to_emails: list[str] | str | None,
+        subject: str,
+        message_txt: str = None,
+        message_html: str = None,
+        cc_emails: list[str] | str | None = None,
+        bcc_emails: list[str] | str | None = None,
+        _no_output: bool = False,
+    ) -> bool:
+        """Actually sends the email."""
 
         try:
             to_addrs = self._standardize_email_list(to_emails)
@@ -212,51 +239,63 @@ class EmailController:
                 to_addrs.extend(self._standardize_email_list(bcc_emails))
 
             from email.message import EmailMessage
+
             msg = EmailMessage()
-            msg['Subject'] = subject
-            msg['To'] = self._standardize_email_list(to_emails)
+            msg["Subject"] = subject
+            msg["To"] = self._standardize_email_list(to_emails)
             if cc_emails:
-                msg['CC'] = self._standardize_email_list(cc_emails)
-            msg['From'] = self._from_email
+                msg["CC"] = self._standardize_email_list(cc_emails)
+            msg["From"] = self._from_email
             msg.set_content(message_txt)
             if message_html:
-                msg.add_alternative(message_html, subtype='html')
+                msg.add_alternative(message_html, subtype="html")
 
             if not self._dummy_send:
                 return self._send_smtp_message(msg, to_addrs)
             else:
-                self._log.notice("Email system is disable, but message would have been sent to [%s]:\n%s", to_addrs, msg)
+                self._log.notice(
+                    "Email system is disable, but message would have been sent to [%s]:\n%s",
+                    to_addrs,
+                    msg,
+                )
                 return True
         except (ValueError, TypeError) as e:
-            raise CodedError("An error occurred while building the email message", 3000, code_space='SMTP') from e
+            raise CodedError(
+                "An error occurred while building the email message",
+                3000,
+                code_space="SMTP",
+            ) from e
 
     def _send_smtp_message(self, msg: email.message.EmailMessage, to_addrs: list[str]):
-        """ Sends an email using SMTP """
+        """Sends an email using SMTP"""
         if not to_addrs:
             return False
         with self._lock:
             import smtplib
+
             try:
                 smtp = smtplib.SMTP_SSL if self._use_ssl else smtplib.SMTP
                 with smtp(**self._connect_args) as smtp:
                     if self._start_tls:
                         smtp.starttls(context=ssl.create_default_context())
-                    if self._login_args['user'] or self._login_args['password']:
+                    if self._login_args["user"] or self._login_args["password"]:
                         smtp.login(**self._login_args)
                     smtp.send_message(msg, to_addrs=to_addrs)
                     return True
             except (
-                    smtplib.SMTPConnectError,
-                    smtplib.SMTPServerDisconnected,
-                    TimeoutError
+                smtplib.SMTPConnectError,
+                smtplib.SMTPServerDisconnected,
+                TimeoutError,
             ) as ex:
-                raise CodedError(str(ex), 1000, code_space="SMTP", is_transient=True) from ex
+                raise CodedError(
+                    str(ex), 1000, code_space="SMTP", is_transient=True
+                ) from ex
 
             except Exception as ex:
                 raise CodedError(str(ex), 2000, code_space="SMTP") from ex
 
     def _standardize_email_list(self, emails: list[str] | str | None) -> list[str]:
-        """ Standardizes an email list"""
+        """Standardizes an email list"""
         if emails is None:
             return []
         else:

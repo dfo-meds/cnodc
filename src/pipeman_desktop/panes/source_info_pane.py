@@ -1,20 +1,19 @@
+import tkinter as tk
+import typing as t
+from tkinter import ttk
+
+from autoinject import injector
+
 from gcapp import i18n
 from medsutil import json
 from medsutil.awaretime import AwareDateTime
 from pipeman_desktop.client.local_db import LocalDatabase
 from pipeman_desktop.components.scrollable import ScrollableTreeview
 from pipeman_desktop.panes.base_pane import BasePane
-import typing as t
-import tkinter as tk
-import tkinter.ttk as ttk
-
-from autoinject import injector
-
 from pipeman_desktop.state import ApplicationState, DisplayChange
 
 
 class SourceInfoPane(BasePane):
-
     local_db: LocalDatabase = None
 
     @injector.construct
@@ -68,45 +67,58 @@ class SourceInfoPane(BasePane):
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
         if change_type & DisplayChange.LANGUAGE:
-            for _, treeview in self._messages.items():
+            for treeview in self._messages.values():
                 treeview.set_header_text("time", i18n.tr("tree.source_messages.time"))
-                treeview.set_header_text("message", i18n.tr("tree.source_messages.message"))
-                treeview.set_header_text("source", i18n.tr("tree.source_messages.source"))
+                treeview.set_header_text(
+                    "message", i18n.tr("tree.source_messages.message")
+                )
+                treeview.set_header_text(
+                    "source", i18n.tr("tree.source_messages.source")
+                )
                 treeview.set_header_text("type", i18n.tr("tree.source_messages.type"))
-            for _, info in self._info.items():
+            for info in self._info.values():
                 info.set_header_text("property", i18n.tr("tree.source_info.property"))
                 info.set_header_text("value", i18n.tr("tree.source_info.value"))
             if self._pane_id is not None:
-                self.app.batch_bottom.tab(self._pane_id, text=i18n.tr("pane.source_file"))
+                self.app.batch_bottom.tab(
+                    self._pane_id, text=i18n.tr("pane.source_file")
+                )
             self._rebuild_source_info()
         if change_type & DisplayChange.SOURCE_FILE:
             self._rebuild_source_info()
 
     def _add_message(self, idx: int, history_entry: dict[str, str]):
         row = (
-            AwareDateTime.fromisoformat(history_entry['rpt']).strftime("%Y-%m-%d %H:%M"),
+            AwareDateTime.fromisoformat(history_entry["rpt"]).strftime(
+                "%Y-%m-%d %H:%M"
+            ),
             history_entry["msg"],
             f"{history_entry['src']} {history_entry['ver']} [{history_entry['ins']}]",
-            i18n.tr(f"source_message.{history_entry['lvl'].lower()}")
+            i18n.tr(f"source_message.{history_entry['lvl'].lower()}"),
         )
-        for _, treeview in self._messages.items():
+        for treeview in self._messages.values():
             treeview.append_item(str(idx), values=row)
 
     def _add_property(self, property_name: str, value: str):
-        for _, info in self._info.items():
+        for info in self._info.values():
             info.append_item(property_name, values=(property_name, value))
 
     def _rebuild_source_info(self):
-        for _, treeview in self._messages.items():
+        for treeview in self._messages.values():
             treeview.clear_items()
-        for _, info in self._info.items():
+        for info in self._info.values():
             info.clear_items()
         if self.app.state.current_file_id is not None:
             with self.local_db.cursor() as cur:
-                cur.execute("SELECT source_uuid, filename, file_path, source, program, history, received_date, metadata, is_payload from files WHERE rowid = ?", (self.app.state.current_file_id,))
+                cur.execute(
+                    "SELECT source_uuid, filename, file_path, source, program, history, received_date, metadata, is_payload from files WHERE rowid = ?",
+                    (self.app.state.current_file_id,),
+                )
                 row = cur.fetchone()
                 if row:
-                    history: list[dict[str, str]] = t.cast(list[dict[str, str]], json.load_list(row[5]))
+                    history: list[dict[str, str]] = t.cast(
+                        list[dict[str, str]], json.load_list(row[5])
+                    )
                     for idx, history_entry in enumerate(history):
                         self._add_message(idx, history_entry)
                     self._add_property(i18n.tr("file_property.source_uuid"), row[0])
@@ -115,6 +127,3 @@ class SourceInfoPane(BasePane):
                     self._add_property(i18n.tr("file_property.file_path"), row[2])
                     self._add_property(i18n.tr("file_property.source"), row[3])
                     self._add_property(i18n.tr("file_property.program"), row[4])
-
-
-

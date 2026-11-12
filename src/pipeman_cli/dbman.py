@@ -12,7 +12,9 @@ def db(): ...
 @click.argument("output_path")
 def doc(output_path):
     import pathlib
+
     from nodb.db.util import DatabaseDocumenter
+
     dbdoc = DatabaseDocumenter()
     schema = dbdoc.build()
     schema.build_html(pathlib.Path(output_path))
@@ -23,35 +25,54 @@ def doc(output_path):
 def queue_errors(nodb: NODB = None):
     with nodb as db:
         with db.cursor() as cur:
-            cur.execute("SELECT queue_name, queue_uuid, db_modified_date FROM nodb_queues WHERE status = 'ERROR' ORDER BY queue_name ASC, db_modified_date DESC")
+            cur.execute(
+                "SELECT queue_name, queue_uuid, db_modified_date FROM nodb_queues WHERE status = 'ERROR' ORDER BY queue_name ASC, db_modified_date DESC"
+            )
             print("UUID,QUEUE,ERRORED_SINCE")
             for row in cur.fetch_stream(50):
                 print(f"{row[1]},{row[0]},{row[2]}")
 
 
 @db.command(help="Output locked queue")
-@click.option("--locked-since", default=None, type=str, help="Enter a time in ISO format - only items that have been locked since before this date will be shown. If the timezone is omitted, the current system time is used. If omitted, defaults to using --locked-for to calculate a time.")
-@click.option("--locked-for", default=24*3600, type=int, help="Enter a time duration in seconds - only items that have been locked this long will be shown. Overridden by --locked-since. Defaults to 24 hours")
+@click.option(
+    "--locked-since",
+    default=None,
+    type=str,
+    help="Enter a time in ISO format - only items that have been locked since before this date will be shown. If the timezone is omitted, the current system time is used. If omitted, defaults to using --locked-for to calculate a time.",
+)
+@click.option(
+    "--locked-for",
+    default=24 * 3600,
+    type=int,
+    help="Enter a time duration in seconds - only items that have been locked this long will be shown. Overridden by --locked-since. Defaults to 24 hours",
+)
 @injector.inject
-def queue_locked(nodb: NODB = None, locked_since: str | None = None, locked_for: int = 24 * 3600):
-    from medsutil.awaretime import AwareDateTime
+def queue_locked(
+    nodb: NODB = None, locked_since: str | None = None, locked_for: int = 24 * 3600
+):
     import datetime
+
+    from medsutil.awaretime import AwareDateTime
+
     if locked_since is None:
         ls = AwareDateTime.now() - datetime.timedelta(seconds=locked_for)
     else:
         ls = AwareDateTime.fromisoformat(locked_since)
     with nodb as db:
         with db.cursor() as cur:
-            cur.execute("SELECT queue_name, queue_uuid, locked_since, locked_by FROM nodb_queues WHERE status = 'LOCKED' AND locked_since <= %s ORDER BY queue_name ASC, locked_since DESC", [
-                ls
-            ])
+            cur.execute(
+                "SELECT queue_name, queue_uuid, locked_since, locked_by FROM nodb_queues WHERE status = 'LOCKED' AND locked_since <= %s ORDER BY queue_name ASC, locked_since DESC",
+                [ls],
+            )
             print("UUID,QUEUE,LOCKED_SINCE,LOCKED_BY")
             for row in cur.fetch_stream(50):
                 print(f"{row[1]},{row[0]},{row[2]},{row[3]}")
 
 
-@db.command(help="Unlock one or more queue items specified by QUEUE_UUID (separate multiple items with semi-colons)")
-@click.argument('queue_uuid')
+@db.command(
+    help="Unlock one or more queue items specified by QUEUE_UUID (separate multiple items with semi-colons)"
+)
+@click.argument("queue_uuid")
 @injector.inject
 def unlock(queue_uuid: str, nodb: NODB = None):
     if ";" in queue_uuid:
@@ -60,7 +81,9 @@ def unlock(queue_uuid: str, nodb: NODB = None):
         uuids = [queue_uuid]
     with nodb as db:
         for uuid in uuids:
-            db.fast_update_queue_status(uuid, QueueStatus.UNLOCKED, require_locked=False)
+            db.fast_update_queue_status(
+                uuid, QueueStatus.UNLOCKED, require_locked=False
+            )
         db.commit()
 
 
@@ -69,17 +92,20 @@ def unlock(queue_uuid: str, nodb: NODB = None):
 def download_errors(nodb: NODB = None):
     with nodb as db:
         with db.cursor() as cur:
-            cur.execute("SELECT file_path, modified_date, scanned_date, was_processed, was_errored FROM nodb_scanned_files WHERE was_errored = TRUE")
+            cur.execute(
+                "SELECT file_path, modified_date, scanned_date, was_processed, was_errored FROM nodb_scanned_files WHERE was_errored = TRUE"
+            )
             print("FILE_PATH,MODIFIED_DATE")
             for row in cur.fetch_stream(50):
                 print(f"{row[0]},{row[1]}")
 
 
 @db.command(help="Rerun a file download")
-@click.argument('file_path')
+@click.argument("file_path")
 @injector.inject
 def redownload(file_path: str, nodb: NODB = None):
-    with nodb as db:
-        with db.cursor() as cur:
-            cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
-            db.commit()
+    with nodb as db, db.cursor() as cur:
+        cur.execute(
+            "DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path]
+        )
+        db.commit()

@@ -4,6 +4,7 @@ import traceback
 
 import click
 
+
 @click.group()
 def main():
     pass
@@ -14,6 +15,7 @@ def main():
 @click.argument("output_file")
 def convert(original_file, output_file):
     from pipeman.programs.glider.ego_convert import OpenGliderConverter
+
     OpenGliderConverter.build().convert(original_file, output_file)
 
 
@@ -21,7 +23,11 @@ def convert(original_file, output_file):
 @click.argument("original_dir")
 @click.argument("output_dir")
 def convert_all(original_dir, output_dir):
-    from pipeman.programs.glider.ego_convert import OpenGliderConverter, validate_ego_glider_file
+    from pipeman.programs.glider.ego_convert import (
+        OpenGliderConverter,
+        validate_ego_glider_file,
+    )
+
     out_dir = pathlib.Path(output_dir)
     out_dir.mkdir(exist_ok=True, parents=True)
     for file in os.scandir(original_dir):
@@ -33,13 +39,13 @@ def convert_all(original_dir, output_dir):
         try:
             validate_ego_glider_file(file.path, {}, file.name)
             OpenGliderConverter.build().convert(file.path, out_path)
-        except KeyboardInterrupt as ex:
+        except KeyboardInterrupt:
             out_path.unlink(True)
-            raise ex
+            raise
         except Exception as ex:
             print(f"Error when converting {file.name}")
             with open(out_dir / f"{file.name}.error.txt", "w") as h:
-                h.write(f"{type(ex)}: {str(ex)}\n")
+                h.write(f"{type(ex)}: {ex!s}\n")
                 h.write(traceback.format_exc())
             out_path.unlink(True)
 
@@ -48,7 +54,14 @@ def convert_all(original_dir, output_dir):
 @click.argument("original_file")
 @click.argument("output_file")
 def dump_metadata(original_file, output_file):
+    from medsutil import json
     from pipeman.programs.glider.ego_convert import OpenGliderConverter
-    import medsutil.json as json
+
     with open(output_file, "wb", encoding="utf-8") as h:
-        h.write(json.dumpb(OpenGliderConverter.build().build_metadata(original_file).build_request_body()))
+        h.write(
+            json.dumpb(
+                OpenGliderConverter.build()
+                .build_metadata(original_file)
+                .build_request_body()
+            )
+        )

@@ -1,4 +1,5 @@
-""" Some nice structures for organizing menus """
+"""Some nice structures for organizing menus"""
+
 import typing as t
 
 import flask
@@ -9,7 +10,7 @@ from gcapp.i18n.base import BaseDString
 
 
 class BaseNav:
-    """ Base class for navigation. """
+    """Base class for navigation."""
 
     def __init__(self):
         self.children: dict[str, NavItem] = {}
@@ -21,7 +22,7 @@ class BaseNav:
         return markupsafe.Markup(self.markup())
 
     def append_at(self, position: list[str], item: NavItem):
-        """ Appends a child node at the position within this menu. """
+        """Appends a child node at the position within this menu."""
         position_this_level = position.pop(0)
         if not position:
             if item.order is None:
@@ -34,28 +35,30 @@ class BaseNav:
             self.children[position_this_level].append_at(position, item)
 
     def markup(self) -> str:
-        """ Generates markup """
+        """Generates markup"""
         raise NotImplementedError
 
     def sublist_markup(self) -> str:
-        """ Generates markup for all the child items """
+        """Generates markup for all the child items"""
         if not self.children:
-            return ''
+            return ""
         s = '<ul class="menu">'
         for child in sorted(self.children.values(), key=lambda x: x.order):
             s += child.markup()
-        s += '</ul>'
+        s += "</ul>"
         return s
 
 
 class NavItem(BaseNav):
-    """ An item in the menu"""
+    """An item in the menu"""
 
-    def __init__(self,
-                 text: str | BaseDString,
-                 link: str,
-                 order: int | None = None,
-                 require_permissions: t.Sequence[str] | None = None):
+    def __init__(
+        self,
+        text: str | BaseDString,
+        link: str,
+        order: int | None = None,
+        require_permissions: t.Sequence[str] | None = None,
+    ):
         super().__init__()
         self.text = text
         self.link = link
@@ -63,7 +66,7 @@ class NavItem(BaseNav):
         self.permissions = require_permissions
 
     def check_access(self) -> bool:
-        """ Checks if we have access to this item. """
+        """Checks if we have access to this item."""
         if flask.has_request_context():
             if not self.permissions:
                 return True
@@ -71,18 +74,18 @@ class NavItem(BaseNav):
         return False
 
     def markup(self) -> str:
-        """ Generates markup, if we have access. """
-        s = ''
+        """Generates markup, if we have access."""
+        s = ""
         if self.check_access():
-            s = '<li>'
+            s = "<li>"
             s += f'<a href="{markupsafe.escape(flask.url_for(self.link))}">{markupsafe.escape(self.text)}</a>'
             s += self.sublist_markup()
-            s += '</li>'
+            s += "</li>"
         return s
 
 
 class NavMenu(BaseNav):
-    """ Top-level container menu that just generates the items of its children. """
+    """Top-level container menu that just generates the items of its children."""
 
     def markup(self) -> str:
         return self.sublist_markup()

@@ -1,28 +1,29 @@
-""" Support for translated routes in Flask.
+"""Support for translated routes in Flask.
 
-    Flask routes can be documented in a YAML file (listed under :confval:`gcflask.i18n_url_files`).
+Flask routes can be documented in a YAML file (listed under :confval:`gcflask.i18n_url_files`).
 
-    The special blueprint class py:class:`gcflask.i18n_url.MultiLanguageBlueprint` checks for
-    available translations and registers the same handler under all blueprints found. It also
-    tracks the language as a URL parameter so that py:func:`flask.url_for` will return the correct
-    URL for the current language.
+The special blueprint class py:class:`gcflask.i18n_url.MultiLanguageBlueprint` checks for
+available translations and registers the same handler under all blueprints found. It also
+tracks the language as a URL parameter so that py:func:`flask.url_for` will return the correct
+URL for the current language.
 
 """
+
 import pathlib
 import typing as t
 
-import yaml
 import flask
-from autoinject import injector, auto
+import yaml
 import zirconium as zr
+from autoinject import auto, injector
 from werkzeug.routing import Rule
 
-from gcapp.i18n.base import TranslationManager, LanguageDetector
+from gcapp.i18n.base import LanguageDetector, TranslationManager
 
 
 @injector.injectable_global
 class PathMapper:
-    """ A class responsible for mapping route names. """
+    """A class responsible for mapping route names."""
 
     cfg: zr.ApplicationConfig = auto()
 
@@ -41,15 +42,17 @@ class PathMapper:
                         else:
                             self._path_map = path_map[p] or {}
 
-    def get_path_translations(self, path: str) -> t.Generator[tuple[str, str], None, None]:
-        """ Iterates over all the pairs of languages and translated paths for a given path. """
-        if path in self._path_map and self._path_map[path]:
+    def get_path_translations(
+        self, path: str
+    ) -> t.Generator[tuple[str, str]]:
+        """Iterates over all the pairs of languages and translated paths for a given path."""
+        if self._path_map.get(path):
             for lang in self._path_map[path]:
                 yield lang, self._path_map[path][lang]
 
 
 class MultiLanguageBlueprint(flask.Blueprint):
-    """ A derivative of Blueprint that handles multilingual path mapping. """
+    """A derivative of Blueprint that handles multilingual path mapping."""
 
     mapper: PathMapper = auto()
 
@@ -58,7 +61,7 @@ class MultiLanguageBlueprint(flask.Blueprint):
         super().__init__(*args, **kwargs)
 
     def _register_i18n_route(self, fn: t.Callable, route: str, **kwargs):
-        """ Registers a translatable route. """
+        """Registers a translatable route."""
         all_langs = []
 
         # handle all the languages that have a specific translation
@@ -74,11 +77,15 @@ class MultiLanguageBlueprint(flask.Blueprint):
         else:
             super().route(route, **kwargs)(fn)
 
-    def route[**R, S](self, route: str, **kwargs) -> t.Callable[[t.Callable[R, S]], t.Callable[R, S]]:
-        """ Overrides the decorator for route() by checking for any translated paths as well. """
+    def route[**R, S](
+        self, route: str, **kwargs
+    ) -> t.Callable[[t.Callable[R, S]], t.Callable[R, S]]:
+        """Overrides the decorator for route() by checking for any translated paths as well."""
+
         def wrapper[**P, Q](fn: t.Callable[P, Q]) -> t.Callable[P, Q]:
             self._register_i18n_route(fn, route, **kwargs)
             return fn
+
         return wrapper
 
 
@@ -106,16 +113,28 @@ class BilingualRule(Rule):
     tm: TranslationManager = auto()
 
     @injector.construct
-    def __init__(self,
-                 *args,
-                 accept_languages: str | t.Sequence[str] | None = None,
-                 ignore_languages: str | t.Sequence[str] | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        *args,
+        accept_languages: str | t.Sequence[str] | None = None,
+        ignore_languages: str | t.Sequence[str] | None = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        self._accept_languages: t.Sequence[str] | None = [accept_languages] if isinstance(accept_languages, str) else accept_languages
-        self._ignore_languages: t.Sequence[str] | None = [ignore_languages] if isinstance(ignore_languages, str) else ignore_languages
+        self._accept_languages: t.Sequence[str] | None = (
+            [accept_languages]
+            if isinstance(accept_languages, str)
+            else accept_languages
+        )
+        self._ignore_languages: t.Sequence[str] | None = (
+            [ignore_languages]
+            if isinstance(ignore_languages, str)
+            else ignore_languages
+        )
 
-    def suitable_for(self, values: t.Mapping[str, t.Any], method: t.Optional[str] = None) -> bool:
+    def suitable_for(
+        self, values: t.Mapping[str, t.Any], method: str | None = None
+    ) -> bool:
 
         # must be suitable according to the normal definition
         if not super().suitable_for(values, method):

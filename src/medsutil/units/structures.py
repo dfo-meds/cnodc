@@ -1,20 +1,20 @@
-import decimal
 import typing as t
-from pipeman.exceptions import CNODCError
+
 import medsutil.math as amath
+from pipeman.exceptions import CNODCError
 
 if t.TYPE_CHECKING:
     from medsutil.units import UnitConverter  # pragma: no cover
 
 
 class UnitError(CNODCError):
-
-    def __init__(self, msg: str, code: t.Optional[int] = None, is_transient: bool = False):
-        super().__init__(msg, 'UNITS', code, is_transient)
+    def __init__(
+        self, msg: str, code: int | None = None, is_transient: bool = False
+    ):
+        super().__init__(msg, "UNITS", code, is_transient)
 
 
 class Converter:
-
     def convert(self, input_val):
         raise NotImplementedError  # pragma: no cover
 
@@ -35,7 +35,6 @@ class Converter:
 
 
 class UnitExpression:
-
     def get_unit_info(self, ref_dict) -> tuple[Converter, dict[str, int]]:
         raise NotImplementedError  # pragma: no cover
 
@@ -47,19 +46,16 @@ class UnitExpression:
 
 
 class Literal(UnitExpression):
-
     def __str__(self):
         return str(repr(self))
 
 
 class Number(Literal):
-
     def __init__(self, value: str):
         self.value = value
         if "." in self.value:
             self.value = self.value.rstrip("0")
-        if self.value.endswith("."):
-            self.value = self.value[:-1]
+        self.value = self.value.removesuffix(".")
 
     def __repr__(self):
         return self.value
@@ -72,7 +68,9 @@ class Number(Literal):
     def as_num_string(self) -> amath.NumberString:
         return amath.NumberString(self.value)
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
+    def get_unit_info(
+        self, ref_dict: UnitConverter
+    ) -> tuple[Converter, dict[str, int]]:
         return LinearFunction(self.as_num_string()), {}
 
     def udunit_str(self, ref_dict: UnitConverter) -> str:
@@ -88,7 +86,6 @@ class Integer(Number):
 
 
 class SimpleUnit(UnitExpression):
-
     def __init__(self, name: str):
         self.name = name
 
@@ -100,16 +97,16 @@ class SimpleUnit(UnitExpression):
             return other.name == self.name
         return False
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
+    def get_unit_info(
+        self, ref_dict: UnitConverter
+    ) -> tuple[Converter, dict[str, int]]:
         return ref_dict.raw_unit_info(self.name)
 
     def udunit_str(self, ref_dict: UnitConverter) -> str:
         return ref_dict.standardize_simple_unit(self.name)
 
 
-
 class Log(UnitExpression):
-
     def __init__(self, expression: UnitExpression, base: Number):
         self.expression = expression
         self.base = base
@@ -123,14 +120,15 @@ class Log(UnitExpression):
         return f"(log base {self.base} of {self.expression})"
 
     def udunit_str(self, ref_dict: UnitConverter) -> str:
-        return '(log TBD)'  # pragma: no cover
+        return "(log TBD)"  # pragma: no cover
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
+    def get_unit_info(
+        self, ref_dict: UnitConverter
+    ) -> tuple[Converter, dict[str, int]]:
         raise UnitError("Unit info calculations not yet supported for log units", 3000)
 
 
 class Offset(UnitExpression):
-
     def __init__(self, expression: UnitExpression, offset: Literal):
         self.expression = expression
         self.offset = offset
@@ -149,7 +147,9 @@ class Offset(UnitExpression):
     def standardize(self) -> UnitExpression:
         return Offset(self.expression.standardize(), self.offset)
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
+    def get_unit_info(
+        self, ref_dict: UnitConverter
+    ) -> tuple[Converter, dict[str, int]]:
         inner_convert, inner_dims = self.expression.get_unit_info(ref_dict)
         if isinstance(self.offset, Number):
             return inner_convert.shift(self.offset.as_num_string()), inner_dims
@@ -157,13 +157,12 @@ class Offset(UnitExpression):
 
 
 class Quotient(UnitExpression):
-
     def __init__(self, left: UnitExpression, right: UnitExpression):
         self.left = left
         self.right = right
 
     def __repr__(self):
-        return f"({str(self.left)} / {str(self.right)})"
+        return f"({self.left!s} / {self.right!s})"
 
     def __eq__(self, other):
         if isinstance(other, Quotient):
@@ -174,10 +173,12 @@ class Quotient(UnitExpression):
         # always convert A/B to A B^-1
         return Product(self.left, Exponent(self.right, Integer("-1"))).standardize()
 
-    def udunit_str(self, ref_dict: UnitConverter) -> str:   # pragma: no cover
+    def udunit_str(self, ref_dict: UnitConverter) -> str:  # pragma: no cover
         return self.standardize().udunit_str(ref_dict)
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:  # pragma: no cover
+    def get_unit_info(
+        self, ref_dict: UnitConverter
+    ) -> tuple[Converter, dict[str, int]]:  # pragma: no cover
         left_factor, left_dims = self.left.get_unit_info(ref_dict)
         right_factor, right_dims = self.right.get_unit_info(ref_dict)
         result_dims = {x: left_dims[x] for x in left_dims}
@@ -190,13 +191,12 @@ class Quotient(UnitExpression):
 
 
 class Product(UnitExpression):
-
     def __init__(self, left: UnitExpression, right: UnitExpression):
         self.left = left
         self.right = right
 
     def __repr__(self):
-        return f"({str(self.left)} * {str(self.right)})"
+        return f"({self.left!s} * {self.right!s})"
 
     def __eq__(self, other):
         if isinstance(other, Product):
@@ -226,7 +226,9 @@ class Product(UnitExpression):
             elif isinstance(x, Exponent) and isinstance(x.base, SimpleUnit):
                 if x.base.name not in raw_products:
                     raw_products[x.base.name] = 0
-                raw_products[x.base.name] = amath.add(raw_products[x.base.name], x.exponent.as_num_string())
+                raw_products[x.base.name] = amath.add(
+                    raw_products[x.base.name], x.exponent.as_num_string()
+                )
             else:  # pragma: no cover (this just handles fallback)
                 others.append(x)
         expr = None
@@ -238,18 +240,28 @@ class Product(UnitExpression):
                 expr = right if expr is None else Product(right, expr)
         for k in reversed(sorted(raw_products.keys())):
             if raw_products[k] > 0:
-                right = SimpleUnit(k) if raw_products[k] == 1 else Exponent(SimpleUnit(k), Integer(str(raw_products[k])))
+                right = (
+                    SimpleUnit(k)
+                    if raw_products[k] == 1
+                    else Exponent(SimpleUnit(k), Integer(str(raw_products[k])))
+                )
                 expr = right if expr is None else Product(right, expr)
         if constant is not None:
-            expr = Real(str(constant)) if expr is None else Product(Real(str(constant)), expr)
+            expr = (
+                Real(str(constant))
+                if expr is None
+                else Product(Real(str(constant)), expr)
+            )
         if expr is None:
             return Integer("1")
         return expr
 
     def udunit_str(self, ref_dict: UnitConverter) -> str:
-        return f'{self.left.udunit_str(ref_dict)} {self.right.udunit_str(ref_dict)}'
+        return f"{self.left.udunit_str(ref_dict)} {self.right.udunit_str(ref_dict)}"
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
+    def get_unit_info(
+        self, ref_dict: UnitConverter
+    ) -> tuple[Converter, dict[str, int]]:
         left_factor, left_dims = self.left.get_unit_info(ref_dict)
         right_factor, right_dims = self.right.get_unit_info(ref_dict)
         result_dims = {x: left_dims[x] for x in left_dims}
@@ -262,7 +274,6 @@ class Product(UnitExpression):
 
 
 class Exponent(UnitExpression):
-
     def __init__(self, base: UnitExpression, exponent: Integer):
         self.base = base
         self.exponent = exponent
@@ -273,16 +284,41 @@ class Exponent(UnitExpression):
     def standardize(self) -> UnitExpression:
         # (A^n)^m = A^(n*m)
         if isinstance(self.base, Exponent):
-            return Exponent(self.base.base, Integer(str(int(amath.mul(self.exponent.as_num_string(), self.base.exponent.as_num_string()))))).standardize()
+            return Exponent(
+                self.base.base,
+                Integer(
+                    str(
+                        int(
+                            amath.mul(
+                                self.exponent.as_num_string(),
+                                self.base.exponent.as_num_string(),
+                            )
+                        )
+                    )
+                ),
+            ).standardize()
         # (AB)^n = A^n B^n
         if isinstance(self.base, Product):
-            return Product(Exponent(self.base.left, self.exponent), Exponent(self.base.right, self.exponent)).standardize()
+            return Product(
+                Exponent(self.base.left, self.exponent),
+                Exponent(self.base.right, self.exponent),
+            ).standardize()
         # (A/B)^n = A^n B^-n
         if isinstance(self.base, Quotient):
-            return Product(Exponent(self.base.left, self.exponent), Exponent(self.base.right, Integer(str(amath.mul(self.exponent.as_num_string(), -1))))).standardize()
+            return Product(
+                Exponent(self.base.left, self.exponent),
+                Exponent(
+                    self.base.right,
+                    Integer(str(amath.mul(self.exponent.as_num_string(), -1))),
+                ),
+            ).standardize()
         # (r^n) = r^n
         if isinstance(self.base, Number):
-            return Number(str(amath.pow_(self.base.as_num_string(), self.exponent.as_num_string())))
+            return Number(
+                str(
+                    amath.pow_(self.base.as_num_string(), self.exponent.as_num_string())
+                )
+            )
         # A^1 = A
         if self.exponent.value == "1":
             return self.base.standardize()
@@ -294,27 +330,32 @@ class Exponent(UnitExpression):
         return False
 
     def udunit_str(self, ref_dict: UnitConverter) -> str:
-        return f'{self.base.udunit_str(ref_dict)}{self.exponent.udunit_str(ref_dict)}'
+        return f"{self.base.udunit_str(ref_dict)}{self.exponent.udunit_str(ref_dict)}"
 
-    def get_unit_info(self, ref_dict: UnitConverter) -> tuple[Converter, dict[str, int]]:
+    def get_unit_info(
+        self, ref_dict: UnitConverter
+    ) -> tuple[Converter, dict[str, int]]:
         base_factor, base_dims = self.base.get_unit_info(ref_dict)
         exp_num = self.exponent.as_num_string()
-        return base_factor.power(exp_num), {x: int(amath.mul(base_dims[x], exp_num)) for x in base_dims}
+        return base_factor.power(exp_num), {
+            x: int(amath.mul(base_dims[x], exp_num)) for x in base_dims
+        }
 
 
 class LinearFunction(Converter):
-
-    def __init__(self, factor: amath.NonScienceNumber, shift: amath.NonScienceNumber = 0):
+    def __init__(
+        self, factor: amath.NonScienceNumber, shift: amath.NonScienceNumber = 0
+    ):
         self._scale: amath.NonScienceNumber = factor
         self._shift: amath.NonScienceNumber = shift
 
     def __repr__(self):
         if amath.is_zero(self._shift):
-            return f'{self._scale}x'
+            return f"{self._scale}x"
         elif amath.gt(self._shift, 0):
-            return f'{self._scale}x+{self._shift}'
+            return f"{self._scale}x+{self._shift}"
         else:
-            return f'{self._scale}x{self._shift}'
+            return f"{self._scale}x{self._shift}"
 
     def convert(self, input_val: amath.AnyNumber) -> amath.AnyNumber:
         return amath.add(amath.mul(input_val, self._scale), self._shift)
@@ -336,8 +377,7 @@ class LinearFunction(Converter):
 
     def invert(self):
         return LinearFunction(
-            amath.div(1, self._scale),
-            amath.div(amath.neg(self._shift), self._scale)
+            amath.div(1, self._scale), amath.div(amath.neg(self._shift), self._scale)
         )
 
     def product(self, other_converter):

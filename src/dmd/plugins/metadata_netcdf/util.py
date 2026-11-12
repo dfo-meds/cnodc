@@ -3,10 +3,10 @@ import typing as t
 
 import zrlog
 
-from dmd.metadata.datasets import Dataset
 from dmd.containers.base import Container, Field
+from dmd.metadata.datasets import Dataset
 from dmd.metadata.vocabularies import VocabularyTerm
-from medsutil.dynamic import dynamic_object, DynamicObjectLoadError
+from medsutil.dynamic import DynamicObjectLoadError, dynamic_object
 
 
 def preprocess_for_ncml(**kwargs) -> dict[str, t.Any]:
@@ -20,28 +20,35 @@ def preprocess_for_cdl(**kwargs) -> dict[str, t.Any]:
 def _preprocess_for_netcdf(dataset: Dataset, **kwargs) -> dict[str, t.Any]:
     default_lang_code, default_bcp47, locale_mapping = _build_language_maps(dataset)
     extras = {
-        'global_attributes': _build_global_attributes(dataset),
-        'variables': _build_variables(dataset),
-        'locale_mapping': locale_mapping,
-        'default_locale': default_lang_code,
-        'get_alternative_languages': functools.partial(_other_languages, default_locale=default_lang_code, locale_mapping=locale_mapping),
+        "global_attributes": _build_global_attributes(dataset),
+        "variables": _build_variables(dataset),
+        "locale_mapping": locale_mapping,
+        "default_locale": default_lang_code,
+        "get_alternative_languages": functools.partial(
+            _other_languages,
+            default_locale=default_lang_code,
+            locale_mapping=locale_mapping,
+        ),
     }
-    extras['global_attributes'].update({
-        "default_locale": default_bcp47,
-        "other_locales": " ".join(
-            f"{suffix}: {bcp47}"
-            for suffix, bcp47 in locale_mapping.values()
-        )
-    })
+    extras["global_attributes"].update(
+        {
+            "default_locale": default_bcp47,
+            "other_locales": " ".join(
+                f"{suffix}: {bcp47}" for suffix, bcp47 in locale_mapping.values()
+            ),
+        }
+    )
     keywords, vocabularies = _build_keywords(dataset)
     if keywords:
-        extras['global_attributes']['keywords'] = ", ".join(keywords)
+        extras["global_attributes"]["keywords"] = ", ".join(keywords)
         if vocabularies:
-            extras['global_attributes']["keywords_vocabulary"] = ", ".join(vocabularies)
+            extras["global_attributes"]["keywords_vocabulary"] = ", ".join(vocabularies)
     return extras
 
 
-def _build_language_maps(dataset: Dataset) -> tuple[str, str, dict[str, tuple[str, str]]]:
+def _build_language_maps(
+    dataset: Dataset,
+) -> tuple[str, str, dict[str, tuple[str, str]]]:
     locale_mapping = {}
     default_info = _build_locale_info(dataset.data("default_locale"))
     if default_info is None:
@@ -70,9 +77,9 @@ def _build_locale_info(locale: Container | None) -> tuple[str, str, str] | None:
     return netcdf_suffix, bcp47_code, locale.data("internal", default="en")
 
 
-def _other_languages(text: str | dict,
-                     default_locale: str,
-                     locale_mapping: dict[str, tuple[str, str]]) -> t.Iterable[tuple[str, str]]:
+def _other_languages(
+    text: str | dict, default_locale: str, locale_mapping: dict[str, tuple[str, str]]
+) -> t.Iterable[tuple[str, str]]:
     if isinstance(text, dict):
         for key, value in text.items():
             if key == "und" or key == default_locale or key not in locale_mapping:
@@ -83,25 +90,30 @@ def _other_languages(text: str | dict,
 def _build_global_attributes(dataset: Dataset) -> dict[str, t.Any]:
     attrs = {}
     attrs.update(_extract_netcdf_attributes(dataset))
-    attrs['id'] = dataset.guid
-    attrs['naming_authority'] = dataset.naming_authority
+    attrs["id"] = dataset.guid
+    attrs["naming_authority"] = dataset.naming_authority
     return attrs
 
 
-def _build_variables(dataset: Dataset) -> list[tuple[str, str, str, dict[str, t.Any], Container]]:
+def _build_variables(
+    dataset: Dataset,
+) -> list[tuple[str, str, str, dict[str, t.Any], Container]]:
     variables: list[Container] = dataset.data("variables", default=[])
     return [
         (
             variable["source_name"],
-            variable["source_data_type"]["short_name"] if variable["source_data_type"] else "?",
-            " ".join(
-                x.strip()
-                for x in variable["dimensions"].split(",")
-            ) if variable["dimensions"] else "",
+            variable["source_data_type"]["short_name"]
+            if variable["source_data_type"]
+            else "?",
+            " ".join(x.strip() for x in variable["dimensions"].split(","))
+            if variable["dimensions"]
+            else "",
             _extract_netcdf_attributes(variable),
-            variable
+            variable,
         )
-        for variable in sorted(variables, key=lambda v: v.data("variable_order", default=0) or 0)
+        for variable in sorted(
+            variables, key=lambda v: v.data("variable_order", default=0) or 0
+        )
     ]
 
 
@@ -114,34 +126,31 @@ def _extract_netcdf_attributes(container: Container) -> dict[str, t.Any]:
         netcdf_config = field.get_config("netcdf", default=None)
         if not netcdf_config:
             continue
-        attrs.update(_extract_netcdf_attribute(
-            field=field,
-            mapping=netcdf_config.get("attribute_name", fn),
-            processor=netcdf_config.get("processor", None),
-            config=netcdf_config
-        ))
+        attrs.update(
+            _extract_netcdf_attribute(
+                field=field,
+                mapping=netcdf_config.get("attribute_name", fn),
+                processor=netcdf_config.get("processor", None),
+                config=netcdf_config,
+            )
+        )
     return attrs
 
 
-def _extract_netcdf_attribute(field: Field,
-                              mapping: str,
-                              processor: str | None,
-                              config: dict[str, t.Any]) -> dict[str, t.Any]:
+def _extract_netcdf_attribute(
+    field: Field, mapping: str, processor: str | None, config: dict[str, t.Any]
+) -> dict[str, t.Any]:
     if processor is None:
         processor = _autodetect_processor(field)
 
     if processor is None:
         return {}
     elif processor == "text" or processor == "numeric":
-        return { mapping: field.data() }
+        return {mapping: field.data()}
     elif processor == "datetime":
-        return { mapping: field.data().isoformat() }
+        return {mapping: field.data().isoformat()}
     elif processor == "key_value":
-        return {
-            k: v
-            for k, v in field.data().items()
-            if k
-        }
+        return {k: v for k, v in field.data().items() if k}
     elif processor == "vocabulary":
         return _extract_vocabulary_value(field, mapping, config)
     elif processor == "contact":
@@ -157,14 +166,15 @@ def _extract_netcdf_attribute(field: Field,
             obj = dynamic_object(processor)
             return obj(field, mapping, config)
         except DynamicObjectLoadError:
-            zrlog.get_logger("dmd.netcdf").exception("Error loading dynamic processor to map to %s", mapping)
-            pass
+            zrlog.get_logger("dmd.netcdf").exception(
+                "Error loading dynamic processor to map to %s", mapping
+            )
     return {}
 
 
-def _extract_contact(field: Field,
-                     mapping: str,
-                     config: dict[str, t.Any]) -> dict[str, t.Any]:
+def _extract_contact(
+    field: Field, mapping: str, config: dict[str, t.Any]
+) -> dict[str, t.Any]:
     contact: Container | list[Container] | None = field.data()
     if not contact:
         return {}
@@ -173,20 +183,20 @@ def _extract_contact(field: Field,
             contacts=[contact],
             allow_many=config.get("allow_many", False),
             separator=config.get("separator", ","),
-            prefix=mapping
+            prefix=mapping,
         )
     else:
         return _build_contact_attributes(
             t.cast(list[Container], contact),
             allow_many=config.get("allow_many", False),
             separator=config.get("separator", ","),
-            prefix=mapping
+            prefix=mapping,
         )
 
 
-def _extract_contacts_by_role(field: Field,
-                              mapping: str,
-                              config: dict[str, t.Any]) -> dict[str, t.Any]:
+def _extract_contacts_by_role(
+    field: Field, mapping: str, config: dict[str, t.Any]
+) -> dict[str, t.Any]:
     raw_contacts: Container | list[Container] | None = field.data()
     contacts: list[Container]
     if raw_contacts is None:
@@ -221,10 +231,9 @@ def _extract_contacts_by_role(field: Field,
     return attrs
 
 
-def _build_contact_attributes(contacts: list[Container],
-                              allow_many: bool,
-                              separator: str,
-                              prefix: str) -> dict[str, t.Any]:
+def _build_contact_attributes(
+    contacts: list[Container], allow_many: bool, separator: str, prefix: str
+) -> dict[str, t.Any]:
     attributes: dict[str, str] = {}
     for contact in contacts:
         for key, value in _extract_contact_attributes(contact).items():
@@ -265,28 +274,30 @@ def _extract_contact_attributes(contact: Container) -> dict[str, str]:
             url = web_page[0].get("url")
             if url:
                 attributes["url"] = url
-        except (IndexError, KeyError, TypeError):
+        except IndexError, KeyError, TypeError:
             ...
 
     return attributes
 
 
-def _extract_ref_system(field: Field,
-                        mapping: str,
-                        config: dict[str, t.Any]) -> dict[str, t.Any]:
+def _extract_ref_system(
+    field: Field, mapping: str, config: dict[str, t.Any]
+) -> dict[str, t.Any]:
     container: Container | None = field.data()
     if not isinstance(container, Container):
         return {}
     system: Container | None = container.data("id_system")
     if system is not None:
-        return { mapping: f"{system.data("code_space", default="")}{container.data("code", default="")}" }
+        return {
+            mapping: f"{system.data('code_space', default='')}{container.data('code', default='')}"
+        }
     else:
-        return { mapping: container.data("code", default="") }
+        return {mapping: container.data("code", default="")}
 
 
-def _extract_licenses(field: Field,
-                      mapping: str,
-                      config: dict[str, t.Any]) -> dict[str, t.Any]:
+def _extract_licenses(
+    field: Field, mapping: str, config: dict[str, t.Any]
+) -> dict[str, t.Any]:
     raw_licenses: Container | list[Container] | None = field.data()
     if raw_licenses is None:
         licenses = []
@@ -298,7 +309,9 @@ def _extract_licenses(field: Field,
     if not licenses:
         return {}
 
-    license_text_keys = {"und", }
+    license_text_keys = {
+        "und",
+    }
     for license in licenses:
         description: dict[str, t.Any] | str = license.data("description")
         if isinstance(description, str):
@@ -306,12 +319,9 @@ def _extract_licenses(field: Field,
         else:
             license_text_keys.update(description.keys())
 
-    license_texts = {
-        key: []
-        for key in license_text_keys
-    }
+    license_texts = {key: [] for key in license_text_keys}
     for license in licenses:
-        description: dict[str, t.Any] | str= license.data("description")
+        description: dict[str, t.Any] | str = license.data("description")
         if isinstance(description, str):
             for key in license_text_keys:
                 license_texts[key].append(description)
@@ -322,15 +332,14 @@ def _extract_licenses(field: Field,
                 elif "und" in description:
                     license_texts[key].append(description["und"])
     separator = config.get("separator", "\n-----\n")
-    return {mapping: {
-        key: separator.join(values)
-        for key, values in license_texts.items()
-    }}
+    return {
+        mapping: {key: separator.join(values) for key, values in license_texts.items()}
+    }
 
 
-def _extract_vocabulary_value(field: Field,
-                              mapping: str,
-                              config: dict[str, t.Any]) -> dict[str, t.Any]:
+def _extract_vocabulary_value(
+    field: Field, mapping: str, config: dict[str, t.Any]
+) -> dict[str, t.Any]:
     raw_data = field.data()
     if not raw_data:
         return {}
@@ -341,14 +350,14 @@ def _extract_vocabulary_value(field: Field,
         if term is None:
             continue
         if not isinstance(term, (dict, VocabularyTerm)):
-            zrlog.get_logger("dmd.netcdf").error("Expected a vocabulary term, found %s", term.__class__.__name__)
+            zrlog.get_logger("dmd.netcdf").error(
+                "Expected a vocabulary term, found %s", term.__class__.__name__
+            )
             continue
         values.append(term["short_name"])
         if not allow_many:
             break
-    return {
-        mapping: config.get("separator", ",").join(values)
-    }
+    return {mapping: config.get("separator", ",").join(values)}
 
 
 def _autodetect_processor(field: Field) -> str | None:

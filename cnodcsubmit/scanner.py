@@ -10,22 +10,27 @@ import time
 
 
 class CNODCLocalScanner(threading.Thread):
-
-    def __init__(self,
-                 *args,
-                 transfer_queue: queue.Queue,
-                 halt: threading.Event,
-                 stop: threading.Event,
-                 config: dict[str, int | float | str | None],
-                 **kwargs):
+    def __init__(
+        self,
+        *args,
+        transfer_queue: queue.Queue,
+        halt: threading.Event,
+        stop: threading.Event,
+        config: dict[str, int | float | str | None],
+        **kwargs,
+    ):
         super().__init__(*args, **(kwargs or {}))
         self._config = json.dumps(config)
         self._queue = transfer_queue
         self._halt = halt
         self._stop = stop
 
-    def queue_file(self, workflow_name: str, file: str, metadata: dict[str, str] | None):
-        self._queue.put((workflow_name, file, None if not metadata else json.dumps(metadata)))
+    def queue_file(
+        self, workflow_name: str, file: str, metadata: dict[str, str] | None
+    ):
+        self._queue.put(
+            (workflow_name, file, None if not metadata else json.dumps(metadata))
+        )
 
     def stop(self):
         self._stop.set()
@@ -59,20 +64,29 @@ class CNODCLocalScanner(threading.Thread):
                 for file in os.scandir(target_dir):
                     if file.is_file():
                         m_time = datetime.datetime.fromtimestamp(file.stat().st_mtime)
-                        if (datetime.datetime.now() - m_time).total_seconds() <= last_mod_threshold:
+                        if (
+                            datetime.datetime.now() - m_time
+                        ).total_seconds() <= last_mod_threshold:
                             continue
                         self._handle_file(
                             target_workflow,
                             pathlib.Path(file.path),
                             metadata,
                             file_status,
-                            gzip_files
+                            gzip_files,
                         )
                     elif recursive and file.is_dir():
                         work.append(file.path)
             time.sleep(2)
 
-    def _handle_file(self, workflow_name: str, file: pathlib.Path, metadata: dict[str, str] | None, file_status: set[str], gzip_files: bool):
+    def _handle_file(
+        self,
+        workflow_name: str,
+        file: pathlib.Path,
+        metadata: dict[str, str] | None,
+        file_status: set[str],
+        gzip_files: bool,
+    ):
         if str(file) not in file_status:
             complete = file.with_name(file.name + ".complete")
             if not complete.exists():
@@ -88,8 +102,11 @@ class CNODCLocalScanner(threading.Thread):
                 md = {}
                 if metadata:
                     md.update(metadata)
-                md['last-modified-date'] = datetime.datetime.fromtimestamp(file.stat().st_mtime).astimezone(datetime.timezone.utc).isoformat()
-                md['filename'] = file.name
+                md["last-modified-date"] = (
+                    datetime.datetime.fromtimestamp(file.stat().st_mtime)
+                    .astimezone(datetime.UTC)
+                    .isoformat()
+                )
+                md["filename"] = file.name
                 self.queue_file(workflow_name, str(file), metadata)
             file_status.add(str(file))
-

@@ -1,27 +1,40 @@
 import copy
 import datetime
 import enum
+import typing as t
 from contextlib import contextmanager
 from types import EllipsisType
 
 import zrlog
 
-from medsutil.dynamic import dynamic_name, dynamic_object
+from medsutil import math as amath
+from medsutil.dynamic import dynamic_object
 from medsutil.exceptions import CodedError
 from medsutil.iso_duration import DurationUnit, ISODuration
-from medsutil.ocproc2 import ParentRecord, BaseRecord, RecordSet, AbstractElement, ElementMap, SingleElement, \
-    MultiElement, ChildRecord
-import typing as t
-
-from medsutil.ocproc2.util import Quality, find_quality_for_protocol, combine_quality_scores
+from medsutil.ocproc2 import (
+    AbstractElement,
+    BaseRecord,
+    ChildRecord,
+    ElementMap,
+    MultiElement,
+    ParentRecord,
+    RecordSet,
+    SingleElement,
+)
+from medsutil.ocproc2.util import (
+    combine_quality_scores,
+    find_quality_for_protocol,
+)
 from medsutil.seawater import TemperatureScale
-from medsutil import math as amath
 from medsutil.units.units import convert, is_compatible
 
 
-class OceanProcessingSchemaError(CodedError): CODE_SPACE = 'OPS'
+class OceanProcessingSchemaError(CodedError):
+    CODE_SPACE = "OPS"
+
 
 class SkipDecodeInterrupt(Exception): ...
+
 
 RawValue = int | float | str | datetime.date | bool | None
 RSElementList = list[str | list[str]] | None
@@ -35,7 +48,6 @@ class DataType(enum.Enum):
 
 
 class Instruction:
-
     _factories: t.ClassVar[list[type[Instruction]] | None] = None
 
     def __init__(self, **kwargs):
@@ -52,11 +64,13 @@ class Instruction:
         return Instruction._factories or []
 
     @classmethod
-    def build(cls,
-              instruction: dict[str, t.Any] | None = None,
-              my_extras: dict[str, t.Any] | None = None,
-              parent_extras: dict[str, t.Any] | None = None,
-              omit_keys: t.Container[str] | None = None):
+    def build(
+        cls,
+        instruction: dict[str, t.Any] | None = None,
+        my_extras: dict[str, t.Any] | None = None,
+        parent_extras: dict[str, t.Any] | None = None,
+        omit_keys: t.Container[str] | None = None,
+    ):
         kwargs = {}
         if parent_extras:
             kwargs.update(parent_extras)
@@ -70,24 +84,36 @@ class Instruction:
             return cls(**kwargs)
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         raise NotImplementedError
 
     @staticmethod
-    def parse_instructions(instructions: list[dict | str],
-                          helper: t.Callable[[dict | str, dict | None, t.Callable | None], dict | str | Instruction] | None = None) -> list[Instruction]:
+    def parse_instructions(
+        instructions: list[dict | str],
+        helper: t.Callable[
+            [dict | str, dict | None, t.Callable | None], dict | str | Instruction
+        ]
+        | None = None,
+    ) -> list[Instruction]:
         built = []
         for instruction in instructions:
             built.append(Instruction.parse_instruction(instruction, helper))
         return built
 
     @staticmethod
-    def parse_instruction(instruction: dict | str | Instruction,
-                          helper: t.Callable[[dict | str, dict | None, t.Callable | None], dict | str | Instruction] | None = None,
-                          common_kwargs: dict[str, t.Any] | None = None) -> Instruction:
+    def parse_instruction(
+        instruction: dict | str | Instruction,
+        helper: t.Callable[
+            [dict | str, dict | None, t.Callable | None], dict | str | Instruction
+        ]
+        | None = None,
+        common_kwargs: dict[str, t.Any] | None = None,
+    ) -> Instruction:
         try:
             if helper is not None and not isinstance(instruction, Instruction):
                 instruction = helper(instruction, common_kwargs, helper)
@@ -114,29 +140,27 @@ class Instruction:
         element, tag = element.split("]")
         tag = tag[:-1]
         if "=" in tag:
-            k,v = tag.split("=", maxsplit=1)
+            k, v = tag.split("=", maxsplit=1)
             return {
                 "element": element,
                 "filters": {k.strip(): v.strip()},
                 "metadata": {k.strip(): v.strip()},
             }
         else:
-            return {
-                "element": element,
-                "component": tag
-            }
+            return {"element": element, "component": tag}
 
 
 class SkipDecodeInstruction(Instruction):
-
     def raise_exception(self):
         raise SkipDecodeInterrupt
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
             if instruction.get("instruction", "") == "skip":
                 return cls.build(instruction, extras, omit_keys={"instruction"})
@@ -146,7 +170,6 @@ class SkipDecodeInstruction(Instruction):
 
 
 class InstructionGroup(Instruction):
-
     def __init__(self, instructions: list[Instruction], **kwargs):
         self.instructions = instructions
         super().__init__(**kwargs)
@@ -154,29 +177,41 @@ class InstructionGroup(Instruction):
     def iterate_instructions(self, context: OPSContext) -> t.Iterable[Instruction]:
         yield from self.instructions
 
-
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
-            if "instructions" in instruction and "recordset_type" not in instruction and "repeats" not in instruction:
-                return cls.build({
-                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
-                }, instruction, extras)
+            if (
+                "instructions" in instruction
+                and "recordset_type" not in instruction
+                and "repeats" not in instruction
+            ):
+                return cls.build(
+                    {
+                        "instructions": Instruction.parse_instructions(
+                            instruction["instructions"], helper
+                        ),
+                    },
+                    instruction,
+                    extras,
+                )
         return None
 
 
 class RecordSetInstructionGroup(InstructionGroup):
-
-    def __init__(self,
-                 recordset_type: str,
-                 required_elements: RSElementList = None,
-                 forbidden_elements: RSElementList = None,
-                 optional_elements: RSElementList = None,
-                 no_repeats: bool = True,
-                 **kwargs):
+    def __init__(
+        self,
+        recordset_type: str,
+        required_elements: RSElementList = None,
+        forbidden_elements: RSElementList = None,
+        optional_elements: RSElementList = None,
+        no_repeats: bool = True,
+        **kwargs,
+    ):
         self.no_repeats: bool = no_repeats
         self.recordset_type = recordset_type
         self.elements = optional_elements
@@ -190,30 +225,41 @@ class RecordSetInstructionGroup(InstructionGroup):
             forbidden_elements=self.forbidden_elements,
             required_elements=self.required_elements,
             helpful_elements=self.elements,
-            no_repeats=self.no_repeats
+            no_repeats=self.no_repeats,
         )
         if rs is not None:
             with context.recordset_context(rs, self.recordset_type):
                 yield from self.instructions
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
-            if "instructions" in instruction and "recordset_type" in instruction and "repeats" not in instruction:
-                return cls.build({
-                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
-                }, instruction, extras)
+            if (
+                "instructions" in instruction
+                and "recordset_type" in instruction
+                and "repeats" not in instruction
+            ):
+                return cls.build(
+                    {
+                        "instructions": Instruction.parse_instructions(
+                            instruction["instructions"], helper
+                        ),
+                    },
+                    instruction,
+                    extras,
+                )
         return None
 
-class RepeatGroup(Instruction):
 
-    def __init__(self,
-                 instructions: list[Instruction],
-                 repeats: int | None = None,
-                 **kwargs):
+class RepeatGroup(Instruction):
+    def __init__(
+        self, instructions: list[Instruction], repeats: int | None = None, **kwargs
+    ):
         self.repeats = repeats
         self.instructions = instructions
         super().__init__(**kwargs)
@@ -221,12 +267,10 @@ class RepeatGroup(Instruction):
     def no_context_instructions(self) -> list[Instruction]:
         return self.instructions
 
-    def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]:
-        ...
+    def iterate_repeats(self, context: OPSContext) -> t.Iterable[list[Instruction]]: ...
 
 
 class RecordRepeatInstructionGroup(RepeatGroup):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -237,25 +281,39 @@ class RecordRepeatInstructionGroup(RepeatGroup):
                     yield self.instructions
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
-            if "instructions" in instruction and "recordset_type" not in instruction and "repeats" in instruction:
-                return cls.build({
-                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
-                }, instruction, extras)
+            if (
+                "instructions" in instruction
+                and "recordset_type" not in instruction
+                and "repeats" in instruction
+            ):
+                return cls.build(
+                    {
+                        "instructions": Instruction.parse_instructions(
+                            instruction["instructions"], helper
+                        ),
+                    },
+                    instruction,
+                    extras,
+                )
         return None
 
-class RecordSetRepeatInstructionGroup(RepeatGroup):
 
-    def __init__(self,
-                 recordset_type: str,
-                 required_elements: RSElementList = None,
-                 forbidden_elements: RSElementList = None,
-                 optional_elements: RSElementList = None,
-                 **kwargs):
+class RecordSetRepeatInstructionGroup(RepeatGroup):
+    def __init__(
+        self,
+        recordset_type: str,
+        required_elements: RSElementList = None,
+        forbidden_elements: RSElementList = None,
+        optional_elements: RSElementList = None,
+        **kwargs,
+    ):
         self.required_elements = required_elements
         self.forbidden_elements = forbidden_elements
         self.optional_elements = optional_elements
@@ -269,30 +327,48 @@ class RecordSetRepeatInstructionGroup(RepeatGroup):
                 required_elements=self.required_elements,
                 forbidden_elements=self.forbidden_elements,
                 helpful_elements=self.optional_elements,
-                no_repeats=True
+                no_repeats=True,
             ):
                 with context.recordset_context(rs, self.recordset_type):
                     yield self.instructions
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
-            if "instructions" in instruction and "recordset_type" in instruction and "repeats" in instruction:
-                return cls.build({
-                    "instructions": Instruction.parse_instructions(instruction["instructions"], helper),
-                }, instruction, extras)
+            if (
+                "instructions" in instruction
+                and "recordset_type" in instruction
+                and "repeats" in instruction
+            ):
+                return cls.build(
+                    {
+                        "instructions": Instruction.parse_instructions(
+                            instruction["instructions"], helper
+                        ),
+                    },
+                    instruction,
+                    extras,
+                )
         return None
 
 
 class SingleValueInstruction(Instruction):
+    def set_value(
+        self,
+        value: RawValue | AbstractElement,
+        metadata: dict | None,
+        context: OPSContext,
+        **kwargs,
+    ): ...
 
-    def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
-        ...
-
-    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, SingleElement | None]:
+    def get_value_with_details(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, SingleElement | None]:
         raise NotImplementedError
 
     def get_quality(self, context: OPSContext) -> int | None:
@@ -306,28 +382,38 @@ class SingleValueInstruction(Instruction):
 
 
 class StaticInstruction(SingleValueInstruction):
-
-    def __init__(self,
-                 value: RawValue,
-                 quality: int | None = None,
-                 precision: float | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        value: RawValue,
+        quality: int | None = None,
+        precision: float | None = None,
+        **kwargs,
+    ):
         self._value = value if value != "NULL" else None
         self._quality = quality
         self._precision = precision
         super().__init__(**kwargs)
 
-    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
+    def get_value_with_details(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
         return self._value, self._quality, self._precision, None
 
-    def set_value(self, value: RawValue | AbstractElement, metadata: dict | None, context: OPSContext, **kwargs):
-        ...
+    def set_value(
+        self,
+        value: RawValue | AbstractElement,
+        metadata: dict | None,
+        context: OPSContext,
+        **kwargs,
+    ): ...
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
             if "value" in instruction:
                 return cls.build(instruction, extras)
@@ -335,12 +421,13 @@ class StaticInstruction(SingleValueInstruction):
 
 
 class NoopInstruction(Instruction):
-
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
             if instruction.get("instruction", "") == "noop":
                 return cls.build(instruction, extras, omit_keys={"instruction"})
@@ -349,14 +436,14 @@ class NoopInstruction(Instruction):
         return None
 
 
-
 class ScaleFactorInstruction(Instruction):
-
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
             if instruction.get("instruction", "") == "scale_factor":
                 return cls.build(instruction, extras, omit_keys={"instruction"})
@@ -366,11 +453,12 @@ class ScaleFactorInstruction(Instruction):
 
 
 class ContextInstruction(Instruction):
-
-    def __init__(self,
-                 context: dict[RawValue, Instruction],
-                 default_instruction: Instruction | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        context: dict[RawValue, Instruction],
+        default_instruction: Instruction | None = None,
+        **kwargs,
+    ):
         self._context = context
         self._default = default_instruction or NoopInstruction()
         super().__init__(**kwargs)
@@ -382,25 +470,30 @@ class ContextInstruction(Instruction):
         return self._default
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
-            if "context" in instruction and instruction["context"]:
+            if instruction.get("context"):
                 kwargs = {k: d for k, d in instruction.items() if k != "context"}
-                return cls.build({
-                    "context": {
-                        k: Instruction.parse_instruction(d, helper, kwargs)
-                        for k, d in instruction["context"].items()
+                return cls.build(
+                    {
+                        "context": {
+                            k: Instruction.parse_instruction(d, helper, kwargs)
+                            for k, d in instruction["context"].items()
+                        }
                     }
-                })
+                )
         return None
 
 
 class EncodeDecodeGroup(Instruction):
-
-    def __init__(self, encode_instruction: Instruction, decode_instruction: Instruction, **kwargs):
+    def __init__(
+        self, encode_instruction: Instruction, decode_instruction: Instruction, **kwargs
+    ):
         super().__init__(**kwargs)
         self.encode = encode_instruction
         self.decode = decode_instruction
@@ -412,38 +505,51 @@ class EncodeDecodeGroup(Instruction):
             return self.decode
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
             encode_group: str | dict | None = instruction.get("encode", None)
             decode_group: str | dict | None = instruction.get("decode", None)
             if encode_group or decode_group:
-                kwargs = {k: d for k, d in instruction.items() if k not in ("encode", "decode",)}
+                kwargs = {
+                    k: d
+                    for k, d in instruction.items()
+                    if k
+                    not in (
+                        "encode",
+                        "decode",
+                    )
+                }
                 if extras:
                     kwargs.update(extras)
-                return cls.build({
-                    "encode_instruction": (
-                        Instruction.parse_instruction(encode_group, helper, kwargs)
-                        if encode_group else
-                        NoopInstruction()
-                    ),
-                    "decode_instruction": (
-                        Instruction.parse_instruction(decode_group, helper, kwargs)
-                        if decode_group else
-                        NoopInstruction()
-                    )
-                })
+                return cls.build(
+                    {
+                        "encode_instruction": (
+                            Instruction.parse_instruction(encode_group, helper, kwargs)
+                            if encode_group
+                            else NoopInstruction()
+                        ),
+                        "decode_instruction": (
+                            Instruction.parse_instruction(decode_group, helper, kwargs)
+                            if decode_group
+                            else NoopInstruction()
+                        ),
+                    }
+                )
         return None
 
 
 class ValueMappedInstruction(Instruction):
-
-    def __init__(self,
-                 instruction_map: dict[RawValue, Instruction],
-                 default_instruction: Instruction | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        instruction_map: dict[RawValue, Instruction],
+        default_instruction: Instruction | None = None,
+        **kwargs,
+    ):
         self._default = default_instruction or NoopInstruction()
         self._instruction_map = instruction_map
         super().__init__(**kwargs)
@@ -454,41 +560,48 @@ class ValueMappedInstruction(Instruction):
         return self._default
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
-            if "instruction_map" in instruction and instruction["instruction_map"]:
+            if instruction.get("instruction_map"):
                 kwargs = {}
                 if extras:
                     kwargs.update(extras)
-                kwargs.update({k: d for k, d in instruction.items() if k != "instruction_map"})
-                return cls.build({
-                    "instruction_map": {
-                        k: Instruction.parse_instruction(d, helper, kwargs)
-                        for k, d in instruction["instruction_map"].items()
+                kwargs.update(
+                    {k: d for k, d in instruction.items() if k != "instruction_map"}
+                )
+                return cls.build(
+                    {
+                        "instruction_map": {
+                            k: Instruction.parse_instruction(d, helper, kwargs)
+                            for k, d in instruction["instruction_map"].items()
+                        }
                     }
-                })
+                )
         return None
 
 
 class WorstQualityInstruction(SingleValueInstruction):
-
-    def __init__(self,
-                 elements: list[str],
-                 **kwargs):
+    def __init__(self, elements: list[str], **kwargs):
         self.elements = elements
         super().__init__(**kwargs)
 
-    def set_value(self,
-                  value: RawValue | AbstractElement,
-                  metadata: dict | None,
-                  context: OPSContext,
-                  **kwargs):
+    def set_value(
+        self,
+        value: RawValue | AbstractElement,
+        metadata: dict | None,
+        context: OPSContext,
+        **kwargs,
+    ):
         raise NotImplementedError  # TODO: set all the qualities on elements
 
-    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
+    def get_value_with_details(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
         def _elements() -> t.Iterable[SingleElement]:
             for element_name in self.elements:
                 element = context.record.find_child(element_name)
@@ -497,36 +610,42 @@ class WorstQualityInstruction(SingleValueInstruction):
                 if not isinstance(element, AbstractElement):
                     raise OceanProcessingSchemaError("Invalid element path", 2000)
                 yield from element.all_values()
+
         return context.get_quality(*_elements()), None, None, None
 
 
 class ElementInstruction(SingleValueInstruction):
-
-    def __init__(self,
-                 element: str,
-                 data_type: str | DataType,
-                 component: str | None = None,
-                 filters: dict[str, RawValue] | None = None,
-                 metadata: dict[str, RawValue] | None = None,
-                 remove_metadata: list[str] | None = None,
-                 override_value: RawValue | EllipsisType = ...,
-                 iterate_into_recordset: bool = True,
-                 use_current_record: bool = True,
-                 restrict_recordsets: list[str] | None = None,
-                 restrict_elements: list[str] | None = None,
-                 places: int | None = None,
-                 units: str | None = None,
-                 import_map: dict[RawValue, RawValue] | None = None,
-                 export_map: dict[RawValue, RawValue] | None = None,
-                 export_temperature_scale: str | None = None,
-                 future_context: str | int | None = None,
-                 import_processor: str | None = None,
-                 export_processor: str | None = None,
-                 ocproc2_export_processor: str | None = None,
-                 append: bool = False,
-                 **kwargs):
+    def __init__(
+        self,
+        element: str,
+        data_type: str | DataType,
+        component: str | None = None,
+        filters: dict[str, RawValue] | None = None,
+        metadata: dict[str, RawValue] | None = None,
+        remove_metadata: list[str] | None = None,
+        override_value: RawValue | EllipsisType = ...,
+        iterate_into_recordset: bool = True,
+        use_current_record: bool = True,
+        restrict_recordsets: list[str] | None = None,
+        restrict_elements: list[str] | None = None,
+        places: int | None = None,
+        units: str | None = None,
+        import_map: dict[RawValue, RawValue] | None = None,
+        export_map: dict[RawValue, RawValue] | None = None,
+        export_temperature_scale: str | None = None,
+        future_context: str | int | None = None,
+        import_processor: str | None = None,
+        export_processor: str | None = None,
+        ocproc2_export_processor: str | None = None,
+        append: bool = False,
+        **kwargs,
+    ):
         try:
-            self.data_type = DataType(data_type) if not isinstance(data_type, DataType) else data_type
+            self.data_type = (
+                DataType(data_type)
+                if not isinstance(data_type, DataType)
+                else data_type
+            )
         except ValueError as ex:
             raise OceanProcessingSchemaError("Invalid data type", 1300) from ex
         self.metadata = metadata
@@ -560,19 +679,31 @@ class ElementInstruction(SingleValueInstruction):
     @property
     def ocproc2_export_processor(self) -> t.Callable[[SingleElement], RawValue] | None:
         if self._ocproc2_export_processor is ...:
-            self._ocproc2_export_processor = None if self._ocproc2_export_processor_name is None else dynamic_object(self._ocproc2_export_processor_name)
+            self._ocproc2_export_processor = (
+                None
+                if self._ocproc2_export_processor_name is None
+                else dynamic_object(self._ocproc2_export_processor_name)
+            )
         return self._ocproc2_export_processor
 
     @property
     def import_processor(self) -> t.Callable | None:
         if self._import_processor is ...:
-            self._import_processor = None if self._import_processor_name is None else dynamic_object(self._import_processor_name)
+            self._import_processor = (
+                None
+                if self._import_processor_name is None
+                else dynamic_object(self._import_processor_name)
+            )
         return self._import_processor
 
     @property
     def export_processor(self) -> t.Callable | None:
         if self._export_processor is ...:
-            self._export_processor = None if self._export_processor_name is None else dynamic_object(self._export_processor_name)
+            self._export_processor = (
+                None
+                if self._export_processor_name is None
+                else dynamic_object(self._export_processor_name)
+            )
         return self._export_processor
 
     def clean_input_value(self, value) -> t.Any:
@@ -600,8 +731,7 @@ class ElementInstruction(SingleValueInstruction):
         additional_kwargs = {}
         if self.data_type is DataType.FLOAT and self.places is not None:
             additional_kwargs["Uncertainty"] = SingleElement(
-                (10 ** (-1 * self.places)) / 2,
-                UncertaintyType="uniform"
+                (10 ** (-1 * self.places)) / 2, UncertaintyType="uniform"
             )
         if self.units is not None:
             additional_kwargs["Units"] = self.units
@@ -614,51 +744,57 @@ class ElementInstruction(SingleValueInstruction):
             e.metadata.update(self.metadata)
         return e
 
-    def set_value(self,
-                  value: RawValue | AbstractElement,
-                  metadata: dict | None,
-                  context: OPSContext,
-                  **kwargs):
+    def set_value(
+        self,
+        value: RawValue | AbstractElement,
+        metadata: dict | None,
+        context: OPSContext,
+        **kwargs,
+    ):
         e = self.assemble_element(value, metadata, kwargs)
-        if self.element_path.startswith((
-            "parameters/",
-            "metadata/",
-            "coordinates/"
-        )):
+        if self.element_path.startswith(("parameters/", "metadata/", "coordinates/")):
             context.set_element(self.element_path, e, self.append_mode)
         elif self.element_path.startswith("parent/"):
-            _, element_path = self.element_path.split('/', maxsplit=1)
+            _, element_path = self.element_path.split("/", maxsplit=1)
             context.set_parent_element(element_path, e, self.append_mode)
         elif self.element_path.startswith("recordset/"):
-            _, element_path = self.element_path.split('/', maxsplit=1)
+            _, element_path = self.element_path.split("/", maxsplit=1)
             context.set_recordset_metadata(element_path, e, self.append_mode)
         elif self.element_path.startswith("common-recordset/"):
-            _, md_name = self.element_path.split('/', maxsplit=1)
-            context.add_common_recordset_metadata(md_name, e, self.restrict_recordsets, self.future_context)
+            _, md_name = self.element_path.split("/", maxsplit=1)
+            context.add_common_recordset_metadata(
+                md_name, e, self.restrict_recordsets, self.future_context
+            )
         elif self.element_path.startswith("common/"):
-            _, md_name = self.element_path.split('/', maxsplit=1)
-            context.add_common_metadata(md_name, e, self.restrict_recordsets, self.restrict_names, self.iterate_into_recordset, self.future_context)
+            _, md_name = self.element_path.split("/", maxsplit=1)
+            context.add_common_metadata(
+                md_name,
+                e,
+                self.restrict_recordsets,
+                self.restrict_names,
+                self.iterate_into_recordset,
+                self.future_context,
+            )
         else:
-            raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
+            raise OceanProcessingSchemaError(
+                "Invalid element path for an element instruction", 1200
+            )
 
-    def get_value_with_details(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
-        if self.element_path.startswith((
-            "parameters/",
-            "metadata/",
-            "coordinates/"
-        )):
+    def get_value_with_details(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
+        if self.element_path.startswith(("parameters/", "metadata/", "coordinates/")):
             v, q, p, se = self._get_record_child_element(context)
         elif self.element_path.startswith("parent/"):
             v, q, p, se = self._get_parent_child_element(context)
-        elif self.element_path.startswith((
-            "recordset/",
-            "common-recordset/"
-        )):
+        elif self.element_path.startswith(("recordset/", "common-recordset/")):
             v, q, p, se = self._get_recordset_child_element(context)
         elif self.element_path.startswith("common/"):
             v, q, p, se = self._get_common_element(context)
         else:
-            raise OceanProcessingSchemaError("Invalid element path for an element instruction", 1200)
+            raise OceanProcessingSchemaError(
+                "Invalid element path for an element instruction", 1200
+            )
         if self.override_value is not ...:
             v = t.cast(RawValue, self.override_value)
         exp_p = self.export_processor
@@ -668,31 +804,43 @@ class ElementInstruction(SingleValueInstruction):
             v = self.export_map[v]
         return v, q, p, se
 
-    def _get_record_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
+    def _get_record_child_element(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
         return self.process_element(
-            context.record.find_child(self.element_path),
-            context
+            context.record.find_child(self.element_path), context
         )
 
-    def _get_parent_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
+    def _get_parent_child_element(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
         return self.process_element(
-            context.parent.find_child(self.element_path.split('/')[1:]),
-            context
+            context.parent.find_child(self.element_path.split("/")[1:]), context
         )
 
-    def _get_recordset_child_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
+    def _get_recordset_child_element(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
         if context.recordset is None:
             return self.process_element(None, context)
         return self.process_element(
-            context.recordset.find_child(self.element_path.split('/')[1:]),
-            context
+            context.recordset.find_child(self.element_path.split("/")[1:]), context
         )
 
-    def _get_common_element(self, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
-        values: dict[RawValue, tuple[RawValue, int | None, float | None, float | None]] = {}
+    def _get_common_element(
+        self, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
+        values: dict[
+            RawValue, tuple[RawValue, int | None, float | None, float | None]
+        ] = {}
         n_values = 0
-        _, metadata_name = self.element_path.split('/', maxsplit=1)
-        for element in context.iterate_elements(self.restrict_names, self.restrict_recordsets, self.iterate_into_recordset, self.use_current_record):
+        _, metadata_name = self.element_path.split("/", maxsplit=1)
+        for element in context.iterate_elements(
+            self.restrict_names,
+            self.restrict_recordsets,
+            self.iterate_into_recordset,
+            self.use_current_record,
+        ):
             v = self.process_element(element.metadata.get(metadata_name, None), context)
             if v[0] is not None and v[0] not in values:
                 values[v[0]] = v
@@ -702,23 +850,37 @@ class ElementInstruction(SingleValueInstruction):
         elif n_values == 1:
             return values[list(values.keys())[0]]
         else:
-            raise OceanProcessingSchemaError(f"Multiple common elements detected: {';'.join(str(x) for x in values.keys())}", 1000)
+            raise OceanProcessingSchemaError(
+                f"Multiple common elements detected: {';'.join(str(x) for x in values)}",
+                1000,
+            )
 
-    def _extract_quality(self, element: SingleElement, context: OPSContext) -> int | None:
+    def _extract_quality(
+        self, element: SingleElement, context: OPSContext
+    ) -> int | None:
         return context.get_quality(element)
 
-    def process_element(self, v: t.Any, context: OPSContext) -> tuple[RawValue, int | None, float | None, float | None]:
+    def process_element(
+        self, v: t.Any, context: OPSContext
+    ) -> tuple[RawValue, int | None, float | None, float | None]:
         if v is None:
             return None, None, None, None
         if not isinstance(v, AbstractElement):
-            raise OceanProcessingSchemaError("Invalid path for an element instruction", 1100)
+            raise OceanProcessingSchemaError(
+                "Invalid path for an element instruction", 1100
+            )
         best_value = self._find_best_value(v)
         if best_value is None or best_value.is_empty():
             return None, None, None, None
         quality = self._extract_quality(best_value, context)
         _, precision_worst, precision_best = best_value.precision_information()
         if self.ocproc2_export_processor is not None:
-            return self.ocproc2_export_processor(best_value), quality, precision_worst, precision_best
+            return (
+                self.ocproc2_export_processor(best_value),
+                quality,
+                precision_worst,
+                precision_best,
+            )
         if self.data_type is DataType.STRING:
             return best_value.to_string(), quality, precision_worst, precision_best
         elif self.data_type is DataType.INTEGER:
@@ -726,11 +888,12 @@ class ElementInstruction(SingleValueInstruction):
         elif self.data_type is DataType.FLOAT:
             if self.export_temperature_scale is not None:
                 from medsutil import ocproc_math
+
                 val = ocproc_math.get_temperature(
                     temperature=best_value,
                     obs_date=context.parent.coordinates.ideal("Time"),
                     units=self.units or "",
-                    temperature_scale=TemperatureScale(self.export_temperature_scale)
+                    temperature_scale=TemperatureScale(self.export_temperature_scale),
                 )
             else:
                 val = best_value.to_float(self.units or "")
@@ -741,7 +904,9 @@ class ElementInstruction(SingleValueInstruction):
             out_units = self.units or ""
             if is_compatible(out_units, "K") or is_compatible(out_units, "degrees_C"):
                 precision_out_units = "degrees_K"
-            elif is_compatible(out_units, "degrees_R") or is_compatible(out_units, "degrees_F"):
+            elif is_compatible(out_units, "degrees_R") or is_compatible(
+                out_units, "degrees_F"
+            ):
                 precision_out_units = "degrees_R"
             else:
                 precision_out_units = out_units
@@ -749,15 +914,26 @@ class ElementInstruction(SingleValueInstruction):
             bv_units = best_value.units() or ""
             if is_compatible(bv_units, "degrees_C") or is_compatible(bv_units, "K"):
                 precision_in_units = "degrees_K"
-            elif is_compatible(bv_units, "degrees_R") or is_compatible(bv_units, "degrees_F"):
+            elif is_compatible(bv_units, "degrees_R") or is_compatible(
+                bv_units, "degrees_F"
+            ):
                 precision_in_units = "degrees_R"
             else:
                 precision_in_units = bv_units
 
-            precision_worst = convert(precision_worst, precision_in_units, precision_out_units)
-            precision_best = convert(precision_best, precision_in_units, precision_out_units)
+            precision_worst = convert(
+                precision_worst, precision_in_units, precision_out_units
+            )
+            precision_best = convert(
+                precision_best, precision_in_units, precision_out_units
+            )
             if self.places is not None:
-                return float(amath.round_to_place(val, self.places)), quality, precision_worst, precision_best
+                return (
+                    float(amath.round_to_place(val, self.places)),
+                    quality,
+                    precision_worst,
+                    precision_best,
+                )
             else:
                 return float(val), quality, precision_worst, precision_best
         else:
@@ -782,26 +958,35 @@ class ElementInstruction(SingleValueInstruction):
             return value
         if self.component is not None:
             if self.component in ("year", "month", "day", "hour", "minute", "second"):
-                return SingleElement(
-                    getattr(v.to_datetime(), self.component)
-                )
+                return SingleElement(getattr(v.to_datetime(), self.component))
             elif self.component in ("wigos1", "wigos2", "wigos3", "wigos4"):
                 p = value.to_string().split("-", maxsplit=3)
                 return SingleElement(p[int(self.component[5])])
-            elif self.component in ("years", "months", "days", "hours", "minutes", "seconds"):
-                return SingleElement(self.convert_duration(value.to_string(), self.component))
+            elif self.component in (
+                "years",
+                "months",
+                "days",
+                "hours",
+                "minutes",
+                "seconds",
+            ):
+                return SingleElement(
+                    self.convert_duration(value.to_string(), self.component)
+                )
             elif self.component == "uncertainty":
-                ... #TODO
+                ...  # TODO
             else:
                 raise OceanProcessingSchemaError("Invalid component", 1400)
         else:
             return value
 
     @classmethod
-    def factory(cls,
-                instruction: dict[str, t.Any] | str,
-                extras: dict[str, t.Any] | None = None,
-                helper: t.Callable | None = None) -> Instruction | None:
+    def factory(
+        cls,
+        instruction: dict[str, t.Any] | str,
+        extras: dict[str, t.Any] | None = None,
+        helper: t.Callable | None = None,
+    ) -> Instruction | None:
         if isinstance(instruction, dict):
             if "element" in instruction:
                 return cls.build(
@@ -813,13 +998,15 @@ class ElementInstruction(SingleValueInstruction):
 
     @staticmethod
     def convert_duration(duration: str, output_units: str) -> float:
-        from medsutil.iso_duration import ISODuration, DurationUnit
+        from medsutil.iso_duration import DurationUnit, ISODuration
+
         isod = ISODuration.from_iso_format(duration)
         try:
             ou = DurationUnit(output_units)
         except ValueError:
             raise OceanProcessingSchemaError("Invalid output units", 1900)
         return isod.to_duration(ou)
+
 
 Instruction.register_factory(ElementInstruction)
 Instruction.register_factory(StaticInstruction)
@@ -839,13 +1026,14 @@ Instruction.register_factory(ScaleFactorInstruction)
 
 
 class OPSContext:
-
     class FutureMetadata:
-        def __init__(self,
-                     element: AbstractElement,
-                     rs_types: list[str] | None,
-                     names: list[str] | None = None,
-                     iterate_into_recordset: bool = False):
+        def __init__(
+            self,
+            element: AbstractElement,
+            rs_types: list[str] | None,
+            names: list[str] | None = None,
+            iterate_into_recordset: bool = False,
+        ):
             self.element = element
             self.rs_types = rs_types
             self.names = names
@@ -859,20 +1047,26 @@ class OPSContext:
                 element=self.element,
                 rs_types=self.rs_types,
                 names=self.names,
-                iterate_into_recordset=self.iterate_into_recordset
+                iterate_into_recordset=self.iterate_into_recordset,
             )
 
-    def __init__(self,
-                 record: ParentRecord,
-                 test_protocols: list[str] | set[str] | tuple[str] | None = None):
+    def __init__(
+        self,
+        record: ParentRecord,
+        test_protocols: list[str] | set[str] | tuple[str] | None = None,
+    ):
         self.parent: ParentRecord = record
         self.record: BaseRecord = record
         self.recordset_type: str | None = None
         self.recordset: RecordSet | None = None
         self.extras = {}
         self.test_protocols: t.Iterable[str] | None = test_protocols
-        self._future_rs_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
-        self._future_metadata: dict[str | int | None, dict[str, OPSContext.FutureMetadata]] = {}
+        self._future_rs_metadata: dict[
+            str | int | None, dict[str, OPSContext.FutureMetadata]
+        ] = {}
+        self._future_metadata: dict[
+            str | int | None, dict[str, OPSContext.FutureMetadata]
+        ] = {}
         self._ignore_rsids: list[int] = []
         self._log = zrlog.get_logger("ocproc2.processing_context")
 
@@ -885,17 +1079,11 @@ class OPSContext:
             self._log.debug("Entering subcontext")
             self.extras = {x: copy.copy(y) for x, y in self.extras.items()}
             self._future_metadata = {
-                k: {
-                    sk: copy.copy(sd)
-                    for sk, sd in d.items()
-                }
+                k: {sk: copy.copy(sd) for sk, sd in d.items()}
                 for k, d in self._future_metadata.items()
             }
             self._future_rs_metadata = {
-                k: {
-                    sk: copy.copy(sd)
-                    for sk, sd in d.items()
-                }
+                k: {sk: copy.copy(sd) for sk, sd in d.items()}
                 for k, d in self._future_rs_metadata.items()
             }
             yield self
@@ -948,10 +1136,7 @@ class OPSContext:
                 for key, future in values.items():
                     if future.rs_types is not None and rs_type not in future.rs_types:
                         continue
-                    self.set_recordset_metadata(
-                        key,
-                        future.element
-                    )
+                    self.set_recordset_metadata(key, future.element)
             yield self
 
     @contextmanager
@@ -962,8 +1147,7 @@ class OPSContext:
         with self.record_context(record):
             yield self
 
-    def get_quality(self,
-                    *elements: SingleElement):
+    def get_quality(self, *elements: SingleElement):
         def _qualities() -> t.Iterable[int | None]:
             if self.test_protocols:
                 for element in elements:
@@ -983,45 +1167,64 @@ class OPSContext:
                                 yield qual.to_int()
                             else:
                                 yield None
+
         return combine_quality_scores(_qualities())
 
-    def set_element(self,
-                    path: str,
-                    element: AbstractElement | RawValue,
-                    append_mode: bool = False):
+    def set_element(
+        self, path: str, element: AbstractElement | RawValue, append_mode: bool = False
+    ):
         _, name = path.rsplit("/", maxsplit=1)
         forward = self.get_forward_metadata(name)
         if append_mode:
-            self._log.debug("Appending value %s to current:%s [%s]", element, path, forward)
+            self._log.debug(
+                "Appending value %s to current:%s [%s]", element, path, forward
+            )
             self.record.append_to(path, element, **forward)
         else:
-            self._log.debug("Setting value %s to current:%s [%s]", element, path, forward)
+            self._log.debug(
+                "Setting value %s to current:%s [%s]", element, path, forward
+            )
             self.record.set(path, element, **forward)
 
-    def set_parent_element(self,
-                    path: str,
-                    element: AbstractElement | RawValue,
-                    append_mode: bool = False):
+    def set_parent_element(
+        self, path: str, element: AbstractElement | RawValue, append_mode: bool = False
+    ):
         _, name = path.rsplit("/", maxsplit=1)
         forward = self.get_forward_metadata(name)
         if append_mode:
-            self._log.debug("Appending value %s to parent:%s [%s]", element, path, forward)
+            self._log.debug(
+                "Appending value %s to parent:%s [%s]", element, path, forward
+            )
             self.parent.append_to(path, element, **forward)
         else:
-            self._log.debug("Setting value %s to parent:%s [%s]", element, path, forward)
+            self._log.debug(
+                "Setting value %s to parent:%s [%s]", element, path, forward
+            )
             self.parent.set(path, element, **forward)
 
-    def set_recordset_metadata(self,
-                               metadata_name: str,
-                               element: AbstractElement | RawValue,
-                               append_mode: bool = False):
+    def set_recordset_metadata(
+        self,
+        metadata_name: str,
+        element: AbstractElement | RawValue,
+        append_mode: bool = False,
+    ):
         forward = self.get_forward_metadata(metadata_name)
         if self.recordset is not None:
             if append_mode:
-                self._log.debug("Appending value %s to metadata:%s [%s]", element, metadata_name, forward)
+                self._log.debug(
+                    "Appending value %s to metadata:%s [%s]",
+                    element,
+                    metadata_name,
+                    forward,
+                )
                 self.recordset.metadata.append_to(metadata_name, element, **forward)
             else:
-                self._log.debug("Setting value %s to metadata:%s [%s]", element, metadata_name, forward)
+                self._log.debug(
+                    "Setting value %s to metadata:%s [%s]",
+                    element,
+                    metadata_name,
+                    forward,
+                )
                 self.recordset.metadata.set(metadata_name, element, **forward)
 
     def get_forward_metadata(self, property_name: str) -> dict[str, t.Any]:
@@ -1033,29 +1236,38 @@ class OPSContext:
                 md[key] = future.element
         return md
 
-    def add_common_recordset_metadata(self,
-                                      metadata_name: str,
-                                      element: AbstractElement,
-                                      restrict_recordsets: list[str] | None = None,
-                                      future_context: str | int | None = None,):
+    def add_common_recordset_metadata(
+        self,
+        metadata_name: str,
+        element: AbstractElement,
+        restrict_recordsets: list[str] | None = None,
+        future_context: str | int | None = None,
+    ):
         if element.value is not None:
             if future_context not in self._future_rs_metadata:
                 self._future_rs_metadata[future_context] = {}
             metadata = OPSContext.FutureMetadata(element, restrict_recordsets)
-            self._log.debug("Adding future recordset metadata %s=%s", metadata_name, metadata)
+            self._log.debug(
+                "Adding future recordset metadata %s=%s", metadata_name, metadata
+            )
             self._future_rs_metadata[future_context][metadata_name] = metadata
         else:
-            if future_context in self._future_rs_metadata and metadata_name in self._future_rs_metadata[future_context]:
+            if (
+                future_context in self._future_rs_metadata
+                and metadata_name in self._future_rs_metadata[future_context]
+            ):
                 self._log.debug("Removing future recordset metadata %s", metadata_name)
                 del self._future_rs_metadata[future_context][metadata_name]
 
-    def add_common_metadata(self,
-                            metadata_name: str,
-                            element: AbstractElement,
-                            restrict_recordsets: list[str] | None = None,
-                            restrict_names: list[str] | None = None,
-                            iterate_into_recordset: bool = False,
-                            future_context: str | int | None = None):
+    def add_common_metadata(
+        self,
+        metadata_name: str,
+        element: AbstractElement,
+        restrict_recordsets: list[str] | None = None,
+        restrict_names: list[str] | None = None,
+        iterate_into_recordset: bool = False,
+        future_context: str | int | None = None,
+    ):
         if element.value is not None:
             if future_context not in self._future_metadata:
                 self._future_metadata[future_context] = {}
@@ -1065,16 +1277,21 @@ class OPSContext:
             self._log.debug("Adding future metadata %s=%s", metadata_name, metadata)
             self._future_metadata[future_context][metadata_name] = metadata
         else:
-            if future_context in self._future_metadata and metadata_name in self._future_metadata[future_context]:
+            if (
+                future_context in self._future_metadata
+                and metadata_name in self._future_metadata[future_context]
+            ):
                 self._log.debug("Removing future metadata %s", metadata_name)
                 del self._future_metadata[future_context][metadata_name]
 
-    def find_recordset(self,
-                       recordset_type: str,
-                       required_elements: RSElementList,
-                       forbidden_elements: RSElementList,
-                       helpful_elements: RSElementList,
-                       no_repeats: bool = True) -> RecordSet | None:
+    def find_recordset(
+        self,
+        recordset_type: str,
+        required_elements: RSElementList,
+        forbidden_elements: RSElementList,
+        helpful_elements: RSElementList,
+        no_repeats: bool = True,
+    ) -> RecordSet | None:
         check_counts = set()
         if helpful_elements is not None:
             check_counts.update(helpful_elements)
@@ -1096,7 +1313,9 @@ class OPSContext:
                 rs_elements.update(record.parameters.keys())
                 rs_elements.update(record.metadata.keys())
                 rs_elements.update(record.coordinates.keys())
-            if forbidden_elements is not None and any(x in rs_elements for x in forbidden_elements):
+            if forbidden_elements is not None and any(
+                x in rs_elements for x in forbidden_elements
+            ):
                 continue
             if required_elements is not None:
                 good = True
@@ -1123,46 +1342,70 @@ class OPSContext:
             self._ignore_rsids.append(best_id)
         return best_rs
 
-    def iterate_elements(self,
-                         restrict_name: list[str] | None,
-                         restrict_recordsets: list[str] | None = None,
-                         iterate_into_recordset: bool = False,
-                         use_current_record: bool = True) -> t.Iterable[AbstractElement]:
+    def iterate_elements(
+        self,
+        restrict_name: list[str] | None,
+        restrict_recordsets: list[str] | None = None,
+        iterate_into_recordset: bool = False,
+        use_current_record: bool = True,
+    ) -> t.Iterable[AbstractElement]:
         if use_current_record:
             yield from self._iterate_record_elements(self.record, restrict_name)
         if iterate_into_recordset:
-            if self.recordset is not None and ((not restrict_recordsets) or self.recordset_type in restrict_recordsets):
-                yield from self._iterate_recordset_elements(self.recordset, restrict_recordsets, restrict_name)
-            yield from self._iterate_record_recordset_elements(self.record, restrict_recordsets, restrict_name)
+            if self.recordset is not None and (
+                (not restrict_recordsets) or self.recordset_type in restrict_recordsets
+            ):
+                yield from self._iterate_recordset_elements(
+                    self.recordset, restrict_recordsets, restrict_name
+                )
+            yield from self._iterate_record_recordset_elements(
+                self.record, restrict_recordsets, restrict_name
+            )
 
     @staticmethod
-    def _iterate_record_recordset_elements(record: BaseRecord,
-                                           restrict_recordsets: list[str] | None,
-                                           restrict_names: list[str] | None) -> t.Iterable[AbstractElement]:
+    def _iterate_record_recordset_elements(
+        record: BaseRecord,
+        restrict_recordsets: list[str] | None,
+        restrict_names: list[str] | None,
+    ) -> t.Iterable[AbstractElement]:
         for rs_type in record.subrecords:
             if restrict_recordsets is None or rs_type in restrict_recordsets:
                 for _, rs in record.subrecords.record_sets[rs_type].items():
-                    yield from OPSContext._iterate_recordset_elements(rs, restrict_recordsets, restrict_names)
+                    yield from OPSContext._iterate_recordset_elements(
+                        rs, restrict_recordsets, restrict_names
+                    )
 
     @staticmethod
-    def _iterate_recordset_elements(rs: RecordSet,
-                                    restrict_recordsets: list[str] | None,
-                                    restrict_name: list[str] | None) -> t.Iterable[AbstractElement]:
+    def _iterate_recordset_elements(
+        rs: RecordSet,
+        restrict_recordsets: list[str] | None,
+        restrict_name: list[str] | None,
+    ) -> t.Iterable[AbstractElement]:
         yield from OPSContext._iterate_element_map_elements(rs.metadata, restrict_name)
         for record in rs.records.iterate_with_load():
             yield from OPSContext._iterate_record_elements(record, restrict_name)
-            yield from OPSContext._iterate_record_recordset_elements(record, restrict_recordsets, restrict_name)
+            yield from OPSContext._iterate_record_recordset_elements(
+                record, restrict_recordsets, restrict_name
+            )
 
     @staticmethod
-    def _iterate_record_elements(record: BaseRecord,
-                                 restrict_name: list[str] | None) -> t.Iterable[AbstractElement]:
-        yield from OPSContext._iterate_element_map_elements(record.metadata, restrict_name)
-        yield from OPSContext._iterate_element_map_elements(record.parameters, restrict_name)
-        yield from OPSContext._iterate_element_map_elements(record.coordinates, restrict_name)
+    def _iterate_record_elements(
+        record: BaseRecord, restrict_name: list[str] | None
+    ) -> t.Iterable[AbstractElement]:
+        yield from OPSContext._iterate_element_map_elements(
+            record.metadata, restrict_name
+        )
+        yield from OPSContext._iterate_element_map_elements(
+            record.parameters, restrict_name
+        )
+        yield from OPSContext._iterate_element_map_elements(
+            record.coordinates, restrict_name
+        )
 
     @staticmethod
-    def _iterate_element_map_elements(em: ElementMap,
-                                      restrict_name: list[str] | None) -> t.Iterable[AbstractElement]:
+    def _iterate_element_map_elements(
+        em: ElementMap, restrict_name: list[str] | None
+    ) -> t.Iterable[AbstractElement]:
         if restrict_name is None or not restrict_name:
             yield from em.values()
         else:

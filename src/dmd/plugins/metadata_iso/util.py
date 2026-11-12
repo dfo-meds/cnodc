@@ -1,87 +1,140 @@
 import functools
 import typing as t
-from autoinject import injector, auto
 
-from dmd.containers.base import ValidationResult, Container, ContainerLoader
+from autoinject import auto, injector
+
+from dmd.containers.base import Container, ContainerLoader, ValidationResult
 from dmd.containers.keywords import KeywordGroup
 from dmd.metadata.datasets import Dataset
 from gcapp.i18n import MLString
 
 
-def validate_citation(profile_name: str,
-                      obj_path: list[str | MLString],
-                      citation: Container,
-                      memo) -> t.Iterable[ValidationResult]:
-    if (citation["id_system"] or citation["id_description"]) and not citation["id_code"]:
-        yield ValidationResult(profile_name, obj_path, "iso19115.citation_without_id_code", "warning")
+def validate_citation(
+    profile_name: str, obj_path: list[str | MLString], citation: Container, memo
+) -> t.Iterable[ValidationResult]:
+    if (citation["id_system"] or citation["id_description"]) and not citation[
+        "id_code"
+    ]:
+        yield ValidationResult(
+            profile_name, obj_path, "iso19115.citation_without_id_code", "warning"
+        )
 
 
-def validate_use_constraint(profile_name: str,
-                            obj_path: list[str | MLString],
-                            use_constraint: Container,
-                            memo) -> t.Iterable[ValidationResult]:
+def validate_use_constraint(
+    profile_name: str, obj_path: list[str | MLString], use_constraint: Container, memo
+) -> t.Iterable[ValidationResult]:
     if use_constraint["classification"]:
-        if any(use_constraint[x] for x in ("access_constraints", "use_constraints", "other_constraints")):
-            yield ValidationResult(profile_name, obj_path, "iso19115.security_constraint_has_legal_property")
-    elif any(use_constraint[x] for x in ("user_notes", "classification_system", "handling_description")):
-        yield ValidationResult(profile_name, obj_path, "iso19115.security_constraint_missing_classification")
+        if any(
+            use_constraint[x]
+            for x in ("access_constraints", "use_constraints", "other_constraints")
+        ):
+            yield ValidationResult(
+                profile_name,
+                obj_path,
+                "iso19115.security_constraint_has_legal_property",
+            )
+    elif any(
+        use_constraint[x]
+        for x in ("user_notes", "classification_system", "handling_description")
+    ):
+        yield ValidationResult(
+            profile_name,
+            obj_path,
+            "iso19115.security_constraint_missing_classification",
+        )
     else:
         if not use_constraint["other_constraints"]:
-            if any(x["short_name"] == "otherRestrictions" for x in use_constraint.data("use_constraints", default=[])):
-                yield ValidationResult(profile_name, obj_path, "iso19115.legal_constraint_missing_other_for_use")
-            if any(x["short_name"] == "otherRestrictions" for x in use_constraint.data("access_constraints", default=[])):
-                yield ValidationResult(profile_name, obj_path, "iso19115.legal_constraint_missing_other_for_access")
+            if any(
+                x["short_name"] == "otherRestrictions"
+                for x in use_constraint.data("use_constraints", default=[])
+            ):
+                yield ValidationResult(
+                    profile_name,
+                    obj_path,
+                    "iso19115.legal_constraint_missing_other_for_use",
+                )
+            if any(
+                x["short_name"] == "otherRestrictions"
+                for x in use_constraint.data("access_constraints", default=[])
+            ):
+                yield ValidationResult(
+                    profile_name,
+                    obj_path,
+                    "iso19115.legal_constraint_missing_other_for_access",
+                )
 
 
-def validate_contact(profile_name: str,
-                     obj_path: list[str | MLString],
-                     contact: Container,
-                     memo) -> t.Iterable[ValidationResult]:
+def validate_contact(
+    profile_name: str, obj_path: list[str | MLString], contact: Container, memo
+) -> t.Iterable[ValidationResult]:
     if (contact["id_system"] or contact["id_description"]) and not contact["id_code"]:
-        yield ValidationResult(profile_name, obj_path, "iso19115.contact_without_id_code", "warning")
+        yield ValidationResult(
+            profile_name, obj_path, "iso19115.contact_without_id_code", "warning"
+        )
     if contact["organization_name"]:
         if contact["individual_name"]:
-            yield ValidationResult(profile_name, obj_path, "iso19115.organization_with_individual_name")
+            yield ValidationResult(
+                profile_name, obj_path, "iso19115.organization_with_individual_name"
+            )
         if contact["position_name"]:
-            yield ValidationResult(profile_name, obj_path, "iso19115.organization_with_position_name")
+            yield ValidationResult(
+                profile_name, obj_path, "iso19115.organization_with_position_name"
+            )
         for individual in contact.data("individuals", default=[]):
             if individual["organization_name"]:
-                yield ValidationResult(profile_name, obj_path, "iso19115.related_individual_with_organization_name")
+                yield ValidationResult(
+                    profile_name,
+                    obj_path,
+                    "iso19115.related_individual_with_organization_name",
+                )
             if individual["logo"]:
-                yield ValidationResult(profile_name, obj_path, "iso19115.related_individual_with_logo")
+                yield ValidationResult(
+                    profile_name, obj_path, "iso19115.related_individual_with_logo"
+                )
     else:
         if contact["logo"]:
-            yield ValidationResult(profile_name, obj_path, "iso19115.individual_with_logo")
+            yield ValidationResult(
+                profile_name, obj_path, "iso19115.individual_with_logo"
+            )
         if contact["individuals"]:
-            yield ValidationResult(profile_name, obj_path, "iso19115.individual_with_individuals")
+            yield ValidationResult(
+                profile_name, obj_path, "iso19115.individual_with_individuals"
+            )
 
 
-def validate_dataset(profile_name: str,
-                     obj_path: list[str | MLString],
-                     dataset: Dataset,
-                     memo) -> t.Iterable[ValidationResult]:
-    if (dataset["processing_system"] or dataset["processing_desc"]) and not dataset["processing_code"]:
-        yield ValidationResult(profile_name, obj_path, "iso19115.processing_system_without_code", "warning")
-    if (dataset["dataset_id_desc"] or dataset["dataset_id_system"]) and not dataset["dataset_id_code"]:
-        yield ValidationResult(profile_name, obj_path, "iso19115.dataset_system_without_code", "warning")
+def validate_dataset(
+    profile_name: str, obj_path: list[str | MLString], dataset: Dataset, memo
+) -> t.Iterable[ValidationResult]:
+    if (dataset["processing_system"] or dataset["processing_desc"]) and not dataset[
+        "processing_code"
+    ]:
+        yield ValidationResult(
+            profile_name, obj_path, "iso19115.processing_system_without_code", "warning"
+        )
+    if (dataset["dataset_id_desc"] or dataset["dataset_id_system"]) and not dataset[
+        "dataset_id_code"
+    ]:
+        yield ValidationResult(
+            profile_name, obj_path, "iso19115.dataset_system_without_code", "warning"
+        )
 
 
 def preprocess_for_iso19115(dataset: Dataset, **kwargs):
     locale_mapping = {}
     def_loc = dataset.data("default_locale")
-    default_locale = def_loc['a2_language'] if def_loc else "en"
-    locale_mapping[default_locale] = def_loc['language'] if def_loc else "eng"
+    default_locale = def_loc["a2_language"] if def_loc else "en"
+    locale_mapping[default_locale] = def_loc["language"] if def_loc else "eng"
     olocales = dataset.data("other_locales") or []
     supported = []
     for other_loc in olocales:
-        locale_mapping[other_loc['a2_language']] = other_loc['language']
-        supported.append(other_loc['a2_language'])
+        locale_mapping[other_loc["a2_language"]] = other_loc["language"]
+        supported.append(other_loc["a2_language"])
     dataset_maintenance = []
     metadata_maintenance = []
     for maintenance in dataset.data("iso_maintenance") or []:
-        if maintenance['scope']['short_name'] == "dataset":
+        if maintenance["scope"]["short_name"] == "dataset":
             dataset_maintenance.append(maintenance)
-        elif maintenance['scope']['short_name'] == "metadata":
+        elif maintenance["scope"]["short_name"] == "metadata":
             metadata_maintenance.append(maintenance)
 
     # This handles the dataset-wide acquisition information, which is what we usually provide
@@ -92,35 +145,26 @@ def preprocess_for_iso19115(dataset: Dataset, **kwargs):
     platforms = dataset.data("platforms")
     if missions or instruments or platforms:
         dataset_wide_info = {
-            'missions': missions,
-            'platforms': platforms,
-            'instruments': instruments,
-            'scope': {
-                'short_name': 'dataset',
+            "missions": missions,
+            "platforms": platforms,
+            "instruments": instruments,
+            "scope": {
+                "short_name": "dataset",
             },
-            'dataset': {
-                'en': 'current dataset',
-                'fr': 'jeu de données actuel'
-            }
+            "dataset": {"en": "current dataset", "fr": "jeu de données actuel"},
         }
         acq_info.append(dataset_wide_info)
     refs = {}
     return {
         "acquisition_info": acq_info,
         "responsibilities": [
-            {
-                "role": {"short_name": "owner"},
-                "contact": dataset['metadata_owner']
-            }
+            {"role": {"short_name": "owner"}, "contact": dataset["metadata_owner"]}
         ],
         "dates": [
-            {
-                "type": {"short_name": "created"},
-                "date": dataset.created_date
-            },
+            {"type": {"short_name": "created"}, "date": dataset.created_date},
             {
                 "type": {"short_name": "revision"},
-                "date": dataset.metadata_modified_date
+                "date": dataset.metadata_modified_date,
             },
         ],
         "default_locale": default_locale,
@@ -134,18 +178,22 @@ def preprocess_for_iso19115(dataset: Dataset, **kwargs):
             "id_system": dataset["dataset_id_system"],
             "id_description": dataset["dataset_id_desc"],
             "responsibles": dataset["responsibles"],
-            'resource': dataset['info_link']
+            "resource": dataset["info_link"],
         },
         "dataset_maintenance": dataset_maintenance,
         "metadata_maintenance": metadata_maintenance,
         "grouped_keywords": separate_keywords(dataset.keywords()),
-        "check_alt_langs": functools.partial(_has_other_languages, supported_locales=supported),
-        '_refs': refs,
-        'check_platform': functools.partial(_has_type_been_rendered, refs, 'platform'),
-        'check_instrument': functools.partial(_has_type_been_rendered, refs, 'instrument'),
-        'check_mission': functools.partial(_has_type_been_rendered, refs, 'mission'),
-        'clean_id': _clean_xml_id,
-        'get_platform_instruments': get_platform_instruments
+        "check_alt_langs": functools.partial(
+            _has_other_languages, supported_locales=supported
+        ),
+        "_refs": refs,
+        "check_platform": functools.partial(_has_type_been_rendered, refs, "platform"),
+        "check_instrument": functools.partial(
+            _has_type_been_rendered, refs, "instrument"
+        ),
+        "check_mission": functools.partial(_has_type_been_rendered, refs, "mission"),
+        "clean_id": _clean_xml_id,
+        "get_platform_instruments": get_platform_instruments,
     }
 
 
@@ -184,7 +232,10 @@ def _clean_xml_id(type_name, xml_id, db_id):
     new_xml_id = ""
     if xml_id:
         for ltr in xml_id:
-            if ltr in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-":
+            if (
+                ltr
+                in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+            ):
                 new_xml_id += ltr
     if not new_xml_id:
         new_xml_id = "_" + str(db_id)
@@ -194,5 +245,8 @@ def _clean_xml_id(type_name, xml_id, db_id):
 @injector.inject
 def get_platform_instruments(platform: Container, loader: ContainerLoader = auto()):
     for instrument in loader.stream_containers("instrument"):
-        if instrument["mounted_on"] and instrument['mounted_on'].container_id == platform.container_id:
+        if (
+            instrument["mounted_on"]
+            and instrument["mounted_on"].container_id == platform.container_id
+        ):
             yield instrument

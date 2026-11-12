@@ -3,13 +3,9 @@ from medsutil.math import ScienceNumber
 
 
 class MockBathymetryModel:
-
     def __init__(self):
         self._grid: list[list[float]] = [
-            [
-                self._get_real_mock_depth(x, y)
-                for y in range(-90, 89, 4)
-            ]
+            [self._get_real_mock_depth(x, y) for y in range(-90, 89, 4)]
             for x in range(-180, 179, 4)
         ]
 
@@ -17,7 +13,7 @@ class MockBathymetryModel:
         try:
             depth = self.water_depth(longitude, latitude)
             return ScienceNumber.from_float(depth, units="m")
-        except (IndexError, KeyError) as ex:
+        except (IndexError, KeyError):
             return None
 
     def water_depth(self, x: amath.AnyNumber, y: amath.AnyNumber) -> float:

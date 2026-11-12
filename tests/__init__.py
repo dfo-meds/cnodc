@@ -1,6 +1,5 @@
-import sys
 import pathlib
-
+import sys
 
 TEST_DIR = pathlib.Path(__file__).absolute().parent
 

@@ -1,38 +1,43 @@
 import enum
 import hashlib
 import pathlib
-import secrets
 import shutil
+import typing as t
 import uuid
 from base64 import b64decode, b64encode
 
 import flask
-import typing as t
 from autoinject import injector
 
 from gcflask.user import current_user
 from medsutil import json
 from medsutil.awaretime import AwareDateTime
 from medsutil.exceptions import CodedError
-from medsutil.secure import check_password, generate_salt, generate_secure_key, hash_password
-from nodb.interface import NODBInstance, NODB
+from medsutil.secure import (
+    check_password,
+    generate_salt,
+    generate_secure_key,
+    hash_password,
+)
+from nodb.interface import NODB, NODBInstance
 from nodb.workflow import NODBUploadWorkflow, WorkflowConfiguration
 from pipeman.processing.workflow import WorkflowController
 
 
-class IntakeAPIError(CodedError): CODE_SPACE = "INTAKE"
+class IntakeAPIError(CodedError):
+    CODE_SPACE = "INTAKE"
 
 
 @injector.injectable
 class IntakeManager:
-
     nodb: NODB = None
 
     @injector.construct
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
-    def _load_workflow(self, workflow_name: str, db: NODBInstance) -> NODBUploadWorkflow:
+    def _load_workflow(
+        self, workflow_name: str, db: NODBInstance
+    ) -> NODBUploadWorkflow:
         workflow = NODBUploadWorkflow.find_by_name(db, workflow_name)
         if not workflow:
             raise IntakeAPIError(f"No workflow found for {workflow_name}", 1000)
@@ -45,15 +50,23 @@ class IntakeManager:
 
     def _properties(self, workflow: NODBUploadWorkflow):
         info = {
-            'labels': workflow.configuration.label,
-            'max_chunk_size': flask.current_app.config["MAX_CONTENT_LENGTH"],
-            'actions': {
-                'submit': {
-                    'endpoint': flask.url_for('intake.submit_file', workflow_name=workflow.workflow_name, _external=True),
+            "labels": workflow.configuration.label,
+            "max_chunk_size": flask.current_app.config["MAX_CONTENT_LENGTH"],
+            "actions": {
+                "submit": {
+                    "endpoint": flask.url_for(
+                        "intake.submit_file",
+                        workflow_name=workflow.workflow_name,
+                        _external=True,
+                    ),
                 },
-                'info': {
-                    'endpoint': flask.url_for('intake.workflow_info', workflow_name=workflow.workflow_name, _external=True),
-                }
+                "info": {
+                    "endpoint": flask.url_for(
+                        "intake.workflow_info",
+                        workflow_name=workflow.workflow_name,
+                        _external=True,
+                    ),
+                },
             },
         }
         return info
@@ -65,22 +78,24 @@ class IntakeManager:
                 if not self._check_access(workflow):
                     continue
                 workflows[workflow.workflow_name] = self._properties(workflow)
-            return {
-                'success': True,
-                'message': 'Success',
-                'data': workflows
-            }
+            return {"success": True, "message": "Success", "data": workflows}
 
     def workflow_info(self, workflow_name: str) -> dict:
         with self.nodb as db:
             workflow = self._load_workflow(workflow_name, db)
             return {
-                'success': True,
-                'message': 'Success',
-                'data': self._properties(workflow)
+                "success": True,
+                "message": "Success",
+                "data": self._properties(workflow),
             }
 
-    def submit_file(self, workflow_name: str, data: bytes, metadata: dict[str, str], request_id: str | None = None) -> dict:
+    def submit_file(
+        self,
+        workflow_name: str,
+        data: bytes,
+        metadata: dict[str, str],
+        request_id: str | None = None,
+    ) -> dict:
         with self.nodb as db:
             workflow = self._load_workflow(workflow_name, db)
             handler = RequestHandler(workflow, request_id)
@@ -88,73 +103,70 @@ class IntakeManager:
             if result is RequestResult.COMPLETE:
                 # TODO: can we give the client a unique identifier for the file? or accept one from them?
                 try:
-                    wfc = WorkflowController(workflow.workflow_name or '', t.cast(WorkflowConfiguration, workflow.configuration))
+                    wfc = WorkflowController(
+                        workflow.workflow_name or "",
+                        t.cast(WorkflowConfiguration, workflow.configuration),
+                    )
                     wfc.handle_incoming_file(
                         local_path=handler.get_working_file(),
                         metadata=handler.load_metadata(),
-                        db=db
+                        db=db,
                     )
                     return {
-                        'success': True,
-                        'message': 'File has been submitted',
+                        "success": True,
+                        "message": "File has been submitted",
                     }
                 finally:
                     handler.cleanup()
             else:
                 return {
-                    'success': True,
-                    'message': 'File has been saved, waiting for more data',
-                    'data': {
-                        'actions': {
-                            'cancel': {
-                                'endpoint': flask.url_for(
-                                    'intake.cancel_upload',
+                    "success": True,
+                    "message": "File has been saved, waiting for more data",
+                    "data": {
+                        "actions": {
+                            "cancel": {
+                                "endpoint": flask.url_for(
+                                    "intake.cancel_upload",
                                     _external=True,
                                     workflow_name=workflow_name,
                                     request_id=handler.request_id,
                                 ),
-                                'headers': {
-                                    'x-cnodc-token': handler.create_token()
-                                }
+                                "headers": {"x-cnodc-token": handler.create_token()},
                             },
-                            'submit': {
-                                'endpoint': flask.url_for(
-                                    'intake.submit_followup_file',
+                            "submit": {
+                                "endpoint": flask.url_for(
+                                    "intake.submit_followup_file",
                                     _external=True,
                                     workflow_name=workflow_name,
                                     request_id=handler.request_id,
                                 ),
-                                'headers': {
-                                    'x-cnodc-token': handler.create_token()
-                                }
-                            }
+                                "headers": {"x-cnodc-token": handler.create_token()},
+                            },
                         }
-                    }
+                    },
                 }
 
-
-    def cancel_upload(self, workflow_name: str, request_id: str, metadata: dict[str, str]) -> dict:
+    def cancel_upload(
+        self, workflow_name: str, request_id: str, metadata: dict[str, str]
+    ) -> dict:
         with self.nodb as db:
             workflow = self._load_workflow(workflow_name, db)
             handler = RequestHandler(workflow, request_id)
             handler.cancel(metadata)
-            return {
-                "success": True,
-                "message": "Upload cancelled"
-            }
+            return {"success": True, "message": "Upload cancelled"}
 
 
 class RequestResult(enum.Enum):
     CONTINUE = 1
     COMPLETE = 2
 
-class RequestHandler:
 
+class RequestHandler:
     NO_SAVE_HEADERS = {
-        'x-cnodc-token',
-        'x-cnodc-checksum',
-        'x-cnodc-more-data',
-        'x-cnodc-chunk-number',
+        "x-cnodc-token",
+        "x-cnodc-checksum",
+        "x-cnodc-more-data",
+        "x-cnodc-chunk-number",
     }
 
     def __init__(self, workflow: NODBUploadWorkflow, request_id: str | None = None):
@@ -185,7 +197,7 @@ class RequestHandler:
 
     @property
     def metadata_file(self):
-        return self.request_directory / '.metadata.json'
+        return self.request_directory / ".metadata.json"
 
     @property
     def salt_file(self):
@@ -202,9 +214,9 @@ class RequestHandler:
     def _request_directory_path(self, request_id: str) -> pathlib.Path:
         uploads = flask.current_app.config.get("UPLOAD_FOLDER", None)
         if not uploads:
-            raise IntakeAPIError(f"No upload folder configured", 2000)
+            raise IntakeAPIError("No upload folder configured", 2000)
         upload_dir = pathlib.Path(uploads)
-        return upload_dir / 'requests' / str(self._workflow.workflow_name) / request_id
+        return upload_dir / "requests" / str(self._workflow.workflow_name) / request_id
 
     def _verify_token(self, token_str: str):
         if self._request_id is not None:
@@ -229,7 +241,7 @@ class RequestHandler:
         secure_key = generate_secure_key()
         with open(self.request_directory / ".token", "wb") as h:
             h.write(hash_password(secure_key, salt))
-        return b64encode(secure_key).decode('ascii')
+        return b64encode(secure_key).decode("ascii")
 
     def _check_data_integrity(self, data: bytes, md5_expected: str):
         md5_actual = hashlib.md5(data, usedforsecurity=False).hexdigest()
@@ -238,18 +250,18 @@ class RequestHandler:
 
     def _update_metadata(self, headers: dict[str, str]) -> dict[str, str]:
         metadata: dict[str, str] = {
-            'workflow-name': str(self._workflow.workflow_name),
-            'request-id': self.request_id,
-            'source': 'web',
-            'correlation_id': self.request_id,
-            'user': current_user().get_username(),
-            'default-filename': self.request_id,
+            "workflow-name": str(self._workflow.workflow_name),
+            "request-id": self.request_id,
+            "source": "web",
+            "correlation_id": self.request_id,
+            "user": current_user().get_username(),
+            "default-filename": self.request_id,
         }
         metadata.update(self.load_metadata())
         for name, value in headers.items():
             if name.startswith("x-cnodc-") and name not in self.NO_SAVE_HEADERS:
                 metadata[name[8:]] = value.strip()
-        with open(self.metadata_file, 'w') as h:
+        with open(self.metadata_file, "w") as h:
             h.write(json.dumps(metadata))
         return metadata
 
@@ -282,7 +294,7 @@ class RequestHandler:
             return assembled
 
     def _part_file_path(self, idx: int) -> pathlib.Path:
-        return self.request_directory / f'part.{idx}.bin'
+        return self.request_directory / f"part.{idx}.bin"
 
     def _save_data(self, data: bytes):
         if data:
@@ -311,20 +323,20 @@ class RequestHandler:
 
     def submit(self, data: bytes, metadata: dict[str, str]) -> RequestResult:
         if self._request_id is not None:
-            self._verify_token(metadata.get('x-cnodc-token', '').strip())
-        md5_expected = metadata.get('x-cnodc-checksum', '').strip()
+            self._verify_token(metadata.get("x-cnodc-token", "").strip())
+        md5_expected = metadata.get("x-cnodc-checksum", "").strip()
         if md5_expected:
             self._check_data_integrity(data, md5_expected)
         # TODO: allow client to set index with x-cnodc-chunk-number
         self._save_data(data)
         self._update_metadata(metadata)
-        more_data = str(metadata.get('x-cnodc-more-data', '0')).strip()
-        if more_data == '1':
+        more_data = str(metadata.get("x-cnodc-more-data", "0")).strip()
+        if more_data == "1":
             return RequestResult.CONTINUE
         else:
             return RequestResult.COMPLETE
 
     def cancel(self, metadata: dict[str, str]) -> bool:
-        self._verify_token(metadata.get('x-cnodc-token', ''))
+        self._verify_token(metadata.get("x-cnodc-token", ""))
         self.cleanup()
         return True

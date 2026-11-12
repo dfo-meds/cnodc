@@ -1,12 +1,14 @@
-""" Helper functions to get the first non-None non-empty string items. """
+"""Helper functions to get the first non-None non-empty string items."""
+
 import itertools
+
 import medsutil.types as ct
 
 
 def first(*args, default=None, skip=...):
-    """ Return the first non-None non-empty string item passed. """
+    """Return the first non-None non-empty string item passed."""
     if skip is ...:
-        skip = ('',)
+        skip = ("",)
     elif skip is None:
         skip = set()
     for item in args:
@@ -16,11 +18,10 @@ def first(*args, default=None, skip=...):
 
 
 def first_i18n(d: ct.AcceptAsLanguageDict | None, default=None) -> str | None:
-    """ Return a single representative item from a language dict """
+    """Return a single representative item from a language dict"""
     if not isinstance(d, dict):
         return d or default
-    for key in itertools.chain(('und', 'en', 'fr'), d.keys()):
-        if key in d and d[key]: return d[key]
+    for key in itertools.chain(("und", "en", "fr"), d.keys()):
+        if d.get(key):
+            return d[key]
     return default
-
-

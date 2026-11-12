@@ -1,30 +1,26 @@
-import typing as t
 
+from medsutil.dynamic import dynamic_object
 from medsutil.exceptions import CodedError
 from nodb.interface import NODBInstance
 from pipeman.processing.payload_worker import WorkflowWorker
+from pipeman.processing.payloads import BatchPayload, SourceFilePayload, WorkflowPayload
 from pipeman.processing.queue_worker import QueueItemResult
 from pipeman.programs.qc.runner import QCTestRunner, ResultBatcher
-from medsutil.dynamic import dynamic_object
-from pipeman.processing.payloads import WorkflowPayload, SourceFilePayload, BatchPayload
 
 
 class NODBQCWorker(WorkflowWorker):
-
     def __init__(self, **kwargs):
-        super().__init__(
-            process_name="qc_worker",
-            process_version="1.0",
-            **kwargs
+        super().__init__(process_name="qc_worker", process_version="1.0", **kwargs)
+        self.set_defaults(
+            {
+                "qc_tests": [],
+                "next_queue": "workflow_continue",
+                "review_queue": "nodb_manual_review",
+                "review_test_protocol": None,
+                "error_queue": "nodb_qc_errors",
+                "recheck_queue": None,
+            }
         )
-        self.set_defaults({
-            'qc_tests': [],
-            'next_queue': "workflow_continue",
-            'review_queue': 'nodb_manual_review',
-            'review_test_protocol': None,
-            'error_queue': 'nodb_qc_errors',
-            'recheck_queue': None,
-        })
 
     def _build_test_runner(self):
         return QCTestRunner(
@@ -35,36 +31,35 @@ class NODBQCWorker(WorkflowWorker):
                 (
                     dynamic_object(x.get("class_name", "")),
                     x.get("args", None),
-                    x.get("kwargs", None)
-                ) if isinstance(x, dict) else (
-                    dynamic_object(x),
-                    None,
-                    None
+                    x.get("kwargs", None),
                 )
-                for x in self.get_config('qc_tests')
-            ]
+                if isinstance(x, dict)
+                else (dynamic_object(x), None, None)
+                for x in self.get_config("qc_tests")
+            ],
         )
 
-    def _queue_new_batch(self,
-                         db: NODBInstance,
-                         new_batch_uuid: str,
-                         outcome: int):
+    def _queue_new_batch(self, db: NODBInstance, new_batch_uuid: str, outcome: int):
         bp = self.batch_payload_from_uuid(new_batch_uuid)
-        bp.metadata['recheck-queue'] = None
-        bp.metadata['next-queue'] = None
-        bp.metadata['error-queue'] = None
+        bp.metadata["recheck-queue"] = None
+        bp.metadata["next-queue"] = None
+        bp.metadata["error-queue"] = None
         if outcome == ResultBatcher.RESULT_NEXT:
             bp.enqueue(db, self.get_config("next_queue"))
         elif outcome == ResultBatcher.RESULT_REVIEW:
-            bp.metadata['review-protocol'] = self.get_config("review_test_protocol", "nodb")
-            bp.metadata['recheck-queue'] = self.get_config("recheck_queue", self.get_config("queue_name", None))
-            bp.metadata['next-queue'] = self.get_config("next_queue", None)
-            bp.metadata['error-queue'] = self.get_config("error_queue", None)
+            bp.metadata["review-protocol"] = self.get_config(
+                "review_test_protocol", "nodb"
+            )
+            bp.metadata["recheck-queue"] = self.get_config(
+                "recheck_queue", self.get_config("queue_name", None)
+            )
+            bp.metadata["next-queue"] = self.get_config("next_queue", None)
+            bp.metadata["error-queue"] = self.get_config("error_queue", None)
             bp.enqueue(db, self.get_config("review_queue"))
         else:
             bp.enqueue(db, self.get_config("error_queue"))
 
-    def process_payload(self, payload: WorkflowPayload) -> t.Optional[QueueItemResult]:
+    def process_payload(self, payload: WorkflowPayload) -> QueueItemResult | None:
         if isinstance(payload, BatchPayload):
             batch = payload.load_batch(self.db)
             runner = self._build_test_runner()
@@ -83,7 +78,7 @@ class NODBQCWorker(WorkflowWorker):
             return QueueItemResult.HANDLED
         else:
             raise CodedError(
-                f'Invalid payload type for QC processing (must be batch or source file, found {payload.__class__.__name__})',
+                f"Invalid payload type for QC processing (must be batch or source file, found {payload.__class__.__name__})",
                 1000,
-                code_space='QC-WORKER'
+                code_space="QC-WORKER",
             )

@@ -3,9 +3,9 @@ import pathlib
 
 from medsutil.storage import StorageController
 from medsutil.storage.base import local_file_error_wrap
-from medsutil.storage.interface import StorageError, PathType
-from tests.helpers.base_test_case import BaseTestCase
+from medsutil.storage.interface import PathType, StorageError
 from medsutil.storage.local import LocalHandle
+from tests.helpers.base_test_case import BaseTestCase
 
 
 @local_file_error_wrap
@@ -14,7 +14,6 @@ def wrap_and_raise(ex):
 
 
 class TestLocalHandle(BaseTestCase):
-
     def test_not_a_dir(self):
         with self.assertRaises(StorageError):
             wrap_and_raise(NotADirectoryError("oh no"))
@@ -50,28 +49,30 @@ class TestLocalHandle(BaseTestCase):
     def test_exists(self):
         handle = LocalHandle(self.temp_dir)
         self.assertTrue(handle.exists())
-        local_file = self.temp_dir / 'no.txt'
+        local_file = self.temp_dir / "no.txt"
         handle2 = LocalHandle(local_file)
         self.assertFalse(handle2.exists())
         with open(local_file, "w") as h:
-            h.write(' ')
+            h.write(" ")
         handle2.clear_cache()
         self.assertTrue(handle2.exists())
 
     def test_is_dir(self):
         handle = LocalHandle(self.temp_dir)
         self.assertTrue(handle.is_dir())
-        file = LocalHandle(self.temp_dir / 'file.txt')
-        with open(self.temp_dir / 'file.txt', 'w') as h:
-            h.write(' ')
+        file = LocalHandle(self.temp_dir / "file.txt")
+        with open(self.temp_dir / "file.txt", "w") as h:
+            h.write(" ")
         self.assertFalse(file.is_dir())
 
     def test_name_path(self):
-        file = LocalHandle(self.temp_dir / 'file.txt')
-        with open(self.temp_dir / 'file.txt', 'w') as h:
-            h.write(' ')
-        self.assertEqual(file.name, 'file.txt')
-        self.assertEqual(file.path(), str(self.temp_dir / 'file.txt').replace("\\", "/"))
+        file = LocalHandle(self.temp_dir / "file.txt")
+        with open(self.temp_dir / "file.txt", "w") as h:
+            h.write(" ")
+        self.assertEqual(file.name, "file.txt")
+        self.assertEqual(
+            file.path(), str(self.temp_dir / "file.txt").replace("\\", "/")
+        )
 
     def test_can_read_file_data(self):
         handle = LocalHandle(self.temp_dir)
@@ -80,14 +81,16 @@ class TestLocalHandle(BaseTestCase):
 
     def test_child(self):
         handle = LocalHandle(self.temp_dir)
-        file = handle.child('file.txt')
+        file = handle.child("file.txt")
         self.assertFalse(file.is_dir())
-        self.assertEqual(file.name, 'file.txt')
-        self.assertEqual(file.path(), str(self.temp_dir / 'file.txt').replace("\\", "/"))
+        self.assertEqual(file.name, "file.txt")
+        self.assertEqual(
+            file.path(), str(self.temp_dir / "file.txt").replace("\\", "/")
+        )
 
     def test_child_dir(self):
         handle = LocalHandle(self.temp_dir)
-        file = handle.subdir('foo')
+        file = handle.subdir("foo")
         self.assertTrue(file.is_dir())
 
     def test_default_entries(self):
@@ -96,44 +99,44 @@ class TestLocalHandle(BaseTestCase):
         self.assertIsNone(handle.get_tier())
 
     def test_file_size(self):
-        handle = LocalHandle(self.temp_dir / 'file.txt')
-        with open(self.temp_dir / 'file.txt', 'w') as h:
-            h.write('12345')
+        handle = LocalHandle(self.temp_dir / "file.txt")
+        with open(self.temp_dir / "file.txt", "w") as h:
+            h.write("12345")
         self.assertEqual(handle.size(), 5)
 
     def test_walk(self):
-        test_dirs = ['a', 'b', 'e', 'f', 'z']
-        test_subdirs = ['t', 'y', 'g']
+        test_dirs = ["a", "b", "e", "f", "z"]
+        test_subdirs = ["t", "y", "g"]
         subdirs = []
         dirs = []
         for a in test_dirs:
-            file = self.temp_dir / f'{a}.txt'
+            file = self.temp_dir / f"{a}.txt"
             file.touch()
             dirs.append(str(file))
         for d in test_dirs:
             dir_ = self.temp_dir / d
             dir_.mkdir()
-            file = dir_ / 'file.txt'
+            file = dir_ / "file.txt"
             file.touch()
             subdirs.append(str(file))
             for sd in test_subdirs:
                 sd_path = dir_ / sd
                 sd_path.mkdir()
-                file = dir_ / 'file.txt'
+                file = dir_ / "file.txt"
                 file.touch()
                 subdirs.append(str(file))
         handle = LocalHandle(self.temp_dir)
         results = [x.path() for x in handle.iterdir(True, path_types=PathType.FILE)]
         for sd in subdirs:
             with self.subTest(path=sd):
-                self.assertIn(sd.replace('\\', '/'), results)
+                self.assertIn(sd.replace("\\", "/"), results)
         results = [x.path() for x in handle.iterdir(False, path_types=PathType.FILE)]
         for sd in subdirs:
             with self.subTest(path=sd):
                 if sd in dirs:
-                    self.assertIn(sd.replace('\\', '/'), results)
+                    self.assertIn(sd.replace("\\", "/"), results)
                 else:
-                    self.assertNotIn(sd.replace('\\', '/'), results)
+                    self.assertNotIn(sd.replace("\\", "/"), results)
 
     def test_remove(self):
         fp = self.temp_dir / "file.txt"
@@ -163,7 +166,7 @@ class TestLocalHandle(BaseTestCase):
         fp = self.temp_dir / "file.txt"
         with open(fp, "w") as h:
             h.write("hello")
-        upload = self.temp_dir / 'upload.txt'
+        upload = self.temp_dir / "upload.txt"
         handle = LocalHandle(upload)
         self.assertFalse(handle.exists())
         handle.upload(fp)
@@ -175,7 +178,7 @@ class TestLocalHandle(BaseTestCase):
         fp = self.temp_dir / "file.txt"
         with open(fp, "w") as h:
             h.write("hello")
-        upload = self.temp_dir / 'file.txt'
+        upload = self.temp_dir / "file.txt"
         handle = LocalHandle(upload)
         self.assertTrue(handle.exists())
         with self.assertRaisesCoded():
@@ -197,7 +200,7 @@ class TestLocalHandle(BaseTestCase):
         with open(fp, "w") as h:
             h.write("hello")
         handle = LocalHandle(fp)
-        download = self.temp_dir / 'download.txt'
+        download = self.temp_dir / "download.txt"
         self.assertFalse(download.exists())
         handle.download(download)
         self.assertTrue(download.exists())
@@ -209,7 +212,7 @@ class TestLocalHandle(BaseTestCase):
         with open(fp, "w") as h:
             h.write("hello")
         handle = LocalHandle(fp)
-        download = self.temp_dir / 'download.txt'
+        download = self.temp_dir / "download.txt"
         with open(download, "w") as h:
             h.write("bar")
         self.assertTrue(download.exists())
@@ -223,7 +226,7 @@ class TestLocalHandle(BaseTestCase):
         with open(fp, "w") as h:
             h.write("hello")
         handle = LocalHandle(fp)
-        download = self.temp_dir / 'download.txt'
+        download = self.temp_dir / "download.txt"
         with open(download, "w") as h:
             h.write("bar")
         self.assertTrue(download.exists())
@@ -244,56 +247,58 @@ class TestLocalHandle(BaseTestCase):
         with open(subdir / "file3.nc", "w") as h:
             h.write("hbar")
             subfiles.append(str(subdir / "file3.nc"))
-        subdir2 = subdir / 'bar'
+        subdir2 = subdir / "bar"
         subdir2.mkdir()
         with open(subdir2 / "file3.nc", "w") as h:
             h.write("hbar")
             subfiles.append(str(subdir2 / "file3.nc"))
         subfiles.extend(files)
         handle = LocalHandle(self.temp_dir)
-        results = [x.path() for x in handle.search('*', path_types=PathType.FILE)]
+        results = [x.path() for x in handle.search("*", path_types=PathType.FILE)]
         for file in subfiles:
             with self.subTest(path=file):
                 self.assertIn(file.replace("\\", "/"), results)
         self.assertEqual(len(results), 4)
-        results = [x.path() for x in handle.search('*', False, path_types=PathType.FILE)]
+        results = [
+            x.path() for x in handle.search("*", False, path_types=PathType.FILE)
+        ]
         self.assertEqual(len(results), 2)
         for file in subfiles:
             with self.subTest(path=file):
                 if file in files:
-                    self.assertIn(file.replace('\\', '/'), results)
+                    self.assertIn(file.replace("\\", "/"), results)
                 else:
-                    self.assertNotIn(file.replace('\\', '/'), results)
+                    self.assertNotIn(file.replace("\\", "/"), results)
 
     def test_build(self):
-        if os.name == 'nt':
+        if os.name == "nt":
             with self.subTest(platform="windows"):
                 handle = LocalHandle.build("C:\\hello\\world.txt")
                 self.assertEqual(handle.path(), "C:/hello/world.txt")
-        if os.name == 'posix':
+        if os.name == "posix":
             with self.subTest(platform="posix"):
                 handle = LocalHandle.build("/srv/opt/hello")
                 self.assertEqual(handle.path(), "/srv/opt/hello")
 
     def test_build_from_protocol(self):
-        if os.name == 'nt':
+        if os.name == "nt":
             with self.subTest(platform="windows"):
                 handle = LocalHandle.build("file://C:/hello/world.txt")
                 self.assertEqual(handle.path(), "C:/hello/world.txt")
-        if os.name == 'posix':
+        if os.name == "posix":
             with self.subTest(platform="posix"):
                 handle = LocalHandle.build("file:///srv/opt/test")
                 self.assertEqual(handle.path(), "/srv/opt/test")
 
     def test_supports(self):
-        self.assertTrue(LocalHandle.supports('C:/12345.txt'))
-        self.assertTrue(LocalHandle.supports('C:/12345.txt'))
-        self.assertTrue(LocalHandle.supports('/foo/bar/two'))
-        self.assertTrue(LocalHandle.supports('file://C:/12345.txt'))
-        self.assertTrue(LocalHandle.supports('file:///foo/bar/two'))
-        self.assertFalse(LocalHandle.supports('http://test.com/file.html'))
-        self.assertFalse(LocalHandle.supports('ftp://test.com/file.html'))
-        self.assertFalse(LocalHandle.supports('ftps://test.com/file.html'))
+        self.assertTrue(LocalHandle.supports("C:/12345.txt"))
+        self.assertTrue(LocalHandle.supports("C:/12345.txt"))
+        self.assertTrue(LocalHandle.supports("/foo/bar/two"))
+        self.assertTrue(LocalHandle.supports("file://C:/12345.txt"))
+        self.assertTrue(LocalHandle.supports("file:///foo/bar/two"))
+        self.assertFalse(LocalHandle.supports("http://test.com/file.html"))
+        self.assertFalse(LocalHandle.supports("ftp://test.com/file.html"))
+        self.assertFalse(LocalHandle.supports("ftps://test.com/file.html"))
 
     def test_read_dir(self):
         h = LocalHandle(self.temp_dir)

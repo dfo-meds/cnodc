@@ -1,23 +1,22 @@
 """Structural elements of OCPROC2 values."""
+
+import datetime
 import decimal
 import functools
 import hashlib
 import typing as t
-import datetime
 from _hashlib import HASH
 
 import zrlog
-from wtforms.validators import none_of
 
-from medsutil.awaretime import AwareDateTime, ScienceDateTime
-from medsutil.lazy_load import LazyLoadDict
-from medsutil.math import ScienceNumber, NumberString, sqrt
-from medsutil.units.units import convert
-import medsutil.awaretime as awaretime
-
-from medsutil.sanitize import coerce
 import medsutil.ocproc2.util as ocut
 import medsutil.types as ct
+from medsutil.awaretime import AwareDateTime, ScienceDateTime
+from medsutil.lazy_load import LazyLoadDict
+from medsutil.math import ScienceNumber, sqrt
+from medsutil.sanitize import coerce
+from medsutil.units.units import convert
+
 UNIFORM_CONVERSION_FACTOR = decimal.Decimal("0.57735026918963")
 
 if t.TYPE_CHECKING:
@@ -44,20 +43,28 @@ def normalize_data_value(dv: ocut.SupportedValue) -> ocut.SupportedStorage:
     raise ValueError(f"Invalid OCPROC2 value: [{dv}] of type [{dv.__class__.__name__}]")
 
 
-def duck_type_catch[**P](cb: t.Callable[P, None]) ->t.Callable[P, bool]:
+def duck_type_catch[**P](cb: t.Callable[P, None]) -> t.Callable[P, bool]:
     """Wrapper to check using duck typing"""
+
     @functools.wraps(cb)
     def _inner(*args, **kwargs) -> bool:
         try:
             cb(*args, **kwargs)
             return True
         except (TypeError, ValueError, IndexError) as ex:
-            zrlog.get_logger("ocproc2.ducktype").trace("duck type failed: %s", ex, exc_info=(ex.__class__, ex, ex.__traceback__))
+            zrlog.get_logger("ocproc2.ducktype").trace(
+                "duck type failed: %s",
+                ex,
+                exc_info=(ex.__class__, ex, ex.__traceback__),
+            )
             return False
+
     return _inner
 
 
-type AnyElementExport = ExportMultipleWithMetadata | ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage | list[AnyElementExport] | ocut.SupportedStorage
+type AnyElementExport = (
+    ExportMultipleWithMetadata | ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage | list[AnyElementExport]
+)
 type MetadataDict = dict[str, AnyElementExport]
 
 
@@ -68,30 +75,36 @@ class ExportQCInfo(t.TypedDict):
     note: str | None
     ref_value: t.Any
 
+
 class ExportWithMetadata(t.TypedDict):
     _value: ocut.SupportedStorage
     _metadata: t.NotRequired[MetadataDict]
     _qc_info: t.NotRequired[dict[str, ExportQCInfo]]
 
+
 class ExportComplexValue(t.TypedDict):
     _value: ocut.SupportedStorage
+
 
 class ExportMultipleWithMetadata(t.TypedDict):
     _values: list[AnyElementExport]
     _metadata: t.NotRequired[MetadataDict]
     _qc_info: t.NotRequired[dict[str, ExportQCInfo]]
 
+
 def _to_int(x) -> int:
     return int(float(x))
 
-class QCInfo:
 
-    def __init__(self,
-                 system_recommended_flag: int | None = None,
-                 user_provided_flag: int | None = None,
-                 ignore_test: bool = False,
-                 ref_value: t.Any = None,
-                 note: str | None = None):
+class QCInfo:
+    def __init__(
+        self,
+        system_recommended_flag: int | None = None,
+        user_provided_flag: int | None = None,
+        ignore_test: bool = False,
+        ref_value: t.Any = None,
+        note: str | None = None,
+    ):
         self.system_recommended_flag = system_recommended_flag
         self.user_provided_flag = user_provided_flag
         self.ignore_test: bool = ignore_test
@@ -100,26 +113,25 @@ class QCInfo:
 
     def to_mapping(self) -> ExportQCInfo:
         return {
-            'sys_flag': self.system_recommended_flag,
-            'user_flag': self.user_provided_flag,
-            'ignore_test': self.ignore_test,
-            'ref_value': self.ref_value,
-            'note': self.note
+            "sys_flag": self.system_recommended_flag,
+            "user_flag": self.user_provided_flag,
+            "ignore_test": self.ignore_test,
+            "ref_value": self.ref_value,
+            "note": self.note,
         }
 
     @classmethod
     def build_from_mapping(cls, map_: dict) -> QCInfo:
         return QCInfo(
-            system_recommended_flag=map_.get('sys_flag', None),
+            system_recommended_flag=map_.get("sys_flag", None),
             user_provided_flag=map_.get("user_flag", None),
             ignore_test=map_.get("ignore_test", False),
-            ref_value=map_.get('ref_value', None),
-            note=map_.get('note', None)
+            ref_value=map_.get("ref_value", None),
+            note=map_.get("note", None),
         )
 
 
 class QCInfoMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], QCInfo]):
-
     def __init__(self):
         super().__init__()
 
@@ -137,10 +149,10 @@ class AbstractElement[X]:
     _qc_info: QCInfoMap | None = None
 
     def __repr__(self) -> str:  # pragma: no coverage
-        s = f'{self.__class__.__name__}({str(self)})'
+        s = f"{self.__class__.__name__}({self!s})"
         if self._metadata:
             s += "("
-            s += ';'.join(f"{x}={repr(self._metadata[x])}" for x in self._metadata)
+            s += ";".join(f"{x}={self._metadata[x]!r}" for x in self._metadata)
             s += ")"
         return s
 
@@ -167,7 +179,9 @@ class AbstractElement[X]:
     @t.overload
     def best[T](self, coerce: t.Callable[[X], T] | type[T]) -> T | None: ...
 
-    def best[T](self, coerce: t.Optional[t.Callable[[X], T] | type[T]] = None) -> X | T | None:
+    def best[T](
+        self, coerce: t.Callable[[X], T] | type[T] | None = None
+    ) -> X | T | None:
         """Find the best value and coerce it if needed."""
         v = self.ideal().value
         if coerce is not None and v is not None:
@@ -182,8 +196,7 @@ class AbstractElement[X]:
 
     def is_science_number(self):
         return self.is_numeric() and (
-            self.metadata.has_value('Units')
-            or self.metadata.has_value('Uncertainty')
+            self.metadata.has_value("Units") or self.metadata.has_value("Uncertainty")
         )
 
     @duck_type_catch
@@ -209,18 +222,20 @@ class AbstractElement[X]:
         self.to_duration()
         return True
 
-    def _coerce_to_numeric[T](self,
-                              coerce: t.Callable[[str | int | float | None], T] | type[T],
-                              units: str | None = None,
-                              no_loss: bool = False) -> T:
+    def _coerce_to_numeric[T](
+        self,
+        coerce: t.Callable[[str | int | float | None], T] | type[T],
+        units: str | None = None,
+        no_loss: bool = False,
+    ) -> T:
         bv: AbstractElement = self.ideal()
         v = bv.value
         if v is None:
-            raise ValueError('Cannot convert None to numeric')
+            raise ValueError("Cannot convert None to numeric")
         try:
             true_v = coerce(v)
         except (TypeError, ValueError, decimal.DecimalException) as ex:
-            raise ValueError('Error during coercion') from ex
+            raise ValueError("Error during coercion") from ex
         if no_loss:
             diff = abs(float(v) - true_v)
             if diff > 1e-9:
@@ -233,29 +248,40 @@ class AbstractElement[X]:
         diff, uncertainty = ideal._extract_date_precision()
         if diff is not None:
             dt = dt + diff
-        return ScienceDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, tzinfo=dt.tzinfo, uncertainty=uncertainty)
+        return ScienceDateTime(
+            dt.year,
+            dt.month,
+            dt.day,
+            dt.hour,
+            dt.minute,
+            dt.second,
+            tzinfo=dt.tzinfo,
+            uncertainty=uncertainty,
+        )
 
-    def _extract_date_precision(self) -> tuple[datetime.timedelta | None, datetime.timedelta | None]:
+    def _extract_date_precision(
+        self,
+    ) -> tuple[datetime.timedelta | None, datetime.timedelta | None]:
         v = self.metadata.best("DatePrecision", default=None, coerce=str)
         if v is None:
             # We can attempt to calculate it from the string we have since its in ISO format
             value = self.to_string()
-            if 'T' not in value:
+            if "T" not in value:
                 v = "day"
             else:
-                _, time_piece = value.split('T', maxsplit=1)
+                _, time_piece = value.split("T", maxsplit=1)
                 # remove the time zone if present
-                if '+' in time_piece:
-                    time_piece, _ = time_piece.split('+', maxsplit=1)
-                elif '-' in time_piece:
-                    time_piece, _ = time_piece.split('-', maxsplit=1)
+                if "+" in time_piece:
+                    time_piece, _ = time_piece.split("+", maxsplit=1)
+                elif "-" in time_piece:
+                    time_piece, _ = time_piece.split("-", maxsplit=1)
                 if len(time_piece) == 2:
-                    v = 'hour'
+                    v = "hour"
                 elif len(time_piece) in (4, 5):
-                    v = 'minute'
+                    v = "minute"
                 # if millisecond precision, we assume second accuracy for now
                 elif len(time_piece) == 6 or len(time_piece) >= 8:
-                    v = 'second'
+                    v = "second"
         if v is None:
             return None, None
         elif v == "day":
@@ -265,7 +291,9 @@ class AbstractElement[X]:
         elif v == "minute":
             return datetime.timedelta(seconds=30), datetime.timedelta(seconds=30)
         elif v == "second":
-            return datetime.timedelta(milliseconds=500), datetime.timedelta(milliseconds=500)
+            return datetime.timedelta(milliseconds=500), datetime.timedelta(
+                milliseconds=500
+            )
         else:
             return None, None
 
@@ -277,21 +305,19 @@ class AbstractElement[X]:
             adjust, std_dev, _ = bv.precision_information()
             actual = bv.to_float() + (adjust if adjust is not None else 0)
             kwargs: dict[str, t.Any] = {
-                'units': bv.units(),
-                'min_std_dev':  1.11022302462515016e-16 * actual  # natural error of floats
+                "units": bv.units(),
+                "min_std_dev": 1.11022302462515016e-16
+                * actual,  # natural error of floats
             }
             if std_dev is not None:
-                kwargs['std_dev'] = std_dev
-            return ScienceNumber(
-                actual,
-                **kwargs
-            )
+                kwargs["std_dev"] = std_dev
+            return ScienceNumber(actual, **kwargs)
 
     def precision_information(self) -> tuple[float | None, float | None, float | None]:
         worst_options: list[tuple[float, float]] = []
         best_options: list[tuple[float, float]] = []
-        if self.metadata.has_value('Uncertainty'):
-            for x in self.metadata['Uncertainty'].all_values():
+        if self.metadata.has_value("Uncertainty"):
+            for x in self.metadata["Uncertainty"].all_values():
                 if not x.is_numeric():
                     continue
                 uval = x.to_float()
@@ -309,7 +335,9 @@ class AbstractElement[X]:
                     adjustment = uval / 2
                 else:
                     continue
-                ubound = x.metadata.best("UncertaintyBound", default="maximum", coerce=str)
+                ubound = x.metadata.best(
+                    "UncertaintyBound", default="maximum", coerce=str
+                )
                 if ubound == "minimum":
                     best_options.append((sigma, adjustment))
                 elif ubound == "actual":
@@ -330,26 +358,26 @@ class AbstractElement[X]:
             best = None
         return adjustment, worst, best
 
-
-    def to_numeric(self, units: t.Optional[str] = None) -> float:
-        """ This will be the type that tests use. """
+    def to_numeric(self, units: str | None = None) -> float:
+        """This will be the type that tests use."""
         return self.to_float(units)
 
-    def to_decimal(self, units: t.Optional[str] = None) -> decimal.Decimal:
+    def to_decimal(self, units: str | None = None) -> decimal.Decimal:
         """Convert this value to a decimal number"""
         return self._coerce_to_numeric(decimal.Decimal, units)
 
-    def to_float(self, units: t.Optional[str] = None) -> float:
+    def to_float(self, units: str | None = None) -> float:
         """Convert this value to a float."""
         return self._coerce_to_numeric(float, units)
 
-    def to_int(self, units: t.Optional[str] = None, no_loss: bool = True) -> int:
+    def to_int(self, units: str | None = None, no_loss: bool = True) -> int:
         """Convert this value to an integer."""
         return self._coerce_to_numeric(_to_int, units, no_loss)
 
     def to_duration(self) -> ISODuration:
         """Convert this value to a ISO 8601 duration."""
         from medsutil.iso_duration import ISODuration
+
         return ISODuration.from_iso_format(self.ideal().to_string())
 
     def to_datetime(self) -> AwareDateTime:
@@ -357,7 +385,7 @@ class AbstractElement[X]:
         return AwareDateTime.utcfromisoformat(t.cast(str, self.ideal().value))
 
     def to_date(self) -> datetime.date:
-        """ Convert this value to a date. """
+        """Convert this value to a date."""
         return AwareDateTime.utcfromisoformat(t.cast(str, self.ideal().value))
 
     def to_time(self) -> datetime.time:
@@ -370,21 +398,21 @@ class AbstractElement[X]:
         """Update a hash with the unique value of this value."""
         for v in self.all_values(True):
             if v.value is None:
-                h.update(b'\x00')
+                h.update(b"\x00")
             else:
-                h.update(str(v.value).encode('utf-8', 'replace'))
+                h.update(str(v.value).encode("utf-8", "replace"))
             v.metadata.update_hash(h)
 
-    def units(self) -> t.Optional[str]:
+    def units(self) -> str | None:
         """Retrieve the units of the value."""
-        return self.ideal().metadata.best('Units', coerce=str)
+        return self.ideal().metadata.best("Units", coerce=str)
 
     @property
     def quality(self) -> int:
-        if self.metadata.has_value('Quality'):
-            return self.metadata.best('Quality', coerce=int)
-        elif self.metadata.has_value('WorkingQuality'):
-            return self.metadata.best('WorkingQuality', coerce=int)
+        if self.metadata.has_value("Quality"):
+            return self.metadata.best("Quality", coerce=int)
+        elif self.metadata.has_value("WorkingQuality"):
+            return self.metadata.best("WorkingQuality", coerce=int)
         elif self.is_empty():
             return 9
         return 0
@@ -392,65 +420,80 @@ class AbstractElement[X]:
     @property
     def sensor_rank(self) -> int | None:
         if self.metadata.has_value("SensorRank"):
-            return self.metadata.best('SensorRank', coerce=int)
+            return self.metadata.best("SensorRank", coerce=int)
         return None
 
     def is_empty(self) -> bool:
         """Check if the value is empty."""
         for v in self.all_values():
-            if v.value is not None and v.value != '':
+            if v.value is not None and v.value != "":
                 return False
         return True
 
     def is_multivalue(self) -> bool:
         return False
 
-    def ideal(self) -> SingleElement: raise NotImplementedError
-    def all_values(self, srt: bool = False) -> t.Iterable[SingleElement]: raise NotImplementedError
-    def to_mapping(self) -> AnyElementExport: raise NotImplementedError
-    def from_mapping(self, map_: AnyElementExport): raise NotImplementedError
-    def find_child(self, path: list[str]): raise NotImplementedError
-    def stable_sort_key(self) -> bytes: raise NotImplementedError
+    def ideal(self) -> SingleElement:
+        raise NotImplementedError
+
+    def all_values(self, srt: bool = False) -> t.Iterable[SingleElement]:
+        raise NotImplementedError
+
+    def to_mapping(self) -> AnyElementExport:
+        raise NotImplementedError
+
+    def from_mapping(self, map_: AnyElementExport):
+        raise NotImplementedError
+
+    def find_child(self, path: list[str]):
+        raise NotImplementedError
+
+    def stable_sort_key(self) -> bytes:
+        raise NotImplementedError
 
     @staticmethod
     def build_from_mapping(map_: AnyElementExport) -> AbstractElement:
         if isinstance(map_, t.Mapping):
             try:
-                element = SingleElement(map_['_value'], _skip_normalization=True)
+                element = SingleElement(map_["_value"], _skip_normalization=True)
             except KeyError:
                 element = MultiElement(
-                    (AbstractElement.build_from_mapping(x) for x in map_['_values']),
-                    _skip_normalization=True
+                    (AbstractElement.build_from_mapping(x) for x in map_["_values"]),
+                    _skip_normalization=True,
                 )
             try:
-                md = map_['_metadata']
+                md = map_["_metadata"]
                 if md:
                     element.metadata.from_mapping(md)
             except KeyError:
                 pass
             try:
-                qc = map_['_qc_info']
+                qc = map_["_qc_info"]
                 if qc:
                     element.qc_info.from_mapping(qc)
             except KeyError:
                 pass
             return element
         elif isinstance(map_, t.Iterable) and not isinstance(map_, str):
-            return MultiElement(
-                AbstractElement.build_from_mapping(x) for x in map_
-            )
+            return MultiElement(AbstractElement.build_from_mapping(x) for x in map_)
         else:
             return SingleElement(map_, _skip_normalization=True)
-
 
 
 class SingleElement(AbstractElement):
     """Represents a single value with a single set of metadata."""
 
-    __slots__ = ('_metadata', '_value', '_qc_info')
+    __slots__ = ("_metadata", "_qc_info", "_value")
 
-    def __init__(self, value: ocut.SupportedValue = None, _skip_normalization: bool = False, **kwargs):
-        self._value: ocut.SupportedStorage = value if _skip_normalization else normalize_data_value(value)
+    def __init__(
+        self,
+        value: ocut.SupportedValue = None,
+        _skip_normalization: bool = False,
+        **kwargs,
+    ):
+        self._value: ocut.SupportedStorage = (
+            value if _skip_normalization else normalize_data_value(value)
+        )
         self._metadata = None
         if kwargs:
             self.metadata.update(kwargs)
@@ -473,7 +516,7 @@ class SingleElement(AbstractElement):
         first_element = path.pop(0)
         if first_element == 0 or first_element == "0":
             return self.find_child(path)
-        elif first_element == 'metadata':
+        elif first_element == "metadata":
             return self.metadata.find_child(path)
         else:
             return None
@@ -493,23 +536,22 @@ class SingleElement(AbstractElement):
         self._value = normalize_data_value(value)
 
     def stable_sort_key(self) -> bytes:
-        h = hashlib.new('sha256')
+        h = hashlib.new("sha256")
         if self._value is None:
             h.update(b"\x00")
         else:
-            h.update(str(self._value).encode('utf-8', errors='replace'))
+            h.update(str(self._value).encode("utf-8", errors="replace"))
         self.metadata.update_hash(h)
         return h.digest()
 
-    def to_mapping(self) -> ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage:
+    def to_mapping(
+        self,
+    ) -> ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage:
         if not self._metadata:
             if not isinstance(self._value, (list, dict)):
                 return self._value
-            return {'_value': self._value}
-        return {
-            '_value': self._value,
-            '_metadata': self._metadata.to_mapping()
-        }
+            return {"_value": self._value}
+        return {"_value": self._value, "_metadata": self._metadata.to_mapping()}
 
     @staticmethod
     def build(v: t.Any, metadata: DefaultValueDict = None):
@@ -522,21 +564,30 @@ class SingleElement(AbstractElement):
 class MultiElement(AbstractElement[list[AbstractElement]]):
     """Represents a set of multiple values."""
 
-    __slots__ = ('_value', '_metadata', '_qc_info')
+    __slots__ = ("_metadata", "_qc_info", "_value")
 
-    def __init__(self, values: t.Iterable[AbstractElement | ocut.SupportedValue] = None, _skip_normalization: bool = False, **kwargs):
-        self._value: list[AbstractElement] = [
-            t.cast(AbstractElement, v)
-            if _skip_normalization or isinstance(v, AbstractElement) else
-            SingleElement(v)
-            for v in values
-        ] if values else []
+    def __init__(
+        self,
+        values: t.Iterable[AbstractElement | ocut.SupportedValue] = None,
+        _skip_normalization: bool = False,
+        **kwargs,
+    ):
+        self._value: list[AbstractElement] = (
+            [
+                t.cast(AbstractElement, v)
+                if _skip_normalization or isinstance(v, AbstractElement)
+                else SingleElement(v)
+                for v in values
+            ]
+            if values
+            else []
+        )
         self._metadata = None
         if kwargs:
             self.metadata.update(kwargs)
 
     def __str__(self) -> str:
-        return '\n'.join(str(x) for x in self._value)  # pragma: no coverage
+        return "\n".join(str(x) for x in self._value)  # pragma: no coverage
 
     def __len__(self) -> int:
         return len(self._value)
@@ -571,9 +622,7 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
                 sr = -1 * idx
             replace = False
 
-            if best_wq is None:
-                replace = True
-            elif wq in ALLOWED_QUALITY_MAP_FOR_UPGRADE[best_wq] and best_wq != 5:
+            if best_wq is None or wq in ALLOWED_QUALITY_MAP_FOR_UPGRADE[best_wq] and best_wq != 5:
                 replace = True
             elif wq == best_wq:
                 if best_sr is None:
@@ -596,13 +645,13 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
         if not path:
             return self
         first_element = path.pop(0)
-        if first_element == 'metadata':
+        if first_element == "metadata":
             return self.metadata.find_child(path)
         try:
             idx = int(first_element)
             if 0 <= idx < len(self._value):
                 return self._value[idx].find_child(path)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
         return None
 
@@ -627,19 +676,21 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
     def to_mapping(self) -> ExportMultipleWithMetadata:
         if not self._metadata:
             return {
-                '_values': [v.to_mapping() for v in self._value],
+                "_values": [v.to_mapping() for v in self._value],
             }
         else:
             return {
-                '_values': [v.to_mapping() for v in self._value],
-                '_metadata': self._metadata.to_mapping()
+                "_values": [v.to_mapping() for v in self._value],
+                "_metadata": self._metadata.to_mapping(),
             }
 
 
-class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractElement]):
+class ElementMap(
+    LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractElement]
+):
     """Represents a map of element names to values"""
 
-    __slots__ = ('map', '_lazy')
+    __slots__ = ("_lazy", "map")
 
     def __init__(self):
         super().__init__()
@@ -647,7 +698,9 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
     def _load_item(self, value: dict[str, ct.SupportsExtendedJson]) -> AbstractElement:
         return AbstractElement.build_from_mapping(value)
 
-    def _unload_item(self, value: AbstractElement) -> dict[str, ct.SupportsExtendedJson]:
+    def _unload_item(
+        self, value: AbstractElement
+    ) -> dict[str, ct.SupportsExtendedJson]:
         return value.to_mapping()
 
     def find_child(self, path: list[str]):
@@ -657,28 +710,35 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
         try:
             first_element = path.pop(0)
             return self._load(first_element).find_child(path)
-        except KeyError as ex:
+        except KeyError:
             return None
 
     def update_hash(self, h: ct.SupportsHashUpdate | HASH):
         """Update a hash with all the values of this map"""
         for k in sorted(self.keys()):
-            h.update(k.encode('utf-8', 'replace'))
+            h.update(k.encode("utf-8", "replace"))
             self._load(k).update_hash(h)
 
     @t.overload
     def best(self, item: str) -> ocut.SupportedStorage: ...
 
     @t.overload
-    def best[T](self, item: str, coerce: t.Callable[[ocut.SupportedStorage], T] | type[T]) -> T: ...
+    def best[T](
+        self, item: str, coerce: t.Callable[[ocut.SupportedStorage], T] | type[T]
+    ) -> T: ...
 
     @t.overload
     def best[Y](self, item: str, default: Y) -> ocut.SupportedStorage | Y: ...
 
     @t.overload
-    def best[T,Y](self, item: str, default: Y, coerce: t.Callable[[ocut.SupportedStorage], T] | type[T]) -> T | Y: ...
+    def best[T, Y](
+        self,
+        item: str,
+        default: Y,
+        coerce: t.Callable[[ocut.SupportedStorage], T] | type[T],
+    ) -> T | Y: ...
 
-    def best[T,Y](self, item: str, default=None, coerce=None):
+    def best[T, Y](self, item: str, default=None, coerce=None):
         """Find the best value for the given element name, or the default if it is not set."""
         try:
             x = self._load(item).best(coerce=coerce)
@@ -700,12 +760,16 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
             return False
         return not self._load(item).is_empty()
 
-    def append_to(self,
-                  element_name: str,
-                  value: SupportedValueOrElement,
-                  metadata: t.Optional[DefaultValueDict] = None,
-                  **kwargs: SupportedValueOrElement):
-        self.append_element_to(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
+    def append_to(
+        self,
+        element_name: str,
+        value: SupportedValueOrElement,
+        metadata: DefaultValueDict | None = None,
+        **kwargs: SupportedValueOrElement,
+    ):
+        self.append_element_to(
+            element_name, ElementMap.ensure_element(value, metadata, **kwargs)
+        )
 
     def append_element_to(self, element_name: str, value: AbstractElement):
         if element_name not in self:
@@ -718,13 +782,17 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
                 ne = MultiElement([e, value], _skip_normalization=True)
                 super().__setitem__(element_name, ne)
 
-    def set(self,
-            element_name: str,
-            value: SupportedValueOrElement,
-            metadata: t.Optional[DefaultValueDict] = None,
-            **kwargs: SupportedValueOrElement):
+    def set(
+        self,
+        element_name: str,
+        value: SupportedValueOrElement,
+        metadata: DefaultValueDict | None = None,
+        **kwargs: SupportedValueOrElement,
+    ):
         """Set an element to the given value and metadata."""
-        self.set_element(element_name, ElementMap.ensure_element(value, metadata, **kwargs))
+        self.set_element(
+            element_name, ElementMap.ensure_element(value, metadata, **kwargs)
+        )
 
     def set_element(self, element_name: str, value: AbstractElement):
         super().__setitem__(element_name, value)
@@ -732,27 +800,35 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
     def __setitem__(self, key: str, value: SupportedValueOrElement):
         self.set_element(key, ElementMap.ensure_element(value))
 
-    def set_many(self,
-                 element_name: str,
-                 values: t.Sequence[SupportedValueOrElement],
-                 common_metadata: t.Optional[DefaultValueDict] = None,
-                 specific_metadata: t.Optional[t.Sequence[DefaultValueDict | None]] = None,
-                 metadata: t.Optional[DefaultValueDict] = None):
+    def set_many(
+        self,
+        element_name: str,
+        values: t.Sequence[SupportedValueOrElement],
+        common_metadata: DefaultValueDict | None = None,
+        specific_metadata: t.Sequence[DefaultValueDict | None] | None = None,
+        metadata: DefaultValueDict | None = None,
+    ):
         """Build a multi-valued element from the given values."""
         cm = common_metadata or {}
         self.set_many_elements(
             element_name=element_name,
             values=(
-                self.ensure_element(values[i], specific_metadata[i] if specific_metadata is not None else None, **cm)
-                for i in range(0, len(values))
+                self.ensure_element(
+                    values[i],
+                    specific_metadata[i] if specific_metadata is not None else None,
+                    **cm,
+                )
+                for i in range(len(values))
             ),
-            metadata=metadata
+            metadata=metadata,
         )
 
-    def set_many_elements(self,
-                          element_name: str,
-                          values: t.Iterable[AbstractElement],
-                          metadata: t.Optional[DefaultValueDict] = None):
+    def set_many_elements(
+        self,
+        element_name: str,
+        values: t.Iterable[AbstractElement],
+        metadata: DefaultValueDict | None = None,
+    ):
         if element_name not in self:
             element = MultiElement(values, _skip_normalization=True)
             self.set_element(element_name, element)
@@ -766,7 +842,11 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
         if metadata:
             element.metadata.update(metadata)
 
-    def update(self, map_: dict[str, SupportedValueOrElement] = None, **kwargs: SupportedValueOrElement):
+    def update(
+        self,
+        map_: dict[str, SupportedValueOrElement] = None,
+        **kwargs: SupportedValueOrElement,
+    ):
         if map_ is not None:
             for key in map_:
                 self.set(key, map_[key])
@@ -774,7 +854,9 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
             for key in kwargs:
                 self.set(key, kwargs[key])
 
-    def update_elements(self, map_: dict[str, AbstractElement] = None, **kwargs: AbstractElement):
+    def update_elements(
+        self, map_: dict[str, AbstractElement] = None, **kwargs: AbstractElement
+    ):
         if map_ is not None:
             for key in map_:
                 self.set_element(key, map_[key])
@@ -783,7 +865,11 @@ class ElementMap(LazyLoadDict[str, dict[str, ct.SupportsExtendedJson], AbstractE
                 self.set_element(key, kwargs[key])
 
     @staticmethod
-    def ensure_element(value: SupportedValueOrElement, metadata: t.Optional[DefaultValueDict] = None, **kwargs: SupportedValueOrElement) -> AbstractElement:
+    def ensure_element(
+        value: SupportedValueOrElement,
+        metadata: DefaultValueDict | None = None,
+        **kwargs: SupportedValueOrElement,
+    ) -> AbstractElement:
         v = SingleElement(value) if not isinstance(value, AbstractElement) else value
         if metadata:
             v.metadata.update(metadata)
@@ -808,7 +894,9 @@ ALLOWED_QUALITY_MAP: dict[int | None, set[int]] = {
 ALLOWED_QUALITY_MAP_FOR_UPGRADE: dict[int | None, set[int | None]] = {
     None: {1, 5},
     0: {1, 5},
-    1: {5,},
+    1: {
+        5,
+    },
     5: set(),
     2: {None, 0, 1, 5},
     3: {None, 0, 1, 2, 5},

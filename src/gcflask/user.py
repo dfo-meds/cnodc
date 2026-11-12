@@ -1,25 +1,26 @@
-""" User class. """
+"""User class."""
+
 import typing as t
 
 import flask_login as fl
 
 from medsutil.awaretime import AwareDateTime
 
-ADMIN_PRIVILEGE = '__admin__'
+ADMIN_PRIVILEGE = "__admin__"
 """ Accessible by administrators only. """
 
-ANONYMOUS_PRIVILEGE = '__anonymous__'
+ANONYMOUS_PRIVILEGE = "__anonymous__"
 """ Accessible by anonymous users only. """
 
-ANYONE_PRIVILEGE = '__anyone__'
+ANYONE_PRIVILEGE = "__anyone__"
 """ Accessible by anyone. """
 
-AUTHENTICATED_PRIVILEGE = '__authenticated__'
+AUTHENTICATED_PRIVILEGE = "__authenticated__"
 """ Accessible by authenticated users only. """
 
 
 class AnyPermission:
-    """ Groups a list of permissions, of which the user must have at least one. """
+    """Groups a list of permissions, of which the user must have at least one."""
 
     def __init__(self, permissions: t.Sequence[str | AnyPermission]):
         self.permissions: t.Sequence[PermissionType] = permissions
@@ -29,13 +30,15 @@ PermissionType = AnyPermission | str | t.Sequence[str | AnyPermission] | None
 
 
 class BaseUserMixin:
-    """ Mixin for users within gcflask. """
+    """Mixin for users within gcflask."""
 
-    def __init__(self,
-                 display_name: str | None = None,
-                 email: str | None = None,
-                 permissions: t.Iterable[str] | None = None,
-                 **extras):
+    def __init__(
+        self,
+        display_name: str | None = None,
+        email: str | None = None,
+        permissions: t.Iterable[str] | None = None,
+        **extras,
+    ):
         super().__init__()
         self._permissions: set[str] = set(permissions or [])
         self._permissions.add(ANYONE_PRIVILEGE)
@@ -45,29 +48,33 @@ class BaseUserMixin:
 
     @property
     def email(self) -> str:
-        """ The user's email address."""
-        return self._email or ''
+        """The user's email address."""
+        return self._email or ""
 
     @property
     def display_name(self) -> str:
-        """ The user's display name. """
-        return self._display or ''
+        """The user's display name."""
+        return self._display or ""
 
     @property
     def is_admin(self) -> bool:
-        """ Returns true if the user is an administrator. """
+        """Returns true if the user is an administrator."""
         return ADMIN_PRIVILEGE in self._permissions
 
     @property
     def permissions(self) -> set[str]:
-        """ Returns the set of permissions the user has. """
+        """Returns the set of permissions the user has."""
         return self._permissions
 
     def require_all(self, permissions: PermissionType) -> bool:
-        """ Checks if the user has all of the given permission(s). """
+        """Checks if the user has all of the given permission(s)."""
         if (not permissions) or self.is_admin:
             return True
-        perms = [permissions] if isinstance(permissions, (str, AnyPermission)) else permissions
+        perms = (
+            [permissions]
+            if isinstance(permissions, (str, AnyPermission))
+            else permissions
+        )
         for x in perms:
             if isinstance(x, str):
                 if "|" in x:
@@ -81,10 +88,14 @@ class BaseUserMixin:
         return True
 
     def require_any(self, permissions: PermissionType) -> bool:
-        """ Checks if the user has any of the given permission(s). """
+        """Checks if the user has any of the given permission(s)."""
         if (not permissions) or self.is_admin:
             return True
-        perms = [permissions] if isinstance(permissions, (str, AnyPermission)) else permissions
+        perms = (
+            [permissions]
+            if isinstance(permissions, (str, AnyPermission))
+            else permissions
+        )
         for x in perms:
             if isinstance(x, str):
                 if x in self._permissions:
@@ -95,32 +106,32 @@ class BaseUserMixin:
         return False
 
     def last_login_success_time(self) -> AwareDateTime | None:
-        """ Retrieves the last time the user logged in. """
-        dt = self.extra('last_success', None)
+        """Retrieves the last time the user logged in."""
+        dt = self.extra("last_success", None)
         if dt is not None:
             return AwareDateTime.fromisoformat(dt)
         return None
 
     def last_login_error_time(self) -> AwareDateTime | None:
-        """ Retrieves the last time the user attempted to login and failed. """
-        dt = self.extra('last_error', None)
+        """Retrieves the last time the user attempted to login and failed."""
+        dt = self.extra("last_error", None)
         if dt is not None:
             return AwareDateTime.fromisoformat(dt)
         return None
 
     def last_login_success_ip(self) -> str:
-        """ Retrieves the IP address that the user last logged in from. """
-        return self.extra('last_success_ip', '') or ''
+        """Retrieves the IP address that the user last logged in from."""
+        return self.extra("last_success_ip", "") or ""
 
     def last_login_error_ip(self) -> str:
-        """ Retrieves the IP address that the user last attempted to login from and failed. """
-        return self.extra('last_error_ip', '') or ''
+        """Retrieves the IP address that the user last attempted to login from and failed."""
+        return self.extra("last_error_ip", "") or ""
 
     def total_errors_since_last_login(self) -> int:
-        """ Retrieves the total number of failed login attempts since the last success. """
-        return int(self.extra('total_errors', 0))
+        """Retrieves the total number of failed login attempts since the last success."""
+        return int(self.extra("total_errors", 0))
 
-    def extra(self, name: str, default = None) -> t.Any:
+    def extra(self, name: str, default=None) -> t.Any:
         """Retrieve the value of an extra user property as set by the authentication system."""
         try:
             return self._extras[name]
@@ -131,13 +142,15 @@ class BaseUserMixin:
 class AuthenticatedUser(BaseUserMixin, fl.UserMixin):
     """Represents an authenticated user."""
 
-    def __init__(self,
-                 unique_id: int,
-                 username: str,
-                 display_name: str,
-                 email: str = None,
-                 permissions: t.Iterable[str] | None = None,
-                 **extras):
+    def __init__(
+        self,
+        unique_id: int,
+        username: str,
+        display_name: str,
+        email: str = None,
+        permissions: t.Iterable[str] | None = None,
+        **extras,
+    ):
         """
 
         :param unique_id: The unique database identifier for this user.
@@ -163,16 +176,16 @@ class AnonymousUser(fl.AnonymousUserMixin, BaseUserMixin):
     """Anonymous implementation of the AuthenticatedUser."""
 
     def __init__(self):
-        super().__init__(
-            permissions=[ANONYMOUS_PRIVILEGE]
-        )
+        super().__init__(permissions=[ANONYMOUS_PRIVILEGE])
 
     def get_username(self) -> str:
-        return '__anonymous__'
+        return "__anonymous__"
 
 
 def current_user() -> AuthenticatedUser | AnonymousUser:
-    import flask, flask_login
+    import flask
+    import flask_login
+
     if flask.has_request_context():
         return flask_login.current_user
     return AnonymousUser()

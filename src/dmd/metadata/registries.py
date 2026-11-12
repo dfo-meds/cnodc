@@ -1,19 +1,16 @@
 import pathlib
-
-from autoinject import injector, auto
-
-from threading import RLock
-import yaml
-import typing as t
 import time
+from threading import RLock
+
+import yaml
 import zrlog
+from autoinject import auto, injector
 
 from dmd.db import DataManagementDatabase
 
 
 @injector.injectable
 class GlobalRegistry:
-
     REFRESH_FREQUENCY = 15  # seconds
 
     storage: DataManagementDatabase = auto()
@@ -34,7 +31,10 @@ class GlobalRegistry:
 
     def check_all(self):
         # Don't check everytime to prevent a lot of overhead
-        if self._last_setup_check and (time.monotonic() - self._last_setup_check) < self.REFRESH_FREQUENCY:
+        if (
+            self._last_setup_check
+            and (time.monotonic() - self._last_setup_check) < self.REFRESH_FREQUENCY
+        ):
             return
         self._last_setup_check = time.monotonic()
         self._check_all()
@@ -54,7 +54,6 @@ class GlobalRegistry:
 
 
 class BaseRegistry:
-
     gor: GlobalRegistry = auto()
     storage: DataManagementDatabase = auto()
 
@@ -128,17 +127,23 @@ class BaseRegistry:
 
     def register_from_dict(self, cfg_dict: dict[str, dict]):
         cfg_dict = cfg_dict or {}
-        self._log.debug(f"Importing {len(cfg_dict)} registry entries for [{self._registry_name}]")
+        self._log.debug(
+            f"Importing {len(cfg_dict)} registry entries for [{self._registry_name}]"
+        )
         for key in cfg_dict:
             self.register(key, **cfg_dict[key], _update_db=False)
         self.save_changes()
 
     def register_from_yaml(self, file_path: pathlib.Path):
-        self._log.notice(f"Importing registry entries from [{file_path}] for {self._registry_name}")
+        self._log.notice(
+            f"Importing registry entries from [{file_path}] for {self._registry_name}"
+        )
         with open(file_path, "r", encoding="utf-8") as h:
             self.register_from_dict(yaml.safe_load(h))
 
     def remove_all(self):
-        self._log.notice(f"Removing all object definitions of type [{self._registry_name}]")
+        self._log.notice(
+            f"Removing all object definitions of type [{self._registry_name}]"
+        )
         with self.storage as db:
             db.delete_registry_map(self._registry_name)

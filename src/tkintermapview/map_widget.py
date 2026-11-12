@@ -1,49 +1,53 @@
-from queue import PriorityQueue
-
-import requests
-import math
-import threading
-import tkinter
-import tkinter.ttk as ttk
-import tkinter.messagebox
-import time
-import PIL
-import sys
 import io
+import math
 import sqlite3
-import pyperclip
 import ssl
-import certifi
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
-from PIL import Image, ImageTk
-from typing import Callable, List, Dict, Union, Tuple
+import sys
+import threading
+import time
+import tkinter
+import tkinter.messagebox
+from collections.abc import Callable
 from functools import partial
+from queue import PriorityQueue
+from tkinter import ttk
+
+import certifi
+import PIL
+import pyperclip
+import requests
+from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
+from geopy.geocoders import Nominatim
+from PIL import Image, ImageTk
 
 from medsutil.cached import LeastRecentCache
-from .canvas_position_marker import CanvasPositionMarker
-from .canvas_tile import CanvasTile
-from .utility_functions import decimal_to_osm, osm_to_decimal
+
 from .canvas_button import CanvasButton
 from .canvas_path import CanvasPath
 from .canvas_polygon import CanvasPolygon
+from .canvas_position_marker import CanvasPositionMarker
+from .canvas_tile import CanvasTile
+from .utility_functions import decimal_to_osm, osm_to_decimal
 
 
 class TkinterMapView(tkinter.Frame):
-    def __init__(self, *args,
-                 width: int = 300,
-                 height: int = 200,
-                 corner_radius: int = 0,
-                 bg_color: str = None,
-                 database_path: str = None,
-                 use_database_only: bool = False,
-                 max_zoom: int = 19,
-                 cache_tile_radius: int = 8,
-                 background_load_workers: int = 25,
-                 cache_size: int = 10000,
-                 initial_position: tuple[float, float] = (52.516268, 13.377695),
-                 initial_zoom: int = 17,
-                 **kwargs):
+    def __init__(
+        self,
+        *args,
+        width: int = 300,
+        height: int = 200,
+        corner_radius: int = 0,
+        bg_color: str | None = None,
+        database_path: str | None = None,
+        use_database_only: bool = False,
+        max_zoom: int = 19,
+        cache_tile_radius: int = 8,
+        background_load_workers: int = 25,
+        cache_size: int = 10000,
+        initial_position: tuple[float, float] = (52.516268, 13.377695),
+        initial_zoom: int = 17,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         self.running = True
@@ -52,32 +56,50 @@ class TkinterMapView(tkinter.Frame):
 
         self.width = width
         self.height = height
-        self.corner_radius = corner_radius if corner_radius <= 30 else 30  # corner_radius can't be greater than 30
+        self.corner_radius = (
+            min(corner_radius, 30)
+        )  # corner_radius can't be greater than 30
         self.configure(width=self.width, height=self.height)
 
         # detect color of master widget for rounded corners
         if bg_color is None:
             # map widget is placed in a CTkFrame from customtkinter library
-            if (hasattr(self.master, "canvas") and hasattr(self.master, "fg_color")) or (hasattr(self.master, "_canvas") and hasattr(self.master, "_fg_color")):
+            if (
+                hasattr(self.master, "canvas") and hasattr(self.master, "fg_color")
+            ) or (
+                hasattr(self.master, "_canvas") and hasattr(self.master, "_fg_color")
+            ):
                 # customtkinter version >=5.0.0
                 if hasattr(self.master, "_apply_appearance_mode"):
-                    self.bg_color: str = self.master._apply_appearance_mode(self.master.cget("fg_color"))
+                    self.bg_color: str = self.master._apply_appearance_mode(
+                        self.master.cget("fg_color")
+                    )
                 # customtkinter version <=4.6.3
                 elif hasattr(self.master, "fg_color"):
-                    if type(self.master.fg_color) == tuple or type(self.master.fg_color) == list:
-                        self.bg_color: str = self.master.fg_color[self.master._appearance_mode]
+                    if (
+                        type(self.master.fg_color) == tuple
+                        or type(self.master.fg_color) == list
+                    ):
+                        self.bg_color: str = self.master.fg_color[
+                            self.master._appearance_mode
+                        ]
                     else:
                         self.bg_color: str = self.master.fg_color
 
             # map widget is placed on a tkinter.Frame or tkinter.Tk
-            elif isinstance(self.master, (tkinter.Frame, tkinter.Tk, tkinter.Toplevel, tkinter.LabelFrame)):
+            elif isinstance(
+                self.master,
+                (tkinter.Frame, tkinter.Tk, tkinter.Toplevel, tkinter.LabelFrame),
+            ):
                 self.bg_color: str = self.master.cget("bg")
 
             # map widget is placed in a ttk widget
             elif isinstance(self.master, (ttk.Frame, ttk.LabelFrame, ttk.Notebook)):
                 try:
                     ttk_style = ttk.Style()
-                    self.bg_color = ttk_style.lookup(self.master.winfo_class(), 'background')
+                    self.bg_color = ttk_style.lookup(
+                        self.master.winfo_class(), "background"
+                    )
                 except Exception:
                     self.bg_color: str = "#000000"
 
@@ -90,16 +112,22 @@ class TkinterMapView(tkinter.Frame):
         self.grid_rowconfigure(0, weight=1)  # configure 1x1 grid system
         self.grid_columnconfigure(0, weight=1)
 
-        self.canvas = tkinter.Canvas(master=self,
-                                     highlightthickness=0,
-                                     bg="#F1EFEA",
-                                     width=self.width,
-                                     height=self.height)
+        self.canvas = tkinter.Canvas(
+            master=self,
+            highlightthickness=0,
+            bg="#F1EFEA",
+            width=self.width,
+            height=self.height,
+        )
         self.canvas.grid(row=0, column=0, sticky="nsew")
 
         # zoom buttons
-        self.button_zoom_in = CanvasButton(self, (20, 20), text="+", command=self.button_zoom_in)
-        self.button_zoom_out = CanvasButton(self, (20, 60), text="-", command=self.button_zoom_out)
+        self.button_zoom_in = CanvasButton(
+            self, (20, 20), text="+", command=self.button_zoom_in
+        )
+        self.button_zoom_out = CanvasButton(
+            self, (20, 60), text="-", command=self.button_zoom_out
+        )
 
         # bind events for mouse button pressed, mouse movement, and scrolling
         self.canvas.bind("<B1-Motion>", self.mouse_move)
@@ -108,57 +136,71 @@ class TkinterMapView(tkinter.Frame):
         self.canvas.bind("<MouseWheel>", self.mouse_zoom)
         self.canvas.bind("<Button-4>", self.mouse_zoom)
         self.canvas.bind("<Button-5>", self.mouse_zoom)
-        self.bind('<Configure>', self.update_dimensions)
-        self.last_mouse_down_position: Union[tuple, None] = None
-        self.last_mouse_down_time: Union[float, None] = None
-        self.mouse_click_position: Union[tuple, None] = None
-        self.map_click_callback: Union[Callable, None] = None  # callback function for left click on map
+        self.bind("<Configure>", self.update_dimensions)
+        self.last_mouse_down_position: tuple | None = None
+        self.last_mouse_down_time: float | None = None
+        self.mouse_click_position: tuple | None = None
+        self.map_click_callback: Callable | None = (
+            None  # callback function for left click on map
+        )
 
         # movement fading
         self.fading_possible: bool = True
-        self.move_velocity: Tuple[float, float] = (0, 0)
-        self.last_move_time: Union[float, None] = None
+        self.move_velocity: tuple[float, float] = (0, 0)
+        self.last_move_time: float | None = None
 
         # describes the tile layout
         self.zoom: float = 0
-        self.upper_left_tile_pos: Tuple[float, float] = (0, 0)  # in OSM coords
-        self.lower_right_tile_pos: Tuple[float, float] = (0, 0)
+        self.upper_left_tile_pos: tuple[float, float] = (0, 0)  # in OSM coords
+        self.lower_right_tile_pos: tuple[float, float] = (0, 0)
         self.tile_size: int = 256  # in pixel
         self.last_zoom: float = self.zoom
 
         # canvas objects, image cache and standard empty images
-        self.canvas_tile_array: List[List[CanvasTile]] = []
-        self.canvas_marker_list: List[CanvasPositionMarker] = []
-        self.canvas_path_list: List[CanvasPath] = []
-        self.canvas_polygon_list: List[CanvasPolygon] = []
+        self.canvas_tile_array: list[list[CanvasTile]] = []
+        self.canvas_marker_list: list[CanvasPositionMarker] = []
+        self.canvas_path_list: list[CanvasPath] = []
+        self.canvas_polygon_list: list[CanvasPolygon] = []
 
         self.tile_image_cache = LeastRecentCache(cache_size)
-        self.empty_tile_image = ImageTk.PhotoImage(Image.new("RGB", (self.tile_size, self.tile_size), (190, 190, 190)))  # used for zooming and moving
-        self.not_loaded_tile_image = ImageTk.PhotoImage(Image.new("RGB", (self.tile_size, self.tile_size), (250, 250, 250)))  # only used when image not found on tile server
+        self.empty_tile_image = ImageTk.PhotoImage(
+            Image.new("RGB", (self.tile_size, self.tile_size), (190, 190, 190))
+        )  # used for zooming and moving
+        self.not_loaded_tile_image = ImageTk.PhotoImage(
+            Image.new("RGB", (self.tile_size, self.tile_size), (250, 250, 250))
+        )  # only used when image not found on tile server
 
         # tile server and database
         self.tile_server = "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"
         self.database_path = database_path
         self.use_database_only = use_database_only
-        self.overlay_tile_server: Union[str, None] = None
+        self.overlay_tile_server: str | None = None
         self.max_zoom = max_zoom  # should be set according to tile server max zoom
-        self.min_zoom: int = math.ceil(math.log2(math.ceil(self.width / self.tile_size)))  # min zoom at which map completely fills widget
+        self.min_zoom: int = math.ceil(
+            math.log2(math.ceil(self.width / self.tile_size))
+        )  # min zoom at which map completely fills widget
 
         # pre caching for smoother movements (load tile images into cache at a certain radius around the pre_cache_position)
-        self.pre_cache_position: Union[Tuple[float, float], None] = None
+        self.pre_cache_position: tuple[float, float] | None = None
         self.pre_cache_thread = threading.Thread(daemon=True, target=self.pre_cache)
         self.pre_cache_thread.start()
 
         # image loading in background threads
-        self.image_load_queue_tasks: PriorityQueue = PriorityQueue() # task: ((zoom, x, y), canvas_tile_object)
-        self.low_priority_image_load_queue_tasks: List[tuple] = []
-        self.image_load_queue_results: List[tuple] = []  # result: ((zoom, x, y), canvas_tile_object, photo_image)
+        self.image_load_queue_tasks: PriorityQueue = (
+            PriorityQueue()
+        )  # task: ((zoom, x, y), canvas_tile_object)
+        self.low_priority_image_load_queue_tasks: list[tuple] = []
+        self.image_load_queue_results: list[
+            tuple
+        ] = []  # result: ((zoom, x, y), canvas_tile_object, photo_image)
         self.after(10, self.update_canvas_tile_images)
-        self.image_load_thread_pool: List[threading.Thread] = []
+        self.image_load_thread_pool: list[threading.Thread] = []
 
         # add background threads which load tile images from self.image_load_queue_tasks
         for i in range(background_load_workers):
-            image_load_thread = threading.Thread(daemon=True, target=self.load_images_background)
+            image_load_thread = threading.Thread(
+                daemon=True, target=self.load_images_background
+            )
             image_load_thread.start()
             self.image_load_thread_pool.append(image_load_thread)
 
@@ -167,7 +209,9 @@ class TkinterMapView(tkinter.Frame):
         self.set_position(*initial_position)
 
         # right click menu
-        self.right_click_menu_commands: List[dict] = []  # list of dictionaries with "label": str, "command": Callable, "pass_coords": bool
+        self.right_click_menu_commands: list[
+            dict
+        ] = []  # list of dictionaries with "label": str, "command": Callable, "pass_coords": bool
         if sys.platform == "darwin":
             self.canvas.bind("<Button-2>", self.mouse_right_click)
         else:
@@ -190,15 +234,50 @@ class TkinterMapView(tkinter.Frame):
 
         if self.corner_radius > 0:
             radius = self.corner_radius
-            self.canvas.create_arc(self.width - 2 * radius + 5 + pos_corr, self.height - 2 * radius + 5 + pos_corr,
-                                   self.width + 5 + pos_corr, self.height + 5 + pos_corr,
-                                   style=tkinter.ARC, tag="corner", width=10, outline=self.bg_color, start=-90)
-            self.canvas.create_arc(2 * radius - 5, self.height - 2 * radius + 5 + pos_corr, -5, self.height + 5 + pos_corr,
-                                   style=tkinter.ARC, tag="corner", width=10, outline=self.bg_color, start=180)
-            self.canvas.create_arc(-5, -5, 2 * radius - 5, 2 * radius - 5,
-                                   style=tkinter.ARC, tag="corner", width=10, outline=self.bg_color, start=-270)
-            self.canvas.create_arc(self.width - 2 * radius + 5 + pos_corr, -5, self.width + 5 + pos_corr, 2 * radius - 5,
-                                   style=tkinter.ARC, tag="corner", width=10, outline=self.bg_color, start=0)
+            self.canvas.create_arc(
+                self.width - 2 * radius + 5 + pos_corr,
+                self.height - 2 * radius + 5 + pos_corr,
+                self.width + 5 + pos_corr,
+                self.height + 5 + pos_corr,
+                style=tkinter.ARC,
+                tag="corner",
+                width=10,
+                outline=self.bg_color,
+                start=-90,
+            )
+            self.canvas.create_arc(
+                2 * radius - 5,
+                self.height - 2 * radius + 5 + pos_corr,
+                -5,
+                self.height + 5 + pos_corr,
+                style=tkinter.ARC,
+                tag="corner",
+                width=10,
+                outline=self.bg_color,
+                start=180,
+            )
+            self.canvas.create_arc(
+                -5,
+                -5,
+                2 * radius - 5,
+                2 * radius - 5,
+                style=tkinter.ARC,
+                tag="corner",
+                width=10,
+                outline=self.bg_color,
+                start=-270,
+            )
+            self.canvas.create_arc(
+                self.width - 2 * radius + 5 + pos_corr,
+                -5,
+                self.width + 5 + pos_corr,
+                2 * radius - 5,
+                style=tkinter.ARC,
+                tag="corner",
+                width=10,
+                outline=self.bg_color,
+                start=0,
+            )
 
     def update_dimensions(self, event):
         # only redraw if dimensions changed (for performance)
@@ -211,46 +290,80 @@ class TkinterMapView(tkinter.Frame):
             self.draw_move()  # call move to draw new tiles or delete tiles
             self.draw_rounded_corners()
 
-    def add_right_click_menu_command(self, label: str, command: Callable, pass_coords: bool = False) -> None:
-        self.right_click_menu_commands.append({"label": label, "command": command, "pass_coords": pass_coords})
+    def add_right_click_menu_command(
+        self, label: str, command: Callable, pass_coords: bool = False
+    ) -> None:
+        self.right_click_menu_commands.append(
+            {"label": label, "command": command, "pass_coords": pass_coords}
+        )
 
     def add_left_click_map_command(self, callback_function):
         self.map_click_callback = callback_function
 
-    def convert_canvas_coords_to_decimal_coords(self, canvas_x: int, canvas_y: int) -> tuple:
+    def convert_canvas_coords_to_decimal_coords(
+        self, canvas_x: int, canvas_y: int
+    ) -> tuple:
         relative_mouse_x = canvas_x / self.canvas.winfo_width()
         relative_mouse_y = canvas_y / self.canvas.winfo_height()
 
-        tile_mouse_x = self.upper_left_tile_pos[0] + (self.lower_right_tile_pos[0] - self.upper_left_tile_pos[0]) * relative_mouse_x
-        tile_mouse_y = self.upper_left_tile_pos[1] + (self.lower_right_tile_pos[1] - self.upper_left_tile_pos[1]) * relative_mouse_y
+        tile_mouse_x = (
+            self.upper_left_tile_pos[0]
+            + (self.lower_right_tile_pos[0] - self.upper_left_tile_pos[0])
+            * relative_mouse_x
+        )
+        tile_mouse_y = (
+            self.upper_left_tile_pos[1]
+            + (self.lower_right_tile_pos[1] - self.upper_left_tile_pos[1])
+            * relative_mouse_y
+        )
 
-        coordinate_mouse_pos = osm_to_decimal(tile_mouse_x, tile_mouse_y, round(self.zoom))
+        coordinate_mouse_pos = osm_to_decimal(
+            tile_mouse_x, tile_mouse_y, round(self.zoom)
+        )
         return coordinate_mouse_pos
 
     def mouse_right_click(self, event):
-        coordinate_mouse_pos = self.convert_canvas_coords_to_decimal_coords(event.x, event.y)
+        coordinate_mouse_pos = self.convert_canvas_coords_to_decimal_coords(
+            event.x, event.y
+        )
 
         def click_coordinates_event():
             try:
-                pyperclip.copy(f"{coordinate_mouse_pos[0]:.7f} {coordinate_mouse_pos[1]:.7f}")
-                tkinter.messagebox.showinfo(title="", message="Coordinates copied to clipboard!")
+                pyperclip.copy(
+                    f"{coordinate_mouse_pos[0]:.7f} {coordinate_mouse_pos[1]:.7f}"
+                )
+                tkinter.messagebox.showinfo(
+                    title="", message="Coordinates copied to clipboard!"
+                )
 
             except Exception as err:
                 if sys.platform.startswith("linux"):
-                    tkinter.messagebox.showinfo(title="", message="Error copying to clipboard.\n" + str(err) + "\n\nTry to install xclip:\n'sudo apt-get install xclip'")
+                    tkinter.messagebox.showinfo(
+                        title="",
+                        message="Error copying to clipboard.\n"
+                        + str(err)
+                        + "\n\nTry to install xclip:\n'sudo apt-get install xclip'",
+                    )
                 else:
-                    tkinter.messagebox.showinfo(title="", message="Error copying to clipboard.\n" + str(err))
+                    tkinter.messagebox.showinfo(
+                        title="", message="Error copying to clipboard.\n" + str(err)
+                    )
 
         m = tkinter.Menu(self, tearoff=0)
-        m.add_command(label=f"{coordinate_mouse_pos[0]:.7f} {coordinate_mouse_pos[1]:.7f}",
-                      command=click_coordinates_event)
+        m.add_command(
+            label=f"{coordinate_mouse_pos[0]:.7f} {coordinate_mouse_pos[1]:.7f}",
+            command=click_coordinates_event,
+        )
 
         if len(self.right_click_menu_commands) > 0:
             m.add_separator()
 
         for command in self.right_click_menu_commands:
             if command["pass_coords"]:
-                m.add_command(label=command["label"], command=partial(command["command"], coordinate_mouse_pos))
+                m.add_command(
+                    label=command["label"],
+                    command=partial(command["command"], coordinate_mouse_pos),
+                )
             else:
                 m.add_command(label=command["label"], command=command["command"])
 
@@ -259,7 +372,9 @@ class TkinterMapView(tkinter.Frame):
     def set_overlay_tile_server(self, overlay_server: str):
         self.overlay_tile_server = overlay_server
 
-    def set_tile_server(self, tile_server: str, tile_size: int = 256, max_zoom: int = 19):
+    def set_tile_server(
+        self, tile_server: str, tile_size: int = 256, max_zoom: int = 19
+    ):
         while not self.image_load_queue_tasks.empty():
             self.image_load_queue_tasks.get_nowait()
         self.max_zoom = max_zoom
@@ -272,45 +387,75 @@ class TkinterMapView(tkinter.Frame):
         self.draw_initial_array()
 
     def get_position(self) -> tuple:
-        """ returns current middle position of map widget in decimal coordinates """
+        """returns current middle position of map widget in decimal coordinates"""
 
-        return osm_to_decimal((self.lower_right_tile_pos[0] + self.upper_left_tile_pos[0]) / 2,
-                              (self.lower_right_tile_pos[1] + self.upper_left_tile_pos[1]) / 2,
-                              round(self.zoom))
+        return osm_to_decimal(
+            (self.lower_right_tile_pos[0] + self.upper_left_tile_pos[0]) / 2,
+            (self.lower_right_tile_pos[1] + self.upper_left_tile_pos[1]) / 2,
+            round(self.zoom),
+        )
 
-    def fit_bounding_box(self, position_top_left: Tuple[float, float], position_bottom_right: Tuple[float, float]):
+    def fit_bounding_box(
+        self,
+        position_top_left: tuple[float, float],
+        position_bottom_right: tuple[float, float],
+    ):
         # wait 200ms till method is called, because dimensions have to update first
-        self.after(100, self._fit_bounding_box, position_top_left, position_bottom_right)
+        self.after(
+            100, self._fit_bounding_box, position_top_left, position_bottom_right
+        )
 
-    def _fit_bounding_box(self, position_top_left: Tuple[float, float], position_bottom_right: Tuple[float, float]):
-        """ Fit the map to contain a bounding box with the maximum zoom level possible. """
+    def _fit_bounding_box(
+        self,
+        position_top_left: tuple[float, float],
+        position_bottom_right: tuple[float, float],
+    ):
+        """Fit the map to contain a bounding box with the maximum zoom level possible."""
 
         # check positions
-        if not (position_top_left[0] > position_bottom_right[0] and position_top_left[1] < position_bottom_right[1]):
-            raise ValueError("incorrect bounding box positions, <must be top_left_position> <bottom_right_position>")
+        if not (
+            position_top_left[0] > position_bottom_right[0]
+            and position_top_left[1] < position_bottom_right[1]
+        ):
+            raise ValueError(
+                "incorrect bounding box positions, <must be top_left_position> <bottom_right_position>"
+            )
 
         # update idle-tasks to make sure current dimensions are correct
         self.update_idletasks()
 
         last_fitting_zoom_level = self.min_zoom
-        middle_position_lat, middle_position_long = (position_bottom_right[0] + position_top_left[0]) / 2, (position_bottom_right[1] + position_top_left[1]) / 2
+        middle_position_lat, middle_position_long = (
+            (position_bottom_right[0] + position_top_left[0]) / 2,
+            (position_bottom_right[1] + position_top_left[1]) / 2,
+        )
 
         # loop through zoom levels beginning at minimum zoom
         for zoom in range(self.min_zoom, self.max_zoom + 1):
             # calculate tile positions for bounding box
-            middle_tile_position = decimal_to_osm(middle_position_lat, middle_position_long, zoom)
+            middle_tile_position = decimal_to_osm(
+                middle_position_lat, middle_position_long, zoom
+            )
             top_left_tile_position = decimal_to_osm(*position_top_left, zoom)
             bottom_right_tile_position = decimal_to_osm(*position_bottom_right, zoom)
 
             # calculate tile positions for map corners
-            calc_top_left_tile_position = (middle_tile_position[0] - ((self.width / 2) / self.tile_size),
-                                           middle_tile_position[1] - ((self.height / 2) / self.tile_size))
-            calc_bottom_right_tile_position = (middle_tile_position[0] + ((self.width / 2) / self.tile_size),
-                                               middle_tile_position[1] + ((self.height / 2) / self.tile_size))
+            calc_top_left_tile_position = (
+                middle_tile_position[0] - ((self.width / 2) / self.tile_size),
+                middle_tile_position[1] - ((self.height / 2) / self.tile_size),
+            )
+            calc_bottom_right_tile_position = (
+                middle_tile_position[0] + ((self.width / 2) / self.tile_size),
+                middle_tile_position[1] + ((self.height / 2) / self.tile_size),
+            )
 
             # check if bounding box fits in map
-            if calc_top_left_tile_position[0] < top_left_tile_position[0] and calc_top_left_tile_position[1] < top_left_tile_position[1] \
-                    and calc_bottom_right_tile_position[0] > bottom_right_tile_position[0] and calc_bottom_right_tile_position[1] > bottom_right_tile_position[1]:
+            if (
+                calc_top_left_tile_position[0] < top_left_tile_position[0]
+                and calc_top_left_tile_position[1] < top_left_tile_position[1]
+                and calc_bottom_right_tile_position[0] > bottom_right_tile_position[0]
+                and calc_bottom_right_tile_position[1] > bottom_right_tile_position[1]
+            ):
                 # set last_fitting_zoom_level to current zoom becuase bounding box fits in map
                 last_fitting_zoom_level = zoom
             else:
@@ -322,16 +467,22 @@ class TkinterMapView(tkinter.Frame):
         self.set_position(middle_position_lat, middle_position_long)
         self.draw_zoom()
 
-    def set_position(self, deg_x, deg_y, text=None, marker=False, **kwargs) -> CanvasPositionMarker:
-        """ set new middle position of map in decimal coordinates """
+    def set_position(
+        self, deg_x, deg_y, text=None, marker=False, **kwargs
+    ) -> CanvasPositionMarker:
+        """set new middle position of map in decimal coordinates"""
 
         # convert given decimal coordinates to OSM coordinates and set corner positions accordingly
         current_tile_position = decimal_to_osm(deg_x, deg_y, round(self.zoom))
-        self.upper_left_tile_pos = (current_tile_position[0] - ((self.width / 2) / self.tile_size),
-                                    current_tile_position[1] - ((self.height / 2) / self.tile_size))
+        self.upper_left_tile_pos = (
+            current_tile_position[0] - ((self.width / 2) / self.tile_size),
+            current_tile_position[1] - ((self.height / 2) / self.tile_size),
+        )
 
-        self.lower_right_tile_pos = (current_tile_position[0] + ((self.width / 2) / self.tile_size),
-                                     current_tile_position[1] + ((self.height / 2) / self.tile_size))
+        self.lower_right_tile_pos = (
+            current_tile_position[0] + ((self.width / 2) / self.tile_size),
+            current_tile_position[1] + ((self.height / 2) / self.tile_size),
+        )
 
         if marker is True:
             marker_object = self.set_marker(deg_x, deg_y, text, **kwargs)
@@ -344,12 +495,17 @@ class TkinterMapView(tkinter.Frame):
 
         return marker_object
 
-    def set_address(self, address_string: str, marker: bool = False, text: str = None, **kwargs) -> CanvasPositionMarker:
-        """ Function uses geocode service of OpenStreetMap (Nominatim).
-            https://geocoder.readthedocs.io/providers/OpenStreetMap.html """
+    def set_address(
+        self, address_string: str, marker: bool = False, text: str | None = None, **kwargs
+    ) -> CanvasPositionMarker:
+        """Function uses geocode service of OpenStreetMap (Nominatim).
+        https://geocoder.readthedocs.io/providers/OpenStreetMap.html"""
 
         ssl_ctx = ssl.create_default_context(cafile=certifi.where())
-        geolocator = Nominatim(user_agent="TkinterMapView/1.0 (contact@customtkinter.tomschimansky.com)", ssl_context=ssl_ctx)
+        geolocator = Nominatim(
+            user_agent="TkinterMapView/1.0 (contact@customtkinter.tomschimansky.com)",
+            ssl_context=ssl_ctx,
+        )
 
         try:
             location = geolocator.geocode(address_string)
@@ -358,7 +514,6 @@ class TkinterMapView(tkinter.Frame):
             return False
 
         if location:
-
             # 2. Extract bounding box from the raw Nominatim response
             # Nominatim format: ['lat_min', 'lat_max', 'lon_min', 'lon_max']
             raw_bbox = location.raw.get("boundingbox")
@@ -392,12 +547,20 @@ class TkinterMapView(tkinter.Frame):
                 text = location.address if location.address else address_string
 
             # 4. Set the position using the extracted coordinates
-            return self.set_position(location.latitude, location.longitude, marker=marker, text=text, **kwargs)
+            return self.set_position(
+                location.latitude,
+                location.longitude,
+                marker=marker,
+                text=text,
+                **kwargs,
+            )
 
         else:
             return False
 
-    def set_marker(self, deg_x: float, deg_y: float, text: str = None, **kwargs) -> CanvasPositionMarker:
+    def set_marker(
+        self, deg_x: float, deg_y: float, text: str | None = None, **kwargs
+    ) -> CanvasPositionMarker:
         marker = CanvasPositionMarker(self, (deg_x, deg_y), text=text, **kwargs)
         marker.draw()
         self.canvas_marker_list.append(marker)
@@ -443,7 +606,7 @@ class TkinterMapView(tkinter.Frame):
         self.canvas.lift("button")
 
     def pre_cache(self):
-        """ single threaded pre-chache tile images in area of self.pre_cache_position """
+        """single threaded pre-chache tile images in area of self.pre_cache_position"""
 
         last_pre_cache_position = None
         radius = 1
@@ -455,10 +618,16 @@ class TkinterMapView(tkinter.Frame):
                 zoom = round(self.zoom)
                 radius = 1
 
-            if self._can_pre_cache and self.pre_cache_position is not None and radius <= self.cache_tile_radius:
-
+            if (
+                self._can_pre_cache
+                and self.pre_cache_position is not None
+                and radius <= self.cache_tile_radius
+            ):
                 # pre cache top and bottom row
-                for x in range(int(self.pre_cache_position[0] - radius), int(self.pre_cache_position[0] + radius + 1)):
+                for x in range(
+                    int(self.pre_cache_position[0] - radius),
+                    int(self.pre_cache_position[0] + radius + 1),
+                ):
                     y1 = int(self.pre_cache_position[1] + radius)
                     y2 = int(self.pre_cache_position[1] - radius)
                     if f"{zoom}|{x}|{y1}" not in self.tile_image_cache:
@@ -467,7 +636,10 @@ class TkinterMapView(tkinter.Frame):
                         self.image_load_queue_tasks.put((1, (zoom, x, y2), None))
 
                 # pre cache left and right column
-                for y in range(int(self.pre_cache_position[1] - radius), int(self.pre_cache_position[1] + radius + 1)):
+                for y in range(
+                    int(self.pre_cache_position[1] - radius),
+                    int(self.pre_cache_position[1] + radius + 1),
+                ):
                     x1 = int(self.pre_cache_position[0] + radius)
                     x2 = int(self.pre_cache_position[0] - radius)
                     if f"{zoom}|{x1}|{y}" not in self.tile_image_cache:
@@ -484,7 +656,9 @@ class TkinterMapView(tkinter.Frame):
             # 10_000 images = 80 MB RAM-usage
             self.tile_image_cache.prune_cache()
 
-    def request_image(self, zoom: int, x: int, y: int, db_cursor=None, session=None) -> ImageTk.PhotoImage:
+    def request_image(
+        self, zoom: int, x: int, y: int, db_cursor=None, session=None
+    ) -> ImageTk.PhotoImage:
 
         if session is None:
             session = requests.Session()
@@ -496,8 +670,10 @@ class TkinterMapView(tkinter.Frame):
         # if database is available check first if tile is in database, if not try to use server
         if db_cursor is not None:
             try:
-                db_cursor.execute("SELECT t.tile_image FROM tiles t WHERE t.zoom=? AND t.x=? AND t.y=? AND t.server=?;",
-                                  (zoom, x, y, self.tile_server))
+                db_cursor.execute(
+                    "SELECT t.tile_image FROM tiles t WHERE t.zoom=? AND t.x=? AND t.y=? AND t.server=?;",
+                    (zoom, x, y, self.tile_server),
+                )
                 result = db_cursor.fetchone()
 
                 if result is not None:
@@ -524,17 +700,35 @@ class TkinterMapView(tkinter.Frame):
 
         # try to get the tile from the server
         try:
-            url = self.tile_server.replace("{x}", str(x)).replace("{y}", str(y)).replace("{z}", str(zoom))
-            image = Image.open(session.get(url, stream=True, headers={"User-Agent": "TkinterMapView"}).raw)
+            url = (
+                self.tile_server.replace("{x}", str(x))
+                .replace("{y}", str(y))
+                .replace("{z}", str(zoom))
+            )
+            image = Image.open(
+                session.get(
+                    url, stream=True, headers={"User-Agent": "TkinterMapView"}
+                ).raw
+            )
 
             if self.overlay_tile_server is not None:
-                url = self.overlay_tile_server.replace("{x}", str(x)).replace("{y}", str(y)).replace("{z}", str(zoom))
-                image_overlay = Image.open(session.get(url, stream=True, headers={"User-Agent": "TkinterMapView"}).raw)
+                url = (
+                    self.overlay_tile_server.replace("{x}", str(x))
+                    .replace("{y}", str(y))
+                    .replace("{z}", str(zoom))
+                )
+                image_overlay = Image.open(
+                    session.get(
+                        url, stream=True, headers={"User-Agent": "TkinterMapView"}
+                    ).raw
+                )
                 image = image.convert("RGBA")
                 image_overlay = image_overlay.convert("RGBA")
 
                 if image_overlay.size is not (self.tile_size, self.tile_size):
-                    image_overlay = image_overlay.resize((self.tile_size, self.tile_size), Image.ANTIALIAS)
+                    image_overlay = image_overlay.resize(
+                        (self.tile_size, self.tile_size), Image.ANTIALIAS
+                    )
 
                 image.paste(image_overlay, (0, 0), image_overlay)
 
@@ -543,11 +737,13 @@ class TkinterMapView(tkinter.Frame):
                 self.tile_image_cache[f"{zoom}|{x}|{y}"] = image_tk
                 return image_tk
             else:
-                print('not running')
+                print("not running")
                 self.tile_image_cache[key] = self.empty_tile_image
                 return self.empty_tile_image
 
-        except PIL.UnidentifiedImageError as ex:  # image does not exist for given coordinates
+        except (
+            PIL.UnidentifiedImageError
+        ) as ex:  # image does not exist for given coordinates
             print(f"image exception: {ex}")
             self.tile_image_cache[f"{zoom}|{x}|{y}"] = self.empty_tile_image
             return self.empty_tile_image
@@ -577,7 +773,9 @@ class TkinterMapView(tkinter.Frame):
             while self.running:
                 if not self.image_load_queue_tasks.empty():
                     # task queue structure: [((zoom, x, y), corresponding canvas tile object), ... ]
-                    task: tuple[int, tuple[int, int, int], CanvasTile] = self.image_load_queue_tasks.get_nowait()
+                    task: tuple[int, tuple[int, int, int], CanvasTile] = (
+                        self.image_load_queue_tasks.get_nowait()
+                    )
 
                     zoom = task[1][0]
                     x, y = task[1][1], task[1][2]
@@ -585,14 +783,18 @@ class TkinterMapView(tkinter.Frame):
 
                     image = self.get_tile_image_from_cache(zoom, x, y)
                     if image is False:
-                        image = self.request_image(zoom, x, y, db_cursor=db_cursor, session=session)
+                        image = self.request_image(
+                            zoom, x, y, db_cursor=db_cursor, session=session
+                        )
                         if image is None:
                             self.image_load_queue_tasks.put_nowait(task)
                             continue
 
                     if canvas_tile is not None:
                         # result queue structure: [((zoom, x, y), corresponding canvas tile object, tile image), ... ]
-                        self.image_load_queue_results.append(((zoom, x, y), canvas_tile, image))
+                        self.image_load_queue_results.append(
+                            ((zoom, x, y), canvas_tile, image)
+                        )
                 else:
                     time.sleep(0.01)
 
@@ -601,7 +803,7 @@ class TkinterMapView(tkinter.Frame):
             # result queue structure: [((zoom, x, y), corresponding canvas tile object, tile image), ... ]
             result = self.image_load_queue_results.pop(0)
 
-            zoom, x, y = result[0][0], result[0][1], result[0][2]
+            zoom = result[0][0]
             canvas_tile = result[1]
             image = result[2]
 
@@ -616,12 +818,21 @@ class TkinterMapView(tkinter.Frame):
     def insert_row(self, insert: int, y_name_position: int):
 
         for x_pos in range(len(self.canvas_tile_array)):
-            tile_name_position = self.canvas_tile_array[x_pos][0].tile_name_position[0], y_name_position
+            tile_name_position = (
+                self.canvas_tile_array[x_pos][0].tile_name_position[0],
+                y_name_position,
+            )
 
-            image = self.get_tile_image_from_cache(round(self.zoom), *tile_name_position)
+            image = self.get_tile_image_from_cache(
+                round(self.zoom), *tile_name_position
+            )
             if image is False:
-                canvas_tile = CanvasTile(self, self.not_loaded_tile_image, tile_name_position)
-                self.image_load_queue_tasks.put((0, (round(self.zoom), *tile_name_position), canvas_tile))
+                canvas_tile = CanvasTile(
+                    self, self.not_loaded_tile_image, tile_name_position
+                )
+                self.image_load_queue_tasks.put(
+                    (0, (round(self.zoom), *tile_name_position), canvas_tile)
+                )
             else:
                 canvas_tile = CanvasTile(self, image, tile_name_position)
 
@@ -633,13 +844,22 @@ class TkinterMapView(tkinter.Frame):
         canvas_tile_column = []
 
         for y_pos in range(len(self.canvas_tile_array[0])):
-            tile_name_position = x_name_position, self.canvas_tile_array[0][y_pos].tile_name_position[1]
+            tile_name_position = (
+                x_name_position,
+                self.canvas_tile_array[0][y_pos].tile_name_position[1],
+            )
 
-            image = self.get_tile_image_from_cache(round(self.zoom), *tile_name_position)
+            image = self.get_tile_image_from_cache(
+                round(self.zoom), *tile_name_position
+            )
             if image is False:
                 # image is not in image cache, load blank tile and append position to image_load_queue
-                canvas_tile = CanvasTile(self, self.not_loaded_tile_image, tile_name_position)
-                self.image_load_queue_tasks.put((0, (round(self.zoom), *tile_name_position), canvas_tile))
+                canvas_tile = CanvasTile(
+                    self, self.not_loaded_tile_image, tile_name_position
+                )
+                self.image_load_queue_tasks.put(
+                    (0, (round(self.zoom), *tile_name_position), canvas_tile)
+                )
             else:
                 # image is already in cache
                 canvas_tile = CanvasTile(self, image, tile_name_position)
@@ -655,8 +875,12 @@ class TkinterMapView(tkinter.Frame):
         while not self.image_load_queue_tasks.empty():
             self.image_load_queue_tasks.get_nowait()
 
-        x_tile_range = math.ceil(self.lower_right_tile_pos[0]) - math.floor(self.upper_left_tile_pos[0])
-        y_tile_range = math.ceil(self.lower_right_tile_pos[1]) - math.floor(self.upper_left_tile_pos[1])
+        x_tile_range = math.ceil(self.lower_right_tile_pos[0]) - math.floor(
+            self.upper_left_tile_pos[0]
+        )
+        y_tile_range = math.ceil(self.lower_right_tile_pos[1]) - math.floor(
+            self.upper_left_tile_pos[1]
+        )
 
         # upper left tile name position
         upper_left_x = math.floor(self.upper_left_tile_pos[0])
@@ -675,11 +899,17 @@ class TkinterMapView(tkinter.Frame):
             for y_pos in range(y_tile_range):
                 tile_name_position = upper_left_x + x_pos, upper_left_y + y_pos
 
-                image = self.get_tile_image_from_cache(round(self.zoom), *tile_name_position)
+                image = self.get_tile_image_from_cache(
+                    round(self.zoom), *tile_name_position
+                )
                 if image is False:
                     # image is not in image cache, load blank tile and append position to image_load_queue
-                    canvas_tile = CanvasTile(self, self.not_loaded_tile_image, tile_name_position)
-                    self.image_load_queue_tasks.put((0, (round(self.zoom), *tile_name_position), canvas_tile))
+                    canvas_tile = CanvasTile(
+                        self, self.not_loaded_tile_image, tile_name_position
+                    )
+                    self.image_load_queue_tasks.put(
+                        (0, (round(self.zoom), *tile_name_position), canvas_tile)
+                    )
                 else:
                     # image is already in cache
                     canvas_tile = CanvasTile(self, image, tile_name_position)
@@ -702,21 +932,24 @@ class TkinterMapView(tkinter.Frame):
             polygon.draw()
 
         # update pre-cache position
-        self.pre_cache_position = (round((self.upper_left_tile_pos[0] + self.lower_right_tile_pos[0]) / 2),
-                                   round((self.upper_left_tile_pos[1] + self.lower_right_tile_pos[1]) / 2))
+        self.pre_cache_position = (
+            round((self.upper_left_tile_pos[0] + self.lower_right_tile_pos[0]) / 2),
+            round((self.upper_left_tile_pos[1] + self.lower_right_tile_pos[1]) / 2),
+        )
         self._can_pre_cache = True
 
     def draw_move(self, called_after_zoom: bool = False):
 
         self._can_pre_cache = False
         if self.canvas_tile_array:
-
             # insert or delete rows on top
             top_y_name_position = self.canvas_tile_array[0][0].tile_name_position[1]
             top_y_diff = self.upper_left_tile_pos[1] - top_y_name_position
             if top_y_diff <= 0:
                 for y_diff in range(1, math.ceil(-top_y_diff) + 1):
-                    self.insert_row(insert=0, y_name_position=top_y_name_position - y_diff)
+                    self.insert_row(
+                        insert=0, y_name_position=top_y_name_position - y_diff
+                    )
             elif top_y_diff >= 1:
                 for y_diff in range(1, math.ceil(top_y_diff)):
                     for x in range(len(self.canvas_tile_array) - 1, -1, -1):
@@ -729,7 +962,9 @@ class TkinterMapView(tkinter.Frame):
             left_x_diff = self.upper_left_tile_pos[0] - left_x_name_position
             if left_x_diff <= 0:
                 for x_diff in range(1, math.ceil(-left_x_diff) + 1):
-                    self.insert_column(insert=0, x_name_position=left_x_name_position - x_diff)
+                    self.insert_column(
+                        insert=0, x_name_position=left_x_name_position - x_diff
+                    )
             elif left_x_diff >= 1:
                 for x_diff in range(1, math.ceil(left_x_diff)):
                     if len(self.canvas_tile_array) > 1:
@@ -743,7 +978,10 @@ class TkinterMapView(tkinter.Frame):
             bottom_y_diff = self.lower_right_tile_pos[1] - bottom_y_name_position
             if bottom_y_diff >= 1:
                 for y_diff in range(1, math.ceil(bottom_y_diff)):
-                    self.insert_row(insert=len(self.canvas_tile_array[0]), y_name_position=bottom_y_name_position + y_diff)
+                    self.insert_row(
+                        insert=len(self.canvas_tile_array[0]),
+                        y_name_position=bottom_y_name_position + y_diff,
+                    )
             elif bottom_y_diff <= 1:
                 for y_diff in range(1, math.ceil(-bottom_y_diff) + 1):
                     for x in range(len(self.canvas_tile_array) - 1, -1, -1):
@@ -756,7 +994,10 @@ class TkinterMapView(tkinter.Frame):
             right_x_diff = self.lower_right_tile_pos[0] - right_x_name_position
             if right_x_diff >= 1:
                 for x_diff in range(1, math.ceil(right_x_diff)):
-                    self.insert_column(insert=len(self.canvas_tile_array), x_name_position=right_x_name_position + x_diff)
+                    self.insert_column(
+                        insert=len(self.canvas_tile_array),
+                        x_name_position=right_x_name_position + x_diff,
+                    )
             elif right_x_diff <= 1:
                 for x_diff in range(1, math.ceil(-right_x_diff) + 1):
                     if len(self.canvas_tile_array) > 1:
@@ -779,8 +1020,10 @@ class TkinterMapView(tkinter.Frame):
                 polygon.draw(move=not called_after_zoom)
 
             # update pre-cache position
-            self.pre_cache_position = (round((self.upper_left_tile_pos[0] + self.lower_right_tile_pos[0]) / 2),
-                                       round((self.upper_left_tile_pos[1] + self.lower_right_tile_pos[1]) / 2))
+            self.pre_cache_position = (
+                round((self.upper_left_tile_pos[0] + self.lower_right_tile_pos[0]) / 2),
+                round((self.upper_left_tile_pos[1] + self.lower_right_tile_pos[1]) / 2),
+            )
         self._can_pre_cache = True
 
     def draw_zoom(self):
@@ -796,19 +1039,30 @@ class TkinterMapView(tkinter.Frame):
             upper_left_y = math.floor(self.upper_left_tile_pos[1])
             for x_pos in range(len(self.canvas_tile_array)):
                 for y_pos in range(len(self.canvas_tile_array[0])):
-
                     tile_name_position = upper_left_x + x_pos, upper_left_y + y_pos
 
-                    image = self.get_tile_image_from_cache(round(self.zoom), *tile_name_position)
+                    image = self.get_tile_image_from_cache(
+                        round(self.zoom), *tile_name_position
+                    )
                     if image is False:
                         image = self.not_loaded_tile_image
                         # noinspection PyCompatibility
-                        self.image_load_queue_tasks.put((0, (round(self.zoom), *tile_name_position), self.canvas_tile_array[x_pos][y_pos]))
+                        self.image_load_queue_tasks.put(
+                            (
+                                0,
+                                (round(self.zoom), *tile_name_position),
+                                self.canvas_tile_array[x_pos][y_pos],
+                            )
+                        )
 
-                    self.canvas_tile_array[x_pos][y_pos].set_image_and_position(image, tile_name_position)
+                    self.canvas_tile_array[x_pos][y_pos].set_image_and_position(
+                        image, tile_name_position
+                    )
 
-            self.pre_cache_position = (round((self.upper_left_tile_pos[0] + self.lower_right_tile_pos[0]) / 2),
-                                       round((self.upper_left_tile_pos[1] + self.lower_right_tile_pos[1]) / 2))
+            self.pre_cache_position = (
+                round((self.upper_left_tile_pos[0] + self.lower_right_tile_pos[0]) / 2),
+                round((self.upper_left_tile_pos[1] + self.lower_right_tile_pos[1]) / 2),
+            )
 
             self.draw_move(called_after_zoom=True)
         self._can_pre_cache = True
@@ -838,8 +1092,14 @@ class TkinterMapView(tkinter.Frame):
         tile_move_y = (mouse_move_y / self.height) * tile_y_range
 
         # calculate new corner tile positions
-        self.lower_right_tile_pos = (self.lower_right_tile_pos[0] + tile_move_x, self.lower_right_tile_pos[1] + tile_move_y)
-        self.upper_left_tile_pos = (self.upper_left_tile_pos[0] + tile_move_x, self.upper_left_tile_pos[1] + tile_move_y)
+        self.lower_right_tile_pos = (
+            self.lower_right_tile_pos[0] + tile_move_x,
+            self.lower_right_tile_pos[1] + tile_move_y,
+        )
+        self.upper_left_tile_pos = (
+            self.upper_left_tile_pos[0] + tile_move_x,
+            self.upper_left_tile_pos[1] + tile_move_y,
+        )
 
         self.check_map_border_crossing()
         self.draw_move()
@@ -862,7 +1122,9 @@ class TkinterMapView(tkinter.Frame):
             # mouse didn't move
             if self.map_click_callback is not None:
                 # get decimal coords of current mouse position
-                coordinate_mouse_pos = self.convert_canvas_coords_to_decimal_coords(event.x, event.y)
+                coordinate_mouse_pos = self.convert_canvas_coords_to_decimal_coords(
+                    event.x, event.y
+                )
                 self.map_click_callback(coordinate_mouse_pos)
         else:
             # mouse was moved, start fading animation
@@ -874,14 +1136,16 @@ class TkinterMapView(tkinter.Frame):
 
         # only do fading when at least 10 fps possible and fading is possible (no mouse movement at the moment)
         if delta_t < 0.1 and self.fading_possible is True:
-
             # calculate fading velocity
             mouse_move_x = self.move_velocity[0] * delta_t
             mouse_move_y = self.move_velocity[1] * delta_t
 
             # lower the fading velocity
             lowering_factor = 2 ** (-9 * delta_t)
-            self.move_velocity = (self.move_velocity[0] * lowering_factor, self.move_velocity[1] * lowering_factor)
+            self.move_velocity = (
+                self.move_velocity[0] * lowering_factor,
+                self.move_velocity[1] * lowering_factor,
+            )
 
             # calculate exact tile size of widget
             tile_x_range = self.lower_right_tile_pos[0] - self.upper_left_tile_pos[0]
@@ -892,38 +1156,65 @@ class TkinterMapView(tkinter.Frame):
             tile_move_y = (mouse_move_y / self.height) * tile_y_range
 
             # calculate new corner tile positions
-            self.lower_right_tile_pos = (self.lower_right_tile_pos[0] + tile_move_x, self.lower_right_tile_pos[1] + tile_move_y)
-            self.upper_left_tile_pos = (self.upper_left_tile_pos[0] + tile_move_x, self.upper_left_tile_pos[1] + tile_move_y)
+            self.lower_right_tile_pos = (
+                self.lower_right_tile_pos[0] + tile_move_x,
+                self.lower_right_tile_pos[1] + tile_move_y,
+            )
+            self.upper_left_tile_pos = (
+                self.upper_left_tile_pos[0] + tile_move_x,
+                self.upper_left_tile_pos[1] + tile_move_y,
+            )
 
             self.check_map_border_crossing()
             self.draw_move()
 
-            if abs(self.move_velocity[0]) > 1 or abs(self.move_velocity[1]) > 1:
-                if self.running:
-                    self.after(1, self.fading_move)
+            if self.running and (abs(self.move_velocity[0]) > 1 or abs(self.move_velocity[1]) > 1):
+                self.after(1, self.fading_move)
 
-    def set_zoom(self, zoom: int, relative_pointer_x: float = 0.5, relative_pointer_y: float = 0.5, delay_update: bool = False):
+    def set_zoom(
+        self,
+        zoom: int,
+        relative_pointer_x: float = 0.5,
+        relative_pointer_y: float = 0.5,
+        delay_update: bool = False,
+    ):
 
-        mouse_tile_pos_x = self.upper_left_tile_pos[0] + (self.lower_right_tile_pos[0] - self.upper_left_tile_pos[0]) * relative_pointer_x
-        mouse_tile_pos_y = self.upper_left_tile_pos[1] + (self.lower_right_tile_pos[1] - self.upper_left_tile_pos[1]) * relative_pointer_y
+        mouse_tile_pos_x = (
+            self.upper_left_tile_pos[0]
+            + (self.lower_right_tile_pos[0] - self.upper_left_tile_pos[0])
+            * relative_pointer_x
+        )
+        mouse_tile_pos_y = (
+            self.upper_left_tile_pos[1]
+            + (self.lower_right_tile_pos[1] - self.upper_left_tile_pos[1])
+            * relative_pointer_y
+        )
 
-        current_deg_mouse_position = osm_to_decimal(mouse_tile_pos_x,
-                                                    mouse_tile_pos_y,
-                                                    round(self.zoom))
+        current_deg_mouse_position = osm_to_decimal(
+            mouse_tile_pos_x, mouse_tile_pos_y, round(self.zoom)
+        )
         self.zoom = zoom
 
-        if self.zoom > self.max_zoom:
-            self.zoom = self.max_zoom
-        if self.zoom < self.min_zoom:
-            self.zoom = self.min_zoom
+        self.zoom = min(self.zoom, self.max_zoom)
+        self.zoom = max(self.zoom, self.min_zoom)
 
-        current_tile_mouse_position = decimal_to_osm(*current_deg_mouse_position, round(self.zoom))
+        current_tile_mouse_position = decimal_to_osm(
+            *current_deg_mouse_position, round(self.zoom)
+        )
 
-        self.upper_left_tile_pos = (current_tile_mouse_position[0] - relative_pointer_x * (self.width / self.tile_size),
-                                    current_tile_mouse_position[1] - relative_pointer_y * (self.height / self.tile_size))
+        self.upper_left_tile_pos = (
+            current_tile_mouse_position[0]
+            - relative_pointer_x * (self.width / self.tile_size),
+            current_tile_mouse_position[1]
+            - relative_pointer_y * (self.height / self.tile_size),
+        )
 
-        self.lower_right_tile_pos = (current_tile_mouse_position[0] + (1 - relative_pointer_x) * (self.width / self.tile_size),
-                                     current_tile_mouse_position[1] + (1 - relative_pointer_y) * (self.height / self.tile_size))
+        self.lower_right_tile_pos = (
+            current_tile_mouse_position[0]
+            + (1 - relative_pointer_x) * (self.width / self.tile_size),
+            current_tile_mouse_position[1]
+            + (1 - relative_pointer_y) * (self.height / self.tile_size),
+        )
 
         if round(self.zoom) != round(self.last_zoom):
             if not delay_update:
@@ -932,7 +1223,9 @@ class TkinterMapView(tkinter.Frame):
             self.last_zoom = round(self.zoom)
 
     def mouse_zoom(self, event):
-        relative_mouse_x = event.x / self.width  # mouse pointer position on map (x=[0..1], y=[0..1])
+        relative_mouse_x = (
+            event.x / self.width
+        )  # mouse pointer position on map (x=[0..1], y=[0..1])
         relative_mouse_y = event.y / self.height
 
         if sys.platform == "darwin":
@@ -946,7 +1239,11 @@ class TkinterMapView(tkinter.Frame):
         else:
             new_zoom = self.zoom + event.delta * 0.1
 
-        self.set_zoom(round(new_zoom), relative_pointer_x=relative_mouse_x, relative_pointer_y=relative_mouse_y)
+        self.set_zoom(
+            round(new_zoom),
+            relative_pointer_x=relative_mouse_x,
+            relative_pointer_y=relative_mouse_y,
+        )
 
     def check_map_border_crossing(self):
         diff_x, diff_y = 0, 0
@@ -960,13 +1257,23 @@ class TkinterMapView(tkinter.Frame):
         if self.lower_right_tile_pos[1] > 2 ** round(self.zoom):
             diff_y -= self.lower_right_tile_pos[1] - (2 ** round(self.zoom))
 
-        self.upper_left_tile_pos = self.upper_left_tile_pos[0] + diff_x, self.upper_left_tile_pos[1] + diff_y
-        self.lower_right_tile_pos = self.lower_right_tile_pos[0] + diff_x, self.lower_right_tile_pos[1] + diff_y
+        self.upper_left_tile_pos = (
+            self.upper_left_tile_pos[0] + diff_x,
+            self.upper_left_tile_pos[1] + diff_y,
+        )
+        self.lower_right_tile_pos = (
+            self.lower_right_tile_pos[0] + diff_x,
+            self.lower_right_tile_pos[1] + diff_y,
+        )
 
     def button_zoom_in(self):
         # zoom into middle of map
-        self.set_zoom(round(self.zoom + 1), relative_pointer_x=0.5, relative_pointer_y=0.5)
+        self.set_zoom(
+            round(self.zoom + 1), relative_pointer_x=0.5, relative_pointer_y=0.5
+        )
 
     def button_zoom_out(self):
         # zoom out of middle of map
-        self.set_zoom(round(self.zoom - 1), relative_pointer_x=0.5, relative_pointer_y=0.5)
+        self.set_zoom(
+            round(self.zoom - 1), relative_pointer_x=0.5, relative_pointer_y=0.5
+        )

@@ -1,25 +1,29 @@
 import hashlib
 import typing as t
 
-from medsutil import ocproc2 as ocproc2
+from medsutil import ocproc2
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import QCResult
 from medsutil.ocproc2.operations import SetManualQCOutcome
-from nodb.interface import NODBInstance, LockType
-from nodb.observations import NODBSourceFile, NODBBatch, BatchStatus, NODBWorkingRecord
+from nodb.interface import NODBInstance
+from nodb.observations import BatchStatus, NODBBatch, NODBSourceFile, NODBWorkingRecord
 from pipeman.programs.qc.base import QualityController
 
 
-class QCTestRunnerError(CodedError): CODE_SPACE = "QC-TEST-RUNNER"
+class QCTestRunnerError(CodedError):
+    CODE_SPACE = "QC-TEST-RUNNER"
 
 
 class QCTestRunner:
-
-    def __init__(self,
-                 db: NODBInstance,
-                 process_id: str,
-                 batch_queuer: t.Callable[[NODBInstance, str, int], None],
-                 test_definitions: list[tuple[type[QualityController], tuple | list | None, dict[str, t.Any] | None]]):
+    def __init__(
+        self,
+        db: NODBInstance,
+        process_id: str,
+        batch_queuer: t.Callable[[NODBInstance, str, int], None],
+        test_definitions: list[
+            tuple[type[QualityController], tuple | list | None, dict[str, t.Any] | None]
+        ],
+    ):
         self._test_definitions = test_definitions
         self._process_id = process_id
         self._db = db
@@ -40,16 +44,18 @@ class QCTestRunner:
         self._db.update_object(batch)
         self._db.commit()
 
-    def _process_working_records(self, working_records_streamer: t.Callable[..., t.Iterable[NODBWorkingRecord]]):
+    def _process_working_records(
+        self, working_records_streamer: t.Callable[..., t.Iterable[NODBWorkingRecord]]
+    ):
         tests, sort_order, batcher = self._build_tests()
         for working_record in working_records_streamer(self._db, order_by=sort_order):
             wuuid = working_record.working_uuid
             if wuuid is None:
-                raise Exception("Invalid working record")
+                raise QCTestRunnerError("Invalid working record", 1000)
             if not self._db.has_temp_qc_outcome(self._process_id, wuuid):
                 original_record = working_record.record
                 if original_record is None:
-                    raise Exception("Invalid record")
+                    raise QCTestRunnerError("Invalid record", 1001)
                 record = original_record.deepcopy()
                 qc_results = []
                 qc_flags = working_record.quality_checks
@@ -68,32 +74,48 @@ class QCTestRunner:
                     qc_results.append(result.result)
                     original_record.qc_tests.append(result)
                     if result.result is QCResult.MANUAL_REVIEW:
-                        result.proposed_actions.append(SetManualQCOutcome(
-                            qc_index=len(original_record.qc_tests) - 1,
-                            actual_result=QCResult.MANUAL_FAIL
-                        ))
+                        result.proposed_actions.append(
+                            SetManualQCOutcome(
+                                qc_index=len(original_record.qc_tests) - 1,
+                                actual_result=QCResult.MANUAL_FAIL,
+                            )
+                        )
                     for action in result.applied_actions:
                         action.apply(original_record)
                 working_record.record = original_record
                 working_record.quality_checks = qc_flags
-                batch_key, outcome = batcher.assign_batch(working_record, record, qc_results)
+                batch_key, outcome = batcher.assign_batch(
+                    working_record, record, qc_results
+                )
                 self._db.update_object(working_record)
-                self._db.create_temp_qc_outcome(self._process_id, wuuid, batch_key, outcome)
+                self._db.create_temp_qc_outcome(
+                    self._process_id, wuuid, batch_key, outcome
+                )
                 self._db.commit()
 
     def _flush_results(self, current_batch_uuid: str | None = None):
-        for batch_identifier, outcome in self._db.stream_temp_qc_outcomes(self._process_id):
+        for batch_identifier, outcome in self._db.stream_temp_qc_outcomes(
+            self._process_id
+        ):
             new_batch = NODBBatch(status=BatchStatus.NEW)
             self._db.insert_object(new_batch)
             self._db.commit()
             new_batch.status = BatchStatus.QUEUED
             self._db.update_object(new_batch)
-            self._db.reassign_temp_qc_outcomes(self._process_id, batch_identifier, outcome, new_batch.batch_uuid, current_batch_uuid)
+            self._db.reassign_temp_qc_outcomes(
+                self._process_id,
+                batch_identifier,
+                outcome,
+                new_batch.batch_uuid,
+                current_batch_uuid,
+            )
             self._batch_queuer(self._db, new_batch.batch_uuid, outcome)
             self._db.commit()
         self._db.cleanup_temp_qc_outcomes(self._process_id)
 
-    def _build_tests(self) -> tuple[list[QualityController], str | tuple[str, bool] | None, ResultBatcher]:
+    def _build_tests(
+        self,
+    ) -> tuple[list[QualityController], str | tuple[str, bool] | None, ResultBatcher]:
         tests: list[QualityController] = []
         sort_order = None
         station_invariant = True
@@ -101,27 +123,38 @@ class QCTestRunner:
             test = test_cls(*(test_args or []), **(test_kwargs or {}))
             if test.working_sort is not None:
                 if sort_order is not None and sort_order != test.working_sort:
-                    raise QCTestRunnerError(f"Incompatible sort orders [{test.working_sort}] and [{sort_order}]")
+                    raise QCTestRunnerError(
+                        f"Incompatible sort orders [{test.working_sort}] and [{sort_order}]"
+                    )
                 sort_order = test.working_sort
                 if not test.station_invariant:
                     station_invariant = False
             tests.append(test)
-        return tests, sort_order, SimpleBatcher() if station_invariant else PlatformBatcher()
+        return (
+            tests,
+            sort_order,
+            SimpleBatcher() if station_invariant else PlatformBatcher(),
+        )
 
 
 class ResultBatcher:
-
     RESULT_NEXT = 1
     RESULT_REVIEW = 2
     RESULT_ERROR = 3
 
-    def assign_batch(self,
-                     working_record: NODBWorkingRecord,
-                     record: ocproc2.ParentRecord,
-                     qc_results: list[ocproc2.QCResult]) -> tuple[str, int]:
-        return self._assign_batch_group(working_record, record), self._assign_batch_result(qc_results)
+    def assign_batch(
+        self,
+        working_record: NODBWorkingRecord,
+        record: ocproc2.ParentRecord,
+        qc_results: list[ocproc2.QCResult],
+    ) -> tuple[str, int]:
+        return self._assign_batch_group(
+            working_record, record
+        ), self._assign_batch_result(qc_results)
 
-    def _assign_batch_group(self, working_record: NODBWorkingRecord, record: ocproc2.ParentRecord) -> str:
+    def _assign_batch_group(
+        self, working_record: NODBWorkingRecord, record: ocproc2.ParentRecord
+    ) -> str:
         raise NotImplementedError
 
     def _assign_batch_result(self, qc_results: list[ocproc2.QCResult]) -> int:
@@ -135,22 +168,28 @@ class ResultBatcher:
 
 
 class PlatformBatcher(ResultBatcher):
-    """ Divides up the results by station """
+    """Divides up the results by station"""
 
-    def _assign_batch_group(self, working_record: NODBWorkingRecord, record: ocproc2.ParentRecord) -> str:
+    def _assign_batch_group(
+        self, working_record: NODBWorkingRecord, record: ocproc2.ParentRecord
+    ) -> str:
         platform_info = self._find_platform_info(record)
         if platform_info:
             # Max length for storing platform info in the database
             if len(platform_info) > 1024:
-                return hashlib.sha512(platform_info.encode('utf-8'), usedforsecurity=False).hexdigest()
+                return hashlib.sha512(
+                    platform_info.encode("utf-8"), usedforsecurity=False
+                ).hexdigest()
             return platform_info
         return ""
 
     def _find_platform_info(self, record: ocproc2.ParentRecord) -> str | None:
-        if record.metadata.has_value('CNODCPlatform'):
-            return record.metadata['CNODCPlatform'].to_string()
-        elif record.metadata.has_value('CNODCPlatformCandidates'):
-            return '\x1F'.join(str(x) for x in record.metadata['CNODCPlatformCandidates'].value)
+        if record.metadata.has_value("CNODCPlatform"):
+            return record.metadata["CNODCPlatform"].to_string()
+        elif record.metadata.has_value("CNODCPlatformCandidates"):
+            return "\x1f".join(
+                str(x) for x in record.metadata["CNODCPlatformCandidates"].value
+            )
         else:
             platform_keys = {
                 key: record.metadata[key].to_string()
@@ -163,7 +202,12 @@ class PlatformBatcher(ResultBatcher):
 
 
 class SimpleBatcher(ResultBatcher):
-    """ Keeps all the results together, except divided by outcome. """
+    """Keeps all the results together, except divided by outcome."""
 
-    def _assign_batch_group(self, working_record: NODBWorkingRecord, record: ocproc2.ParentRecord) -> str:
-        return working_record.qc_batch_id or f"{working_record.source_file_uuid}__{working_record.received_date}"
+    def _assign_batch_group(
+        self, working_record: NODBWorkingRecord, record: ocproc2.ParentRecord
+    ) -> str:
+        return (
+            working_record.qc_batch_id
+            or f"{working_record.source_file_uuid}__{working_record.received_date}"
+        )

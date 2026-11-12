@@ -5,33 +5,42 @@ import requests
 from pipeman.programs.platforms.base import PlatformInfo, PlatformManager
 
 url_args = {
-    "include": "[" + ",".join(f'"{x}"' for x in (
-        "ptfIdentifiers",
-        "agencyPtfs",
-        "agencyPtfs.agency",
-        "agencyPtfs.agency.country",
-        "agencyPtfs.agencyRole",
-        'wmos',
-        "ptfModel",
-        "ptfModel.ptfType",
-        "ptfModel.ptfType.ptfFamily",
-    )) + "]"
+    "include": "["
+    + ",".join(
+        f'"{x}"'
+        for x in (
+            "ptfIdentifiers",
+            "agencyPtfs",
+            "agencyPtfs.agency",
+            "agencyPtfs.agency.country",
+            "agencyPtfs.agencyRole",
+            "wmos",
+            "ptfModel",
+            "ptfModel.ptfType",
+            "ptfModel.ptfType.ptfFamily",
+        )
+    )
+    + "]"
 }
-OCEAN_OPS_PLATFORMS_URL = "https://www.ocean-ops.org/api/1/data/platform/?" + urlencode(url_args)
+OCEAN_OPS_PLATFORMS_URL = "https://www.ocean-ops.org/api/1/data/platform/?" + urlencode(
+    url_args
+)
+
 
 def download_ocean_ops():
-    with PlatformManager() as manager:
-        with requests.Session() as session:
-            resp = session.get(OCEAN_OPS_PLATFORMS_URL)
-            resp.raise_for_status()
-            data = resp.json()
-            if "data" in data:
-                for platform in data["data"]:
-                    for pinfo in build_platform_info(platform):
-                        manager.save_platform(pinfo)
+    with PlatformManager() as manager, requests.Session() as session:
+        resp = session.get(OCEAN_OPS_PLATFORMS_URL)
+        resp.raise_for_status()
+        data = resp.json()
+        if "data" in data:
+            for platform in data["data"]:
+                for pinfo in build_platform_info(platform):
+                    manager.save_platform(pinfo)
 
 
-def _build_platform_model_info(model_code: str, type_code: str, family_code: str) -> dict:
+def _build_platform_model_info(
+    model_code: str, type_code: str, family_code: str
+) -> dict:
     kwargs = {}
     if family_code == "FLOAT":
         kwargs["platform_type"] = "profiling_float"
@@ -66,8 +75,11 @@ def _build_platform_model_info(model_code: str, type_code: str, family_code: str
     elif not family_code:
         kwargs["platform_type"] = "unknown"
     else:
-        raise Exception(f"Unknown platform type: {family_code}, {type_code}, {model_code}")
+        raise Exception(
+            f"Unknown platform type: {family_code}, {type_code}, {model_code}"
+        )
     return kwargs
+
 
 def build_platform_info(data: dict):
     ids = data.get("ptfIdentifiers", {}) or {}
@@ -80,7 +92,13 @@ def build_platform_info(data: dict):
     model = data.get("ptfModel", {}) or {}
     ptf_type = model.get("ptfType", {}) or {}
     ptf_family = ptf_type.get("ptfFamily", {}) or {}
-    kwargs.update(_build_platform_model_info(model.get("nameShort", ""), ptf_type.get("nameShort", ""), ptf_family.get("nameShort", "")))
+    kwargs.update(
+        _build_platform_model_info(
+            model.get("nameShort", ""),
+            ptf_type.get("nameShort", ""),
+            ptf_family.get("nameShort", ""),
+        )
+    )
     for agency in data.get("agencyPtfs", []):
         if agency is None:
             continue
@@ -106,8 +124,7 @@ def build_platform_info(data: dict):
     else:
         for wmo_date in wmo_ids:
             wmo_id = wmo_date["wmo"]
-            if wmo_id.startswith("WMO"):
-                wmo_id = wmo_id[3:]
+            wmo_id = wmo_id.removeprefix("WMO")
             pinfo = {
                 "start_date": wmo_date.get("startDate", None),
                 "end_date": wmo_date.get("endDate", None),

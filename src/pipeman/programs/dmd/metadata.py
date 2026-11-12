@@ -1,27 +1,26 @@
+import datetime
+import enum
 import functools
 import logging
 import typing as t
-import datetime
 
 import netCDF4 as nc
 import numpy as np
-import enum
-
 from autoinject import injector
 
-import medsutil.json as json
-from medsutil.first import first_i18n
-from medsutil.sanitize import unnumpy
-import medsutil.awaretime as awaretime
 import medsutil.datadict as dd
-from medsutil.multienum import MultiValuedEnum, variants
-from medsutil.frozendict import FrozenDict
 import medsutil.types as ct
-from medsutil.ocproc2.ontology import OCProc2Ontology
+from medsutil import awaretime, json
+from medsutil.first import first_i18n
+from medsutil.frozendict import FrozenDict
 from medsutil.iso_duration import ISODuration
+from medsutil.multienum import MultiValuedEnum, variants
+from medsutil.ocproc2.ontology import OCProc2Ontology
+from medsutil.sanitize import unnumpy
 
 if t.TYPE_CHECKING:
     from medsutil.storage import FilePath
+
 
 def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
     attr = {}
@@ -32,18 +31,16 @@ def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
 
 
 class Encoding(MultiValuedEnum):
-
     UTF8 = "utf8", "utf-8"
     ISO_8859_1 = "iso-8859-1"
     UTF16 = "utf16", "utf-16"
 
 
 class Axis(MultiValuedEnum):
-
-    Time = 'T'
-    Longitude = 'X'
-    Latitude = 'Y'
-    Depth = 'Z'
+    Time = "T"
+    Longitude = "X"
+    Latitude = "Y"
+    Depth = "Z"
 
     @classmethod
     def _convert_value(cls, v):
@@ -52,7 +49,7 @@ class Axis(MultiValuedEnum):
 
 class NetCDFDataType(MultiValuedEnum):
     String = "String"
-    Character = "char", 'c', 'S1'
+    Character = "char", "c", "S1"
     Double = "double", "float64", "d", "f8"
     Float = "float", "float32", "f4", "f"
     Long = "long", "i8", "int64"
@@ -72,13 +69,12 @@ class NetCDFDataType(MultiValuedEnum):
             v = v.name
         elif isinstance(v, nc.VLType):
             v = v.dtype.name
-        if isinstance(v, str) and len(v) >= 2 and v[0] == 'S' and v[1:].isdigit():
-            v = 'char' if v[1:] == '1' else 'String'
+        if isinstance(v, str) and len(v) >= 2 and v[0] == "S" and v[1:].isdigit():
+            v = "char" if v[1:] == "1" else "String"
         return v
 
 
 class Calendar(MultiValuedEnum):
-
     Standard = "standard", "gregorian"
     ProlepticGregorian = "proleptic_gregorian"
     Julian = "julian"
@@ -93,13 +89,11 @@ class Calendar(MultiValuedEnum):
 
 
 class Direction(MultiValuedEnum):
-
     Up = "up"
     Down = "down"
 
 
 class IOOSCategory(MultiValuedEnum):
-
     Acidity = variants("Acidity")
     Bathymetry = variants("Bathymetry")
     Biology = variants("Biology")
@@ -142,7 +136,6 @@ class IOOSCategory(MultiValuedEnum):
     ZooplanktonAbundance = variants("Zooplankton Abundance")
 
 
-
 class TimePrecision(MultiValuedEnum):
     Month = "month"
     Day = "day"
@@ -155,7 +148,6 @@ class TimePrecision(MultiValuedEnum):
 
 
 class NumericTimeUnits(MultiValuedEnum):
-
     Years = "years"
     Months = "months"
     Weeks = "weeks"
@@ -177,21 +169,18 @@ class TimeZone(MultiValuedEnum):
 
 
 class ERDDAPVariableRole(MultiValuedEnum):
-
     ProfileExtra = "profile_extra"
     TimeseriesExtra = "timeseries_extra"
     TrajectoryExtra = "trajectory_extra"
 
 
 class CFVariableRole(MultiValuedEnum):
-
     ProfileID = "profile_id"
     TimeseriesID = "timeseries_id"
     TrajectoryID = "trajectory_id"
 
 
 class CoverageContentType(MultiValuedEnum):
-
     Auxillary = "auxillaryInformation"
     Coordinate = "coordinate"
     Image = "image"
@@ -203,7 +192,6 @@ class CoverageContentType(MultiValuedEnum):
 
 
 class GCAudience(MultiValuedEnum):
-
     AboriginalPeoples = "aboriginal_peoples"
     Business = "business"
     Children = "children"
@@ -242,23 +230,23 @@ class GCSubject(MultiValuedEnum):
 
 
 PROVINCES = {
-    'BC': 'British Columbia',
-    'ON': 'Ontario',
-    'NS': 'Nova Scotia',
-    'NL': 'Newfoundland and Labrador',
-    'NB': 'New Brunswick',
-    'AB': 'Alberta',
-    'MB': 'Manitoba',
-    'QC': 'Quebec',
-    'PE': 'Prince Edward Island',
-    'SK': 'Saskatchewan',
-    'NT': 'Northwest Territories',
-    'NU': 'Nunavut',
-    'YT': 'Yukon',
+    "BC": "British Columbia",
+    "ON": "Ontario",
+    "NS": "Nova Scotia",
+    "NL": "Newfoundland and Labrador",
+    "NB": "New Brunswick",
+    "AB": "Alberta",
+    "MB": "Manitoba",
+    "QC": "Quebec",
+    "PE": "Prince Edward Island",
+    "SK": "Saskatchewan",
+    "NT": "Northwest Territories",
+    "NU": "Nunavut",
+    "YT": "Yukon",
 }
 
-class GCPlace(MultiValuedEnum):
 
+class GCPlace(MultiValuedEnum):
     Canada = "canada"  # General
     Burlington = "ontario_-_halton"  # CCIW
     Ottawa = "ontario_-_ottawa"  # NCR
@@ -272,20 +260,21 @@ class GCPlace(MultiValuedEnum):
     @classmethod
     def _convert_value(cls, s: str):
         s = s.strip()
-        if ',' in s:
-            city, province = s.split(',', maxsplit=1)
+        if "," in s:
+            city, province = s.split(",", maxsplit=1)
             province = province.strip()
             if province.upper() in PROVINCES:
                 province = PROVINCES[province.upper()]
             s = f"{province} - {city.strip()}"
-        while '  ' in s:
-            s = s.replace('  ', ' ')
-        return s.lower().replace(' ', '_')
+        while "  " in s:
+            s = s.replace("  ", " ")
+        return s.lower().replace(" ", "_")
 
 
 class ERDDAPDatasetType(MultiValuedEnum):
-
-    DSGTable = "EDDTableFromNcCFFiles"  # Use this one for files following CF's DSG conventions
+    DSGTable = (
+        "EDDTableFromNcCFFiles"  # Use this one for files following CF's DSG conventions
+    )
     MultiDimDSGMTable = "EDDTableFromMultidimNcFile"  # Multi-dimensional CF DSG files
     OtherNetCDFTable = "EDDTableFromNcFiles"  # All other netcdf formats
     ASCIITable = "EDDTableFromAsciiFiles"  # ASCII files
@@ -296,21 +285,29 @@ class CommonDataModelType(MultiValuedEnum):
     Point = "Point", "point"  # (x, y, t[, d])
     Profile = "Profile", "profile"  # (x, y, t) and (d)
     TimeSeries = "TimeSeries", "timeseries"  # station:(x, y[, d]) and (t)
-    TimeSeriesProfile = "TimeSeriesProfile", "timeseriesprofile"  # station:(x, y) and (t, d)
+    TimeSeriesProfile = (
+        "TimeSeriesProfile",
+        "timeseriesprofile",
+    )  # station:(x, y) and (t, d)
     Trajectory = "Trajectory", "trajectory"  # station: () and (x, y, t[, d])
-    TrajectoryProfile = "TrajectoryProfile", "trajectoryprofile"  # station: () and (x, y, t) and (d)
+    TrajectoryProfile = (
+        "TrajectoryProfile",
+        "trajectoryprofile",
+    )  # station: () and (x, y, t) and (d)
 
     # These are non-standard but recognized by ERDDAP
     Grid = "Grid", "grid"  # fixed (x, y[, t][, d]) grid
     MovingGrid = "MovingGrid", "movinggrid"  # grid but (x,y[,d]) may vary over time
-    RadialSweep = "RadialSweep", "radialsweep"  # e.g. radial / gate, azimuth/distance, etc
+    RadialSweep = (
+        "RadialSweep",
+        "radialsweep",
+    )  # e.g. radial / gate, azimuth/distance, etc
     Swath = "Swath", "swath"
 
     Other = "Other", "other"  # data that does not have geographical coordinates
 
 
 class EssentialOceanVariable(MultiValuedEnum):
-
     Oxygen = "oxygen"
     Nutrients = "nutrients"
     InorganicCarbon = "inorganicCarbon"
@@ -322,7 +319,9 @@ class EssentialOceanVariable(MultiValuedEnum):
     PhytoplanktonBiomassAndDiversity = "phytoplanktonBiomassAndDiversity"
     ZooplanktonBiomassAndDiversity = "zooplanktonBiomassAndDiversity"
     FishAbundanceAndDistribution = "fishAbundanceAndDistribution"
-    MarineTurtlesBirdsMammalsAbundanceAndDistribution = "marineTurtlesBirdsMammalsAbundanceAndDistribution"
+    MarineTurtlesBirdsMammalsAbundanceAndDistribution = (
+        "marineTurtlesBirdsMammalsAbundanceAndDistribution"
+    )
     HardCoralCoverAndComposition = "hardCoralCoverAndComposition"
     SeagrassCoverAndComposition = "seagrassCoverAndComposition"
     MacroalgalCanopyCoverAndComposition = "macroalgalCanopyCoverAndComposition"
@@ -349,7 +348,6 @@ class EssentialOceanVariable(MultiValuedEnum):
 
 
 class MaintenanceFrequency(MultiValuedEnum):
-
     Annually = "annually"
     Quarterly = "quarterly"
     Monthly = "monthly"
@@ -370,7 +368,6 @@ class MaintenanceFrequency(MultiValuedEnum):
 
 
 class TopicCategory(MultiValuedEnum):
-
     Biota = "biota"
     Boundaries = "boundaries"
     ClimatologyMeteorologyAtmosphere = "climatologyMeteorologyAtmosphere"
@@ -395,7 +392,6 @@ class TopicCategory(MultiValuedEnum):
 
 
 class SpatialRepresentation(MultiValuedEnum):
-
     Grid = "grid"
     Stereographic = "stereoModel"
     TextTable = "textTable"
@@ -405,7 +401,6 @@ class SpatialRepresentation(MultiValuedEnum):
 
 
 class StatusCode(MultiValuedEnum):
-
     Accepted = "accepted"
     """ The dataset has been accepted but not formalized. """
 
@@ -462,45 +457,41 @@ class StatusCode(MultiValuedEnum):
 
 
 class CoordinateReferenceSystem(MultiValuedEnum):
+    NAD27 = FrozenDict(_guid="nad27"), "4267", "NAD27"
+    """ EPSG 4267: the NAD27 datum """
 
-    NAD27 = FrozenDict(_guid='nad27'), '4267', 'NAD27'
-    ''' EPSG 4267: the NAD27 datum '''
+    WGS84 = FrozenDict(_guid="wgs84"), "4326", "WGS84"
+    """ EPSG 4326: the WGS84 datum """
 
-    WGS84 = FrozenDict(_guid='wgs84'), '4326', 'WGS84'
-    ''' EPSG 4326: the WGS84 datum '''
+    MSL_Depth = FrozenDict(_guid="msl_depth"), "MSLD", "5715"
+    """ EPSG 5715: depth below a non-specific mean sea level (depth positive) """
 
-    MSL_Depth = FrozenDict(_guid='msl_depth'), 'MSLD', '5715'
-    ''' EPSG 5715: depth below a non-specific mean sea level (depth positive) '''
+    MSL_Heights = FrozenDict(_guid="msl_height"), "MSLH", "5714"
+    """ EPSG 5714: height above a non-specific mean sea level (depth negative) """
 
-    MSL_Heights = FrozenDict(_guid='msl_height'), 'MSLH', '5714'
-    ''' EPSG 5714: height above a non-specific mean sea level (depth negative) '''
+    Instant_Depth = FrozenDict(_guid="instant_depth"), "5831"
+    """ EPSG 5831: depth below current instantaneous sea level (depth positive) """
 
-    Instant_Depth = FrozenDict(_guid='instant_depth'), '5831'
-    ''' EPSG 5831: depth below current instantaneous sea level (depth positive) '''
+    Instant_Heights = FrozenDict(_guid="instant_heights"), "5829"
+    """ EPGS 5829: altitude above current instantaneous sea level (depth negative) """
 
-    Instant_Heights = FrozenDict(_guid='instant_heights'), '5829'
-    ''' EPGS 5829: altitude above current instantaneous sea level (depth negative) '''
-
-    Gregorian = FrozenDict(_guid='gregorian'), 'GREGORIAN', 'STANDARD'
-    ''' Standard Gregorian calendar '''
+    Gregorian = FrozenDict(_guid="gregorian"), "GREGORIAN", "STANDARD"
+    """ Standard Gregorian calendar """
 
     @classmethod
     def _convert_value(cls, value: str):
         value = str(value).upper()
-        value = value.replace(' ', '')
-        if value.startswith('EPSG:'):
-            value = value[5:]
+        value = value.replace(" ", "")
+        value = value.removeprefix("EPSG:")
         return value
 
 
 class MaintenanceScope(enum.Enum):
-
     Dataset = "dataset"
     Metadata = "metadata"
 
 
 class ResourceType(enum.Enum):
-
     Auto = "_autodetect"
     File = "file"
     WebPage = "http"
@@ -512,7 +503,6 @@ class ResourceType(enum.Enum):
 
 
 class GCContentFormat(enum.Enum):
-
     Auto = "_autodetect"
 
     VideoAVI = "AVI"
@@ -559,7 +549,6 @@ class GCContentFormat(enum.Enum):
 
 
 class ResourcePurpose(enum.Enum):
-
     Information = "information"
     """ The resource provides more information about the object. """
 
@@ -595,7 +584,6 @@ class ResourcePurpose(enum.Enum):
 
 
 class GCContentType(enum.Enum):
-
     Dataset = "dataset"
     """ The resource is a dataset. """
 
@@ -613,7 +601,6 @@ class GCContentType(enum.Enum):
 
 
 class GCLanguage(enum.Enum):
-
     NoLanguage = tuple()
     """ The resource has no language component. """
 
@@ -628,7 +615,6 @@ class GCLanguage(enum.Enum):
 
 
 class ContactRole(MultiValuedEnum):
-
     Author = "author"
     """ A person who solely wrote the document."""
 
@@ -689,9 +675,7 @@ class ContactRole(MultiValuedEnum):
     """ A person who uses the data. """
 
 
-
 class IDSystem(enum.Enum):
-
     DOI = FrozenDict(_guid="DOI")
     """ Digital Object Identifier system - codes should just be the DOI without any prefix. """
 
@@ -715,35 +699,30 @@ class IDSystem(enum.Enum):
 
 
 class TelephoneType(enum.Enum):
-
     Fax = "fax"
     Cell = "cell"
     Voice = "voice"
 
 
 class Country(enum.Enum):
-
     Canada = "CAN"
     UnitedStates = "USA"
 
 
 class Locale(enum.Enum):
-
-    CanadianEnglish = FrozenDict(_guid='canadian_english_utf8')
+    CanadianEnglish = FrozenDict(_guid="canadian_english_utf8")
     """ Canadian English using UTF-8 text encoding. """
 
-    CanadianFrench = FrozenDict(_guid='canadian_french_utf8')
+    CanadianFrench = FrozenDict(_guid="canadian_french_utf8")
     """ Canadian French using UTF-8 text encoding. """
 
 
 class DistanceUnit(enum.Enum):
-
     Meters = "m"
-    Kilometers ="km"
+    Kilometers = "km"
 
 
 class AngularUnit(enum.Enum):
-
     Radians = "radian"
     ArcDegrees = "arc_degree"
     ArcMinutes = "arc_minute"
@@ -751,7 +730,6 @@ class AngularUnit(enum.Enum):
 
 
 class RestrictionCode(enum.Enum):
-
     Unrestricted = "unrestricted"
     """ Material is not covered by a license, copyright, patent, trademark, or any other restrictions. 
         It may be freely used and distributed by all. Use for public domain works. 
@@ -795,7 +773,6 @@ class RestrictionCode(enum.Enum):
 
 
 class ClassificationCode(enum.Enum):
-
     Unclassified = "unclassified"
     """ Material is not protected or classified. """
 
@@ -819,12 +796,10 @@ class ClassificationCode(enum.Enum):
 
 
 class GCPublisher(enum.Enum):
-
     MEDS = FrozenDict(_guid="meds")
 
 
 class KeywordType(enum.Enum):
-
     DataCenter = "dataCentre"
     Discipline = "discipline"
     FeatureType = "featureType"
@@ -899,13 +874,11 @@ class ProductionUnit(MultiValuedEnum):
 
 
 class EntityRef(dd.DataDictObject):
-
-    guid: str = dd.p_str(managed_name='_guid')
-    display_name: ct.LanguageDict = dd.p_i18n_text(managed_name='_display_names')
+    guid: str = dd.p_str(managed_name="_guid")
+    display_name: ct.LanguageDict = dd.p_i18n_text(managed_name="_display_names")
 
 
 class Variable(EntityRef):
-
     cnodc_name: str = dd.p_str()
     axis: Axis = dd.p_enum(Axis)
     units: str = dd.p_str()
@@ -938,8 +911,10 @@ class Variable(EntityRef):
     coverage_content_type: CoverageContentType = dd.p_enum(CoverageContentType)
     variable_order: int = dd.p_int()
     is_axis: bool = dd.p_bool()
-    is_altitude_proxy: bool = dd.p_bool(managed_name='altitude_proxy')
-    additional_properties: dict[str, ct.SupportsExtendedJson] = dd.p_dict(managed_name='custom_metadata')
+    is_altitude_proxy: bool = dd.p_bool(managed_name="altitude_proxy")
+    additional_properties: dict[str, ct.SupportsExtendedJson] = dd.p_dict(
+        managed_name="custom_metadata"
+    )
 
     def set_time_units(self, base_units: NumericTimeUnits, epoch: datetime.datetime):
         """
@@ -955,81 +930,85 @@ class Variable(EntityRef):
             source_name=ds_var.name,
             source_data_type=ds_var.dtype,
             dimensions=ds_var.dimensions,
-            long_name=get_bilingual_attribute(var_attributes, 'long_name', locale_map),
+            long_name=get_bilingual_attribute(var_attributes, "long_name", locale_map),
             display_name={"und": ds_var.name},
             guid=ds_var.name,
-            comment=var_attributes.pop('comment', None),
-            references=var_attributes.pop('references', None),
-            source=var_attributes.pop('source', None),
-            coverage_content_type=var_attributes.pop('coverage_content_type', None),
-            units=var_attributes.pop('units', None),
-            valid_min=var_attributes.pop('valid_min', None),
-            valid_max=var_attributes.pop('valid_max', None),
-            standard_name=var_attributes.pop('standard_name', None),
-            calendar=var_attributes.pop('calendar', None),
-            positive=var_attributes.pop('positive', None),
-            scale_factor=var_attributes.pop('scale_factor', None),
-            add_offset=var_attributes.pop('add_offset', None),
-            time_precision=var_attributes.pop('time_precision', None),
-            time_zone=var_attributes.pop('time_zone', None),
-            cf_role=var_attributes.pop('cf_role', None),
-            axis=var_attributes.pop('axis', None),
-            cnodc_name=var_attributes.pop('cnodc_standard_name', None)
+            comment=var_attributes.pop("comment", None),
+            references=var_attributes.pop("references", None),
+            source=var_attributes.pop("source", None),
+            coverage_content_type=var_attributes.pop("coverage_content_type", None),
+            units=var_attributes.pop("units", None),
+            valid_min=var_attributes.pop("valid_min", None),
+            valid_max=var_attributes.pop("valid_max", None),
+            standard_name=var_attributes.pop("standard_name", None),
+            calendar=var_attributes.pop("calendar", None),
+            positive=var_attributes.pop("positive", None),
+            scale_factor=var_attributes.pop("scale_factor", None),
+            add_offset=var_attributes.pop("add_offset", None),
+            time_precision=var_attributes.pop("time_precision", None),
+            time_zone=var_attributes.pop("time_zone", None),
+            cf_role=var_attributes.pop("cf_role", None),
+            axis=var_attributes.pop("axis", None),
+            cnodc_name=var_attributes.pop("cnodc_standard_name", None),
         )
-        if var.source_data_type not in (NetCDFDataType.String, NetCDFDataType.Character):
+        if var.source_data_type not in (
+            NetCDFDataType.String,
+            NetCDFDataType.Character,
+        ):
             values = ds_var[:]
             if values.size > 0:
                 var.actual_min = t.cast(float, np.min(values))
                 var.actual_max = t.cast(float, np.max(values))
-        var_attributes.pop('actual_min', None)
-        var_attributes.pop('actual_max', None)
-        if 'missing_value' in var_attributes:
-            var.missing_value = var_attributes.pop('missing_value')
+        var_attributes.pop("actual_min", None)
+        var_attributes.pop("actual_max", None)
+        if "missing_value" in var_attributes:
+            var.missing_value = var_attributes.pop("missing_value")
             var_attributes.pop("_FillValue", "")
-        elif '_FillValue' in var_attributes:    # pragma: no coverage (fallback)
-            var.missing_value = var_attributes.pop('_FillValue')
-        if '_Encoding' in var_attributes:
-            var.encoding = var_attributes.pop('_Encoding')
+        elif "_FillValue" in var_attributes:  # pragma: no coverage (fallback)
+            var.missing_value = var_attributes.pop("_FillValue")
+        if "_Encoding" in var_attributes:
+            var.encoding = var_attributes.pop("_Encoding")
         elif var.source_data_type in (NetCDFDataType.String, NetCDFDataType.Character):
             var.encoding = Encoding.UTF8
         var.additional_properties = {
-            x: unnumpy(var_attributes[x])
-            for x in var_attributes
+            x: unnumpy(var_attributes[x]) for x in var_attributes
         }
         return var
 
 
 class MaintenanceRecord(EntityRef):
-
     date: datetime.date = dd.p_date()
     notes: ct.LanguageDict = dd.p_i18n_text()
     scope: MaintenanceScope = dd.p_enum(MaintenanceScope)
 
 
 class QuickWebPage(EntityRef):
-
     name: ct.LanguageDict | None = dd.p_i18n_text()
     description: ct.LanguageDict | None = dd.p_i18n_text()
-    purpose: ResourcePurpose | None = dd.p_enum(ResourcePurpose, managed_name='function')
+    purpose: ResourcePurpose | None = dd.p_enum(
+        ResourcePurpose, managed_name="function"
+    )
     url: ct.LanguageDict | None = dd.p_i18n_text(order=1)
-    resource_type: ResourceType | None = dd.p_enum(ResourceType, managed_name='protocol')
+    resource_type: ResourceType | None = dd.p_enum(
+        ResourceType, managed_name="protocol"
+    )
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value, original)
-        if managed_name == 'url' and value and self.resource_type is None:
+        if managed_name == "url" and value and self.resource_type is None:
             self.resource_type = self.autodetect_resource_type(value)
-        elif managed_name == 'purpose' and value is ResourceType.Auto:
+        elif managed_name == "purpose" and value is ResourceType.Auto:
             self.resource_type = self.autodetect_resource_type(self.url)
 
     @staticmethod
-    def autodetect_resource_type(full_url: t.Optional[dict]) -> ResourceType | None:
+    def autodetect_resource_type(full_url: dict | None) -> ResourceType | None:
         if full_url is None:
             return None
         url = ""
-        if 'und' in full_url:
-            url = full_url['und']
-        elif 'en' in full_url:
-            url = full_url['en']
+        if "und" in full_url:
+            url = full_url["und"]
+        elif "en" in full_url:
+            url = full_url["en"]
         else:
             for key in full_url.keys():
                 url = full_url[key]
@@ -1048,27 +1027,36 @@ class QuickWebPage(EntityRef):
 
 
 class Resource(QuickWebPage):
-
-    additional_request_info: ct.LanguageDict = dd.p_i18n_text(managed_name='protocol_request')
-    additional_app_info: ct.LanguageDict = dd.p_i18n_text(managed_name='app_profile')
+    additional_request_info: ct.LanguageDict = dd.p_i18n_text(
+        managed_name="protocol_request"
+    )
+    additional_app_info: ct.LanguageDict = dd.p_i18n_text(managed_name="app_profile")
     goc_content_type: GCContentType = dd.p_enum(GCContentType)
     goc_languages: GCLanguage = dd.p_enum(GCLanguage)
-    goc_format: set[GCContentFormat] = dd.p_enum_set(GCContentFormat, managed_name='goc_formats')
+    goc_format: set[GCContentFormat] = dd.p_enum_set(
+        GCContentFormat, managed_name="goc_formats"
+    )
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value)
-        if managed_name == 'url' and value and ('goc_formats' not in self._data or not self._data['goc_formats']):
-            self._data['goc_formats'] = [self.autodetect_gc_content_format(value)]
+        if (
+            managed_name == "url"
+            and value
+            and ("goc_formats" not in self._data or not self._data["goc_formats"])
+        ):
+            self._data["goc_formats"] = [self.autodetect_gc_content_format(value)]
 
     @staticmethod
-    def autodetect_gc_content_format(full_url: t.Optional[dict]) -> GCContentFormat | None:
+    def autodetect_gc_content_format(
+        full_url: dict | None,
+    ) -> GCContentFormat | None:
         if full_url is None:
             return None
         url = ""
-        if 'und' in full_url:
-            url = full_url['und']
-        elif 'en' in full_url:
-            url = full_url['en']
+        if "und" in full_url:
+            url = full_url["und"]
+        elif "en" in full_url:
+            url = full_url["en"]
         else:
             for key in full_url.keys():
                 url = full_url[key]
@@ -1081,9 +1069,9 @@ class Resource(QuickWebPage):
                 pos = url.rfind("/")
             if "\\" in url:
                 pos = url.rfind("\\") if pos is None else max(pos, url.rfind("\\"))
-            filename = url if pos is None else url[pos+1:]
+            filename = url if pos is None else url[pos + 1 :]
             if "." in filename:
-                extension = filename[filename.rfind(".")+1:].upper()
+                extension = filename[filename.rfind(".") + 1 :].upper()
                 if any(x.value == extension for x in GCContentFormat):
                     return GCContentFormat(extension)
             if url.startswith("https://") or url.startswith("http://"):
@@ -1092,105 +1080,107 @@ class Resource(QuickWebPage):
 
 
 class TelephoneNumber(EntityRef):
-
     phone_number: str = dd.p_str()
     phone_number_type: TelephoneType = dd.p_enum(TelephoneType)
 
-class _IdentifierMixin:
 
+class _IdentifierMixin:
     id_description: ct.LanguageDict = dd.p_i18n_text()
     id_system: IDSystem = dd.p_enum(IDSystem)
     id_code: str = dd.p_str()
 
-    def set_id_and_system(self, id_code: str, id_system: IDSystem, remove_prefixes: list[str] = None):
+    def set_id_and_system(
+        self, id_code: str, id_system: IDSystem, remove_prefixes: list[str] = None
+    ):
         if remove_prefixes:
             for prefix in remove_prefixes:
-                if id_code.startswith(prefix):
-                    id_code = id_code[len(prefix):]
+                id_code = id_code.removeprefix(prefix)
         self.id_code = id_code
         self.id_system = id_system
 
-    def _get_id(self) -> t.Optional[str]:
+    def _get_id(self) -> str | None:
         return self.id_code
 
     @staticmethod
     def id_property(system: IDSystem, remove_prefixes: t.Iterable[str]):
         return property(
             functools.partial(_IdentifierMixin._get_id),
-            functools.partial(_IdentifierMixin.set_id_and_system, id_system=system, remove_prefixes=remove_prefixes),
+            functools.partial(
+                _IdentifierMixin.set_id_and_system,
+                id_system=system,
+                remove_prefixes=remove_prefixes,
+            ),
         )
 
 
 class _Contact(EntityRef, _IdentifierMixin):
-
     email: ct.LanguageDict = dd.p_i18n_text()
     service_hours: ct.LanguageDict = dd.p_i18n_text()
     instructions: ct.LanguageDict = dd.p_i18n_text()
-    resources: list[Resource] = dd.p_object_list(Resource, managed_name='web_resources')
-    phone_numbers: list[TelephoneNumber] = dd.p_object_list(TelephoneNumber, managed_name='phone')
-    address: ct.LanguageDict = dd.p_i18n_text(managed_name='delivery_point')
+    resources: list[Resource] = dd.p_object_list(Resource, managed_name="web_resources")
+    phone_numbers: list[TelephoneNumber] = dd.p_object_list(
+        TelephoneNumber, managed_name="phone"
+    )
+    address: ct.LanguageDict = dd.p_i18n_text(managed_name="delivery_point")
     city: str = dd.p_str()
-    province: ct.LanguageDict = dd.p_i18n_text(managed_name='admin_area')
+    province: ct.LanguageDict = dd.p_i18n_text(managed_name="admin_area")
     country: Country = dd.p_enum(Country)
     postal_code: str = dd.p_str()
-    web_page: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage)
+    web_page: QuickWebPage | None = dd.p_ddo(QuickWebPage)
 
 
 class Individual(_Contact):
-
-    name: str = dd.p_str(managed_name='individual_name')
-    orcid: str = _IdentifierMixin.id_property(IDSystem.ORCID, ('https://orcid.org/', 'http://orcid.org/'))
+    name: str = dd.p_str(managed_name="individual_name")
+    orcid: str = _IdentifierMixin.id_property(
+        IDSystem.ORCID, ("https://orcid.org/", "http://orcid.org/")
+    )
 
 
 class Organization(_Contact):
-
-    name: ct.LanguageDict = dd.p_i18n_text(managed_name='organization_name')
+    name: ct.LanguageDict = dd.p_i18n_text(managed_name="organization_name")
     individuals: list[_Contact] = dd.p_object_list(_Contact)
-    ror: str = _IdentifierMixin.id_property(IDSystem.ROR, ('https://ror.org/', 'http://ror.org/'))
+    ror: str = _IdentifierMixin.id_property(
+        IDSystem.ROR, ("https://ror.org/", "http://ror.org/")
+    )
 
 
 class Position(_Contact):
-
-    name: ct.LanguageDict = dd.p_i18n_text(managed_name='position_name')
+    name: ct.LanguageDict = dd.p_i18n_text(managed_name="position_name")
 
 
 class _ResponsibleParty(EntityRef):
-
     role: ContactRole = dd.p_enum(ContactRole)
     contact: _Contact = dd.p_ddo(_Contact)
 
-    def __init__(self, role: ContactRole, contact: Individual | Organization | Position, **kwargs):
-        if 'guid' not in kwargs and contact.guid:
-            kwargs['guid'] = f"{contact.guid}_{role.value}"
+    def __init__(
+        self, role: ContactRole, contact: Individual | Organization | Position, **kwargs
+    ):
+        if "guid" not in kwargs and contact.guid:
+            kwargs["guid"] = f"{contact.guid}_{role.value}"
         if "display_name" not in kwargs:
             if isinstance(contact.name, str) and contact.name:
                 kwargs["display_name"] = f"{contact.name} - {role.value}"
             elif isinstance(contact.name, dict) and any(contact.name.values()):
                 kwargs["display_name"] = {
-                    k: f"{contact.name[k]} - {role.value}"
-                    for k in contact.name
+                    k: f"{contact.name[k]} - {role.value}" for k in contact.name
                 }
             elif contact.email and any(contact.email.values()):
                 kwargs["display_name"] = {
-                    k: f"{contact.email[k]} - {role.value}"
-                    for k in contact.name
+                    k: f"{contact.email[k]} - {role.value}" for k in contact.name
                 }
             elif contact.guid:
                 kwargs["display_name"] = {
                     "und": f"{contact.guid} - {role.value}",
                 }
-        super().__init__(
-            role=role,
-            contact=contact,
-            **kwargs
-        )
+        super().__init__(role=role, contact=contact, **kwargs)
 
 
 class _ResponsiblesMixin:
-
     responsibles: list[_ResponsibleParty] = dd.p_object_list(_ResponsibleParty)
 
-    def add_contact(self, role: ContactRole, contact: Position | Organization | Individual):
+    def add_contact(
+        self, role: ContactRole, contact: Position | Organization | Individual
+    ):
         """
         :param role: The role the person plays for this citation
         :param contact: Their contact information
@@ -1199,7 +1189,6 @@ class _ResponsiblesMixin:
 
 
 class Citation(EntityRef, _ResponsiblesMixin, _IdentifierMixin):
-
     title: ct.LanguageDict = dd.p_i18n_text()
     alt_title: ct.LanguageDict = dd.p_i18n_text()
     details: ct.LanguageDict = dd.p_i18n_text()
@@ -1210,79 +1199,79 @@ class Citation(EntityRef, _ResponsiblesMixin, _IdentifierMixin):
     edition_date: datetime.date = dd.p_date()
     isbn: str = dd.p_str()
     issn: str = dd.p_str()
-    resource: t.Optional[Resource] = dd.p_ddo(Resource)
+    resource: Resource | None = dd.p_ddo(Resource)
 
 
 class GeneralUseConstraint(EntityRef, _ResponsiblesMixin):
-
     description: ct.LanguageDict = dd.p_i18n_text()
     plain_text: ct.LanguageDict = dd.p_i18n_text()
-    citations: list[Citation] = dd.p_object_list(Citation, managed_name='reference')
+    citations: list[Citation] = dd.p_object_list(Citation, managed_name="reference")
 
 
 class LegalConstraint(GeneralUseConstraint):
-
     access_constraints: set[RestrictionCode] = dd.p_enum_set(RestrictionCode)
     use_constraints: set[RestrictionCode] = dd.p_enum_set(RestrictionCode)
     other_constraints: ct.LanguageDict = dd.p_i18n_text()
 
 
 class SecurityConstraint(GeneralUseConstraint):
-
     classification: ClassificationCode = dd.p_enum(ClassificationCode)
     user_notes: ct.LanguageDict = dd.p_i18n_text()
     classification_system: ct.LanguageDict = dd.p_i18n_text()
 
 
 class ERDDAPServer(EntityRef, _ResponsiblesMixin):
-
     base_url: ct.LanguageDict = dd.p_str()
 
 
 class Thesaurus(EntityRef):
-
     keyword_type: KeywordType = dd.p_enum(KeywordType)
     prefix: str = dd.p_str()
-    citation: t.Optional[Citation] = dd.p_ddo(Citation)
+    citation: Citation | None = dd.p_ddo(Citation)
 
 
 class Keyword(EntityRef):
-
-    text: ct.LanguageDict = dd.p_i18n_text(managed_name='keyword')
+    text: ct.LanguageDict = dd.p_i18n_text(managed_name="keyword")
     description: ct.LanguageDict = dd.p_i18n_text()
-    thesaurus: t.Optional[Thesaurus] = dd.p_ddo(Thesaurus)
+    thesaurus: Thesaurus | None = dd.p_ddo(Thesaurus)
 
 
 class DistributionChannel(EntityRef, _ResponsiblesMixin):
-
     description: ct.LanguageDict = dd.p_i18n_text()
-    primary_link: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage, managed_name='primary_web_link')
+    primary_link: QuickWebPage | None = dd.p_ddo(
+        QuickWebPage, managed_name="primary_web_link"
+    )
     links: list[Resource] = dd.p_object_list(Resource)
 
 
 class SpatialResolution(EntityRef):
-
     scale: int = dd.p_int()
     level_of_detail: ct.LanguageDict = dd.p_i18n_text()
-    horizontal_resolution: int | float = dd.p_nonumpy(managed_name='distance')
-    vertical_resolution: int | float = dd.p_nonumpy(managed_name='vertical')
-    angular_resolution: int | float = dd.p_nonumpy(managed_name='angular')
-    horizontal_units: DistanceUnit = dd.p_enum(DistanceUnit, managed_name='distance_units')
+    horizontal_resolution: int | float = dd.p_nonumpy(managed_name="distance")
+    vertical_resolution: int | float = dd.p_nonumpy(managed_name="vertical")
+    angular_resolution: int | float = dd.p_nonumpy(managed_name="angular")
+    horizontal_units: DistanceUnit = dd.p_enum(
+        DistanceUnit, managed_name="distance_units"
+    )
     vertical_units: DistanceUnit = dd.p_enum(DistanceUnit)
     angular_units: AngularUnit = dd.p_enum(AngularUnit)
 
 
 class _Manufactured(EntityRef, _IdentifierMixin):
-    manufacturer: t.Optional[_Contact] = dd.p_ddo(_Contact)
+    manufacturer: _Contact | None = dd.p_ddo(_Contact)
     model_number: str = dd.p_str()
     serial_number: str = dd.p_str()
 
 
 class Sensor(_Manufactured):
-    cnodc_instrument_types: set[CNODCInstrumentType] = dd.p_enum_set(CNODCInstrumentType)
-    instrument_type: t.Optional[ct.LanguageDict] = dd.p_i18n_text(managed_name='type')
-    citation: t.Optional[Citation] = dd.p_ddo(Citation)
-    description: t.Optional[ct.LanguageDict] = dd.p_i18n_text(managed_name='description')
+    cnodc_instrument_types: set[CNODCInstrumentType] = dd.p_enum_set(
+        CNODCInstrumentType
+    )
+    instrument_type: ct.LanguageDict | None = dd.p_i18n_text(managed_name="type")
+    citation: Citation | None = dd.p_ddo(Citation)
+    description: ct.LanguageDict | None = dd.p_i18n_text(
+        managed_name="description"
+    )
 
 
 class Instrument(Sensor):
@@ -1292,19 +1281,21 @@ class Instrument(Sensor):
 class Platform(_Manufactured):
     citations: list[Citation] = dd.p_object_list(Citation)
     sponsors: list[_ResponsibleParty] = dd.p_object_list(_ResponsibleParty)
-    cnodc_platform_type: t.Optional[CNODCPlatformType] = dd.p_enum(CNODCPlatformType)
+    cnodc_platform_type: CNODCPlatformType | None = dd.p_enum(CNODCPlatformType)
     other_identifiers: list[str] = dd.p_list()
     instruments: list[Instrument] = dd.p_object_list(Instrument)
 
-    def add_sponsor(self, role: ContactRole, contact: Individual | Organization | Position):
+    def add_sponsor(
+        self, role: ContactRole, contact: Individual | Organization | Position
+    ):
         self.sponsors.append(_ResponsibleParty(role=role, contact=contact))
 
 
 class Mission(EntityRef, _IdentifierMixin, _ResponsiblesMixin):
-    citation: t.Optional[Citation] = dd.p_ddo(Citation)
-    status: t.Optional[StatusCode] = dd.p_enum(StatusCode)
-    mission_type: t.Optional[MissionType] = dd.p_enum(MissionType)
-    parent_mission: t.Optional[Mission] = dd.p_ddo()
+    citation: Citation | None = dd.p_ddo(Citation)
+    status: StatusCode | None = dd.p_enum(StatusCode)
+    mission_type: MissionType | None = dd.p_enum(MissionType)
+    parent_mission: Mission | None = dd.p_ddo()
     platforms: list[Platform] = dd.p_object_list(Platform)
 
 
@@ -1317,7 +1308,9 @@ class CNODCStorageLocation(EntityRef):
     file_path: str | None = dd.p_str()
     storage_type: StorageType | None = dd.p_enum(StorageType)
     file_size: int | None = dd.p_int()
-    compression_type: CompressionType | None = dd.p_enum(CompressionType, default=CompressionType.NONE)
+    compression_type: CompressionType | None = dd.p_enum(
+        CompressionType, default=CompressionType.NONE
+    )
     created_date: awaretime.AwareDateTime | None = dd.p_datetime()
     notes: str | None = dd.p_str()
 
@@ -1326,30 +1319,30 @@ class CNODCStorageLocation(EntityRef):
         from medsutil.storage import StorageTier
         from medsutil.storage.azure_blob import AzureBlobHandle
         from medsutil.storage.azure_files import AzureFileHandle
+
         kwargs: dict[str, t.Any] = {
-            'file_path': obj.path(),
-            'file_size': obj.size(),
-            'created_date': obj.creation_datetime(),
-            'notes': notes,
-            'storage_type': StorageType.OTHER
+            "file_path": obj.path(),
+            "file_size": obj.size(),
+            "created_date": obj.creation_datetime(),
+            "notes": notes,
+            "storage_type": StorageType.OTHER,
         }
         if obj.name.lower().endswith(".gz"):
-            kwargs['compression_type'] = CompressionType.GZIP
+            kwargs["compression_type"] = CompressionType.GZIP
         if isinstance(obj, AzureBlobHandle):
             tier = obj.get_tier()
             if tier == StorageTier.FREQUENT:
-                kwargs['storage_type'] = StorageType.BLOB_HOT
+                kwargs["storage_type"] = StorageType.BLOB_HOT
             elif tier == StorageTier.ARCHIVAL:
-                kwargs['storage_type'] = StorageType.BLOB_ARCHIVAL
+                kwargs["storage_type"] = StorageType.BLOB_ARCHIVAL
             elif tier == StorageTier.INFREQUENT:
-                kwargs['storage_type'] = StorageType.BLOB_COOL
+                kwargs["storage_type"] = StorageType.BLOB_COOL
         elif isinstance(obj, AzureFileHandle):
-            kwargs['storage_type'] = StorageType.SHARE_TO
+            kwargs["storage_type"] = StorageType.SHARE_TO
         return CNODCStorageLocation(**kwargs)
 
 
 class DatasetMetadata(EntityRef, _ResponsiblesMixin):
-
     REPRESENTATION_MAP = {
         CommonDataModelType.TrajectoryProfile: SpatialRepresentation.TextTable,
         CommonDataModelType.Profile: SpatialRepresentation.TextTable,
@@ -1365,9 +1358,15 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     variables: list[Variable] = dd.p_object_list(Variable)
     custom_keywords: list[Keyword] = dd.p_object_list(Keyword)
     alt_metadata: list[Citation] = dd.p_object_list(Citation)
-    maintenance_records: list[MaintenanceRecord] = dd.p_object_list(MaintenanceRecord, managed_name='iso_maintenance')
-    metadata_constraints: list[GeneralUseConstraint] = dd.p_object_list(GeneralUseConstraint, managed_name='metadata_licenses')
-    data_constraints: list[GeneralUseConstraint] = dd.p_object_list(GeneralUseConstraint, managed_name='licenses')
+    maintenance_records: list[MaintenanceRecord] = dd.p_object_list(
+        MaintenanceRecord, managed_name="iso_maintenance"
+    )
+    metadata_constraints: list[GeneralUseConstraint] = dd.p_object_list(
+        GeneralUseConstraint, managed_name="metadata_licenses"
+    )
+    data_constraints: list[GeneralUseConstraint] = dd.p_object_list(
+        GeneralUseConstraint, managed_name="licenses"
+    )
     metadata_standards: list[Citation] = dd.p_object_list(Citation)
     metadata_profiles: list[Citation] = dd.p_object_list(Citation)
     additional_docs: list[Citation] = dd.p_object_list(Citation)
@@ -1376,25 +1375,29 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     platforms: list[Platform] = dd.p_object_list(Platform)
     instruments: list[Instrument] = dd.p_object_list(Instrument)
 
-    spatial_resolution: t.Optional[SpatialResolution] = dd.p_ddo(SpatialResolution)
+    spatial_resolution: SpatialResolution | None = dd.p_ddo(SpatialResolution)
 
-    temporal_resolution: t.Optional[ISODuration] = dd.p_ddo(ISODuration)
-    metadata_owner: t.Optional[_Contact] = dd.p_ddo(_Contact)
-    publisher: t.Optional[_Contact] = dd.p_ddo(_Contact)
-    parent_metadata: t.Optional[Citation] = dd.p_ddo(Citation)
-    info_link: t.Optional[QuickWebPage] = dd.p_ddo(QuickWebPage)
+    temporal_resolution: ISODuration | None = dd.p_ddo(ISODuration)
+    metadata_owner: _Contact | None = dd.p_ddo(_Contact)
+    publisher: _Contact | None = dd.p_ddo(_Contact)
+    parent_metadata: Citation | None = dd.p_ddo(Citation)
+    info_link: QuickWebPage | None = dd.p_ddo(QuickWebPage)
 
     institution: str = dd.p_str()
     program: str = dd.p_str()
     project: str = dd.p_str()
-    cf_standard_name_vocab: str = dd.p_str(managed_name='standard_name_vocab')
+    cf_standard_name_vocab: str = dd.p_str(managed_name="standard_name_vocab")
     processing_level: str = dd.p_str()
     geospatial_bounds: str = dd.p_str()
 
-    id_code: str = dd.p_str(managed_name='dataset_id_code')
-    id_system: IDSystem = dd.p_enum(IDSystem, managed_name='dataset_id_system')
-    id_description: ct.LanguageDict = dd.p_i18n_text(managed_name='dataset_id_description')
-    doi = _IdentifierMixin.id_property(IDSystem.DOI, ('https://doi.org/', 'http://doi.org/', 'doi:'))
+    id_code: str = dd.p_str(managed_name="dataset_id_code")
+    id_system: IDSystem = dd.p_enum(IDSystem, managed_name="dataset_id_system")
+    id_description: ct.LanguageDict = dd.p_i18n_text(
+        managed_name="dataset_id_description"
+    )
+    doi = _IdentifierMixin.id_property(
+        IDSystem.DOI, ("https://doi.org/", "http://doi.org/", "doi:")
+    )
 
     geospatial_lat_min: int | float = dd.p_nonumpy()
     geospatial_lon_min: int | float = dd.p_nonumpy()
@@ -1419,48 +1422,76 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     file_storage_location: ct.LanguageDict = dd.p_i18n_text()
     internal_notes: ct.LanguageDict = dd.p_i18n_text()
     source: ct.LanguageDict = dd.p_i18n_text()
-    abstract: ct.LanguageDict = dd.p_i18n_text(managed_name='summary')
-    credit: ct.LanguageDict = dd.p_i18n_text(managed_name='acknowledgement')
+    abstract: ct.LanguageDict = dd.p_i18n_text(managed_name="summary")
+    credit: ct.LanguageDict = dd.p_i18n_text(managed_name="acknowledgement")
 
     goc_publisher: GCPublisher = dd.p_enum(GCPublisher)
     processing_system: IDSystem = dd.p_enum(IDSystem)
-    geospatial_crs: CoordinateReferenceSystem = dd.p_enum(CoordinateReferenceSystem, managed_name='geospatial_bounds_crs')
-    geospatial_vertical_crs: CoordinateReferenceSystem = dd.p_enum(CoordinateReferenceSystem, managed_name='geospatial_bounds_vertical_crs')
+    geospatial_crs: CoordinateReferenceSystem = dd.p_enum(
+        CoordinateReferenceSystem, managed_name="geospatial_bounds_crs"
+    )
+    geospatial_vertical_crs: CoordinateReferenceSystem = dd.p_enum(
+        CoordinateReferenceSystem, managed_name="geospatial_bounds_vertical_crs"
+    )
     temporal_crs: CoordinateReferenceSystem = dd.p_enum(CoordinateReferenceSystem)
-    primary_data_locale: Locale = dd.p_enum(Locale, managed_name='data_locale')
-    primary_metadata_locale: Locale = dd.p_enum(Locale, managed_name='metadata_locale')
-    metadata_maintenance_frequency: MaintenanceFrequency = dd.p_enum(MaintenanceFrequency)
-    data_maintenance_frequency: MaintenanceFrequency = dd.p_enum(MaintenanceFrequency, managed_name='resource_maintenance_frequency')
+    primary_data_locale: Locale = dd.p_enum(Locale, managed_name="data_locale")
+    primary_metadata_locale: Locale = dd.p_enum(Locale, managed_name="metadata_locale")
+    metadata_maintenance_frequency: MaintenanceFrequency = dd.p_enum(
+        MaintenanceFrequency
+    )
+    data_maintenance_frequency: MaintenanceFrequency = dd.p_enum(
+        MaintenanceFrequency, managed_name="resource_maintenance_frequency"
+    )
     topic_category: TopicCategory = dd.p_enum(TopicCategory)
     status: StatusCode = dd.p_enum(StatusCode)
-    spatial_representation: SpatialRepresentation = dd.p_enum(SpatialRepresentation, managed_name='spatial_representation_type')
-    goc_collection: GCCollectionType = dd.p_enum(GCCollectionType, managed_name='goc_collection_type')
+    spatial_representation: SpatialRepresentation = dd.p_enum(
+        SpatialRepresentation, managed_name="spatial_representation_type"
+    )
+    goc_collection: GCCollectionType = dd.p_enum(
+        GCCollectionType, managed_name="goc_collection_type"
+    )
     goc_subject: GCSubject = dd.p_enum(GCSubject)
 
     is_ongoing: bool = dd.p_bool(default=False)
-    is_available_via_meds_request_form: bool = dd.p_bool(managed_name='via_meds_request_form', default=False)
+    is_available_via_meds_request_form: bool = dd.p_bool(
+        managed_name="via_meds_request_form", default=False
+    )
 
-    secondary_data_locales: set[Locale] = dd.p_enum_set(Locale, managed_name='data_extra_locales')
-    secondary_metadata_locales: set[Locale] = dd.p_enum_set(Locale, managed_name='metadata_extra_locales')
-    goc_publication_places: set[GCPlace] = dd.p_enum_set(GCPlace, managed_name='goc_publication_place')
-    goc_audiences: set[GCAudience] = dd.p_enum_set(GCAudience, managed_name='goc_audience')
-    essential_ocean_variables: set[EssentialOceanVariable] = dd.p_enum_set(EssentialOceanVariable, managed_name='cioos_eovs')
+    secondary_data_locales: set[Locale] = dd.p_enum_set(
+        Locale, managed_name="data_extra_locales"
+    )
+    secondary_metadata_locales: set[Locale] = dd.p_enum_set(
+        Locale, managed_name="metadata_extra_locales"
+    )
+    goc_publication_places: set[GCPlace] = dd.p_enum_set(
+        GCPlace, managed_name="goc_publication_place"
+    )
+    goc_audiences: set[GCAudience] = dd.p_enum_set(
+        GCAudience, managed_name="goc_audience"
+    )
+    essential_ocean_variables: set[EssentialOceanVariable] = dd.p_enum_set(
+        EssentialOceanVariable, managed_name="cioos_eovs"
+    )
 
     conventions: set[str] = dd.p_set(value_coerce=str)
     cf_standard_names: set[str] = dd.p_set(value_coerce=str)
 
     feature_type: CommonDataModelType = dd.p_enum(CommonDataModelType)
 
-    authority: str | None = dd.p_str(managed_name='_authority')
-    activation_workflow: str = dd.p_str(managed_name='_activation_workflow')
-    publication_workflow: str = dd.p_str(managed_name='_publication_workflow')
-    organization_name: str = dd.p_str(managed_name='_org_name')
-    security_level: str = dd.p_str(managed_name='_security_level')
-    parent_collection_guid: str | None = dd.p_str(managed_name='_parent_collection_guid')
-    parent_collection_authority: str | None = dd.p_str(managed_name='_parent_collection_authority')
+    authority: str | None = dd.p_str(managed_name="_authority")
+    activation_workflow: str = dd.p_str(managed_name="_activation_workflow")
+    publication_workflow: str = dd.p_str(managed_name="_publication_workflow")
+    organization_name: str = dd.p_str(managed_name="_org_name")
+    security_level: str = dd.p_str(managed_name="_security_level")
+    parent_collection_guid: str | None = dd.p_str(
+        managed_name="_parent_collection_guid"
+    )
+    parent_collection_authority: str | None = dd.p_str(
+        managed_name="_parent_collection_authority"
+    )
     is_collection: bool = dd.p_bool(managed_name="_is_collection", default=False)
-    profiles: set[str] = dd.p_set(managed_name='_profiles', value_coerce=str)
-    users: set[str] = dd.p_set(managed_name='_users', value_coerce=str)
+    profiles: set[str] = dd.p_set(managed_name="_profiles", value_coerce=str)
+    users: set[str] = dd.p_set(managed_name="_users", value_coerce=str)
 
     cnodc_storage_label: str | None = dd.p_str()
     cnodc_embargo_period: str | None = dd.p_str()
@@ -1472,7 +1503,9 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     cnodc_security_rules: ct.LanguageDict | None = dd.p_i18n_text()
     cnodc_quality_control: ct.LanguageDict | None = dd.p_i18n_text()
     data_volume: str | None = dd.p_str()
-    detailed_storage_locations: list[CNODCStorageLocation] = dd.p_object_list(CNODCStorageLocation)
+    detailed_storage_locations: list[CNODCStorageLocation] = dd.p_object_list(
+        CNODCStorageLocation
+    )
 
     erddap_servers: list[ERDDAPServer] = dd.p_object_list(ERDDAPServer)
     erddap_data_file_path: str = dd.p_str()
@@ -1480,20 +1513,22 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
     erddap_dataset_id: str = dd.p_str()
     erddap_dataset_type: ERDDAPDatasetType = dd.p_enum(ERDDAPDatasetType)
 
-    custom_metadata: dict[str, ct.SupportsExtendedJson] = dd.p_dict(value_coerce=unnumpy)
+    custom_metadata: dict[str, ct.SupportsExtendedJson] = dd.p_dict(
+        value_coerce=unnumpy
+    )
 
     autostart: bool = dd.p_bool(managed_name="_autostart", default=False)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._log = logging.getLogger("cnodc.dmd.metadata")
-        self.profiles.add('cnodc')
+        self.profiles.add("cnodc")
 
     SIZE_GATES: list[tuple[int, str]] = [
-        (1024 ** 4, 'TiB'),
-        (1024 ** 3, 'GiB'),
-        (1024 ** 2, 'MiB'),
-        (1024, 'KiB'),
+        (1024**4, "TiB"),
+        (1024**3, "GiB"),
+        (1024**2, "MiB"),
+        (1024, "KiB"),
     ]
 
     def set_size_from_detailed_files(self):
@@ -1508,17 +1543,24 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             self.data_volume = f"{s} B"
 
     def add_internal_contact(self, cnodc_role: CNODCRole, contact: _Contact):
-        self.cnodc_responsibles.append(CNODCResponsible(role=cnodc_role, contact=contact))
+        self.cnodc_responsibles.append(
+            CNODCResponsible(role=cnodc_role, contact=contact)
+        )
 
     def after_set(self, managed_name: str, value: t.Any, original: t.Any = None):
         super().after_set(managed_name, value, original)
-        if managed_name == 'feature_type' and value and self.spatial_representation is None and value in DatasetMetadata.REPRESENTATION_MAP:
+        if (
+            managed_name == "feature_type"
+            and value
+            and self.spatial_representation is None
+            and value in DatasetMetadata.REPRESENTATION_MAP
+        ):
             self.spatial_representation = DatasetMetadata.REPRESENTATION_MAP[value]
-        if managed_name.startswith('erddap') and value:
-            self.profiles.add('erddap')
+        if managed_name.startswith("erddap") and value:
+            self.profiles.add("erddap")
 
     def activate_and_publish(self):
-        """ Note: you need the correct permissions to do this! """
+        """Note: you need the correct permissions to do this!"""
         self.activation_workflow = Common.ActivationWorkflowWithPublish
         self.publication_workflow = Common.DirectPublishWorkflow
         self.autostart = True
@@ -1540,7 +1582,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         self.activation_workflow = Common.DefaultActivationWorkflow
         self.publication_workflow = Common.DefaultPublicationWorkflow
         self.cf_standard_name_vocab = "CF 1.13"
-        self.security_level = 'unclassified'
+        self.security_level = "unclassified"
         self.goc_publisher = GCPublisher.MEDS
         self.goc_subject = GCSubject.Oceanography
         self.goc_publication_places.add(GCPlace.Ottawa)
@@ -1548,125 +1590,184 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         self.goc_collection = GCCollectionType.Geospatial
 
     @injector.inject
-    def set_from_netcdf_file(self, dataset: nc.Dataset, default_lang: str = 'en', ontology: OCProc2Ontology = None):
-        attrs = { x: dataset.getncattr(x) for x in dataset.ncattrs()}
+    def set_from_netcdf_file(
+        self,
+        dataset: nc.Dataset,
+        default_lang: str = "en",
+        ontology: OCProc2Ontology = None,
+    ):
+        attrs = {x: dataset.getncattr(x) for x in dataset.ncattrs()}
         locale_map = self._set_locales_from_netcdf(attrs, default_lang)
         depths = self._identify_levels(dataset)
         for ds_var in dataset.variables:
-            self.add_variable(Variable.build_from_netcdf(dataset.variables[ds_var], locale_map), depths, ontology=ontology)
-        title = get_bilingual_attribute(attrs, 'title', locale_map)
+            self.add_variable(
+                Variable.build_from_netcdf(dataset.variables[ds_var], locale_map),
+                depths,
+                ontology=ontology,
+            )
+        title = get_bilingual_attribute(attrs, "title", locale_map)
         self.title = title
         self.display_name = title
-        self.program = attrs.pop('program', '')
-        self.project = attrs.pop('project', '')
-        self.institution = attrs.pop('institution', '')
-        self.guid = attrs.pop('id', '')
-        self.feature_type = attrs.pop('featureType', '')
-        self.processing_level = attrs.pop('processing_level', '')
-        self.geospatial_bounds = attrs.pop('geospatial_bounds', '')
-        self.conventions = attrs.pop('Conventions', "").split(",")
-        self.processing_description = get_bilingual_attribute(attrs, 'processing_description', locale_map)
-        self.processing_environment = get_bilingual_attribute(attrs, 'processing_environment', locale_map)
-        self.credit = get_bilingual_attribute(attrs, 'acknowledgement', locale_map)
-        self.comment = get_bilingual_attribute(attrs, 'comment', locale_map)
-        self.references = get_bilingual_attribute(attrs, 'references', locale_map)
-        self.source = get_bilingual_attribute(attrs, 'source', locale_map)
-        self.abstract = get_bilingual_attribute(attrs, 'summary', locale_map)
-        self.purpose = get_bilingual_attribute(attrs, 'purpose', locale_map)
-        self.is_ongoing = attrs.pop('is_ongoing', '') == 'Y'
-        if 'standard_name_vocabulary' in attrs and attrs['standard_name_vocabulary']:
-            self.cf_standard_name_vocab = attrs.pop('standard_name_vocabulary')
-        if 'date_issued' in attrs and attrs['date_issued']:
-            self.date_issued = awaretime.AwareDateTime.utcfromisoformat(attrs.pop('date_issued'))
-        if 'date_created' in attrs and attrs['date_created']:
-            self.date_created = awaretime.AwareDateTime.utcfromisoformat(attrs.pop('date_created'))
-        if 'date_modified' in attrs and attrs['date_modified']:
-            self.date_modified = awaretime.AwareDateTime.utcfromisoformat(attrs.pop('date_modified'))
-        if 'data_maintenance_frequency' in attrs and attrs['data_maintenance_frequency']:
-            self.data_maintenance_frequency = attrs.pop('data_maintenance_frequency')
-        if 'metadata_maintenance_frequency' in attrs and attrs['metadata_maintenance_frequency']:
-            self.metadata_maintenance_frequency = attrs.pop('metadata_maintenance_frequency')
-        if 'status' in attrs and attrs['status']:
-            self.status = attrs.pop('status')
-        if 'topic_category' in attrs and attrs['topic_category']:
-            self.topic_category = attrs.pop('topic_category')
-        if 'gc_audiences' in attrs and attrs['gc_audiences']:
-            self.goc_audiences = attrs.pop('gc_audiences', '').split(';')
-        if 'gc_subject' in attrs and attrs['gc_subject']:
-            self.goc_subject = attrs.pop('gc_subject')
-        if 'gc_publication_places' in attrs and attrs['gc_publication_places']:
-            self.goc_publication_places = attrs.pop('gc_publication_places', '').split(';')
-        info_url = get_bilingual_attribute(attrs, 'infoUrl', locale_map)
+        self.program = attrs.pop("program", "")
+        self.project = attrs.pop("project", "")
+        self.institution = attrs.pop("institution", "")
+        self.guid = attrs.pop("id", "")
+        self.feature_type = attrs.pop("featureType", "")
+        self.processing_level = attrs.pop("processing_level", "")
+        self.geospatial_bounds = attrs.pop("geospatial_bounds", "")
+        self.conventions = attrs.pop("Conventions", "").split(",")
+        self.processing_description = get_bilingual_attribute(
+            attrs, "processing_description", locale_map
+        )
+        self.processing_environment = get_bilingual_attribute(
+            attrs, "processing_environment", locale_map
+        )
+        self.credit = get_bilingual_attribute(attrs, "acknowledgement", locale_map)
+        self.comment = get_bilingual_attribute(attrs, "comment", locale_map)
+        self.references = get_bilingual_attribute(attrs, "references", locale_map)
+        self.source = get_bilingual_attribute(attrs, "source", locale_map)
+        self.abstract = get_bilingual_attribute(attrs, "summary", locale_map)
+        self.purpose = get_bilingual_attribute(attrs, "purpose", locale_map)
+        self.is_ongoing = attrs.pop("is_ongoing", "") == "Y"
+        if attrs.get("standard_name_vocabulary"):
+            self.cf_standard_name_vocab = attrs.pop("standard_name_vocabulary")
+        if attrs.get("date_issued"):
+            self.date_issued = awaretime.AwareDateTime.utcfromisoformat(
+                attrs.pop("date_issued")
+            )
+        if attrs.get("date_created"):
+            self.date_created = awaretime.AwareDateTime.utcfromisoformat(
+                attrs.pop("date_created")
+            )
+        if attrs.get("date_modified"):
+            self.date_modified = awaretime.AwareDateTime.utcfromisoformat(
+                attrs.pop("date_modified")
+            )
+        if (
+            attrs.get("data_maintenance_frequency")
+        ):
+            self.data_maintenance_frequency = attrs.pop("data_maintenance_frequency")
+        if (
+            attrs.get("metadata_maintenance_frequency")
+        ):
+            self.metadata_maintenance_frequency = attrs.pop(
+                "metadata_maintenance_frequency"
+            )
+        if attrs.get("status"):
+            self.status = attrs.pop("status")
+        if attrs.get("topic_category"):
+            self.topic_category = attrs.pop("topic_category")
+        if attrs.get("gc_audiences"):
+            self.goc_audiences = attrs.pop("gc_audiences", "").split(";")
+        if attrs.get("gc_subject"):
+            self.goc_subject = attrs.pop("gc_subject")
+        if attrs.get("gc_publication_places"):
+            self.goc_publication_places = attrs.pop("gc_publication_places", "").split(
+                ";"
+            )
+        info_url = get_bilingual_attribute(attrs, "infoUrl", locale_map)
         if info_url:
-            self.info_link = QuickWebPage(url=info_url, purpose=ResourcePurpose.Information)
-        if 'doi' in attrs and attrs['doi']:
-            self.doi = attrs.pop('doi', '')
-        md_link = get_bilingual_attribute(attrs, 'metadata_link', locale_map)
+            self.info_link = QuickWebPage(
+                url=info_url, purpose=ResourcePurpose.Information
+            )
+        if attrs.get("doi"):
+            self.doi = attrs.pop("doi", "")
+        md_link = get_bilingual_attribute(attrs, "metadata_link", locale_map)
         if md_link:
             cit = Citation()
             res = Resource(
                 url=md_link,
                 purpose=ResourcePurpose.CompleteMetadata,
-                goc_content_type = GCContentType.SupportingDocumentation
+                goc_content_type=GCContentType.SupportingDocumentation,
             )
             cit.resource = res
             self.alt_metadata.append(cit)
-        if 'time_coverage_resolution' in attrs and attrs['time_coverage_resolution']:
+        if attrs.get("time_coverage_resolution"):
             try:
-                self.temporal_resolution = ISODuration.from_iso_format(attrs.pop('time_coverage_resolution', ''))
+                self.temporal_resolution = ISODuration.from_iso_format(
+                    attrs.pop("time_coverage_resolution", "")
+                )
             except ValueError:
                 self._log.exception("Invalid value for time_coverage_resolution")
-        if 'geospatial_bounds_crs' in attrs and attrs['geospatial_bounds_crs']:
-            self.geospatial_crs = attrs.pop('geospatial_bounds_crs')
-        if 'geospatial_bounds_vertical_crs' in attrs and attrs['geospatial_bounds_vertical_crs']:
-            self.geospatial_vertical_crs = attrs.pop('geospatial_bounds_vertical_crs')
-        self._build_from_netcdf_contacts(locale_map, attrs, 'creator', contact_default_role=ContactRole.Originator, contact_default_type='individual')
-        self._build_from_netcdf_contacts(locale_map, attrs, 'publisher', contact_default_role=ContactRole.Publisher, contact_default_type='individual')
-        self._build_from_netcdf_contacts(locale_map, attrs, 'contributor', contact_default_role=ContactRole.Contributor, contact_default_type='individual')
+        if attrs.get("geospatial_bounds_crs"):
+            self.geospatial_crs = attrs.pop("geospatial_bounds_crs")
+        if (
+            attrs.get("geospatial_bounds_vertical_crs")
+        ):
+            self.geospatial_vertical_crs = attrs.pop("geospatial_bounds_vertical_crs")
+        self._build_from_netcdf_contacts(
+            locale_map,
+            attrs,
+            "creator",
+            contact_default_role=ContactRole.Originator,
+            contact_default_type="individual",
+        )
+        self._build_from_netcdf_contacts(
+            locale_map,
+            attrs,
+            "publisher",
+            contact_default_role=ContactRole.Publisher,
+            contact_default_type="individual",
+        )
+        self._build_from_netcdf_contacts(
+            locale_map,
+            attrs,
+            "contributor",
+            contact_default_role=ContactRole.Contributor,
+            contact_default_type="individual",
+        )
 
         self._add_netcdf_contacts(
-            names=get_bilingual_attribute(attrs, f"contributing_institutions", locale_map),
-            guids=attrs.pop('contributing_institutions_cnodc_guid', ''),
+            names=get_bilingual_attribute(
+                attrs, "contributing_institutions", locale_map
+            ),
+            guids=attrs.pop("contributing_institutions_cnodc_guid", ""),
             contact_default_role=ContactRole.Contributor,
-            contact_default_type='institution',
+            contact_default_type="institution",
             emails={},
-            ids='',
+            ids="",
             urls={},
             institutions={},
-            specific_roles='',
-            specific_types='',
-            id_vocabulary=''
+            specific_roles="",
+            specific_types="",
+            id_vocabulary="",
         )
-        for extent_attr in ('geospatial_lat_min', 'geospatial_lat_max', 'geospatial_lon_min', 'geospatial_lon_max',
-                           'geospatial_vertical_min', 'geospatial_vertical_max', 'time_coverage_start',
-                           'time_coverage_end'):
+        for extent_attr in (
+            "geospatial_lat_min",
+            "geospatial_lat_max",
+            "geospatial_lon_min",
+            "geospatial_lon_max",
+            "geospatial_vertical_min",
+            "geospatial_vertical_max",
+            "time_coverage_start",
+            "time_coverage_end",
+        ):
             value = attrs.pop(extent_attr, None)
             if value is not None and getattr(self, extent_attr) is None:
                 setattr(self, extent_attr, value)
-        if 'naming_authority' in attrs:
-            self.authority = attrs.pop('naming_authority', None) or None
-        self.custom_metadata = {
-            x: unnumpy(attrs[x])
-            for x in attrs
-        }
+        if "naming_authority" in attrs:
+            self.authority = attrs.pop("naming_authority", None) or None
+        self.custom_metadata = {x: unnumpy(attrs[x]) for x in attrs}
 
-    def _set_locales_from_netcdf(self, attrs: dict[str, str], default_lang: str) -> dict[str, str]:
+    def _set_locales_from_netcdf(
+        self, attrs: dict[str, str], default_lang: str
+    ) -> dict[str, str]:
         locale_map = {}
         primary_locale = Locale.CanadianEnglish
         secondary_locales = []
-        if 'locale_default' in attrs:
-            default_locale = attrs.pop('locale_default')
-            if '-' in default_locale:
-                default_locale = default_locale[:default_locale.find('-')]
-            locale_map[''] = default_locale
+        if "locale_default" in attrs:
+            default_locale = attrs.pop("locale_default")
+            if "-" in default_locale:
+                default_locale = default_locale[: default_locale.find("-")]
+            locale_map[""] = default_locale
             if default_locale.startswith("fr"):
                 primary_locale = Locale.CanadianFrench
                 secondary_locales.append(Locale.CanadianEnglish)
             else:
                 secondary_locales.append(Locale.CanadianFrench)
         else:
-            locale_map[''] = default_lang
-            if default_lang == 'fr':
+            locale_map[""] = default_lang
+            if default_lang == "fr":
                 primary_locale = Locale.CanadianFrench
                 secondary_locales.append(Locale.CanadianEnglish)
             else:
@@ -1675,78 +1776,85 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         self.primary_metadata_locale = primary_locale
         self.secondary_metadata_locales = secondary_locales
         self.secondary_data_locales = secondary_locales
-        if 'locale_others' in attrs:
-            for locale in attrs.pop('locale_others').split(','):
-                suffix, bcptag = locale.split(':', maxsplit=1)
-                if '-' in bcptag:
-                    bcptag, _ = bcptag.split('-', maxsplit=1)
+        if "locale_others" in attrs:
+            for locale in attrs.pop("locale_others").split(","):
+                suffix, bcptag = locale.split(":", maxsplit=1)
+                if "-" in bcptag:
+                    bcptag, _ = bcptag.split("-", maxsplit=1)
                 locale_map[suffix.strip()] = bcptag.strip()
         else:
-            locale_map['_en'] = 'en'
-            locale_map['_fr'] = 'fr'
+            locale_map["_en"] = "en"
+            locale_map["_fr"] = "fr"
         return locale_map
 
     def _identify_levels(self, dataset: nc.Dataset) -> list[str]:
         depths = []
         for var_name in dataset.variables:
             ds_var = dataset.variables[var_name]
-            if hasattr(ds_var, 'axis') and ds_var.axis == 'Z':
+            if hasattr(ds_var, "axis") and ds_var.axis == "Z":
                 vals: np.array = ds_var[:]
                 if vals.size == 0:
                     continue
                 min_z, max_z = unnumpy(np.min(vals)), unnumpy(np.max(vals))
                 if min_z is None and max_z is None:
                     continue
-                depths = ['seaSurface']
-                if hasattr(ds_var, 'positive') and ds_var.positive == 'up':
+                depths = ["seaSurface"]
+                if hasattr(ds_var, "positive") and ds_var.positive == "up":
                     min_z, max_z = max_z * -1, min_z * -1
                 if min_z > 0:
-                    depths = ['subSurface']
+                    depths = ["subSurface"]
                 elif max_z > 0:
-                    depths.append('subSurface')
+                    depths.append("subSurface")
                 break
         return depths
 
-    def _build_from_netcdf_contacts(self, locale_map, attrs: dict, prefix: str, **kwargs):
+    def _build_from_netcdf_contacts(
+        self, locale_map, attrs: dict, prefix: str, **kwargs
+    ):
         self._add_netcdf_contacts(
             **kwargs,
             names=get_bilingual_attribute(attrs, f"{prefix}_name", locale_map),
             emails=get_bilingual_attribute(attrs, f"{prefix}_email", locale_map),
             ids=attrs.pop(f"{prefix}_id", ""),
             urls=get_bilingual_attribute(attrs, f"{prefix}_url", locale_map),
-            institutions=get_bilingual_attribute(attrs, f"{prefix}_institution", locale_map),
+            institutions=get_bilingual_attribute(
+                attrs, f"{prefix}_institution", locale_map
+            ),
             specific_roles=attrs.pop(f"{prefix}_role", ""),
             specific_types=attrs.pop(f"{prefix}_type", ""),
             id_vocabulary=attrs.pop(f"{prefix}_id_vocabulary", ""),
-            guids=attrs.pop(f"{prefix}_cnodc_guid", "")
+            guids=attrs.pop(f"{prefix}_cnodc_guid", ""),
         )
 
-    def _add_netcdf_contacts(self,
-                             contact_default_role: ContactRole,
-                             contact_default_type: str,
-                             names: dict[str, str],
-                             emails: dict[str, str],
-                             ids: str,
-                             urls: dict[str, str],
-                             institutions: dict[str, str],
-                             specific_roles: str,
-                             specific_types: str,
-                             id_vocabulary: str,
-                             guids: str):
-        def split_multilingual_attribute(attr: dict[str, str], split_on: str = ",") -> list[dict[str, str]]:
-            split_attrs = {
-                key: attr[key].split(split_on)
-                for key in attr
-            }
+    def _add_netcdf_contacts(
+        self,
+        contact_default_role: ContactRole,
+        contact_default_type: str,
+        names: dict[str, str],
+        emails: dict[str, str],
+        ids: str,
+        urls: dict[str, str],
+        institutions: dict[str, str],
+        specific_roles: str,
+        specific_types: str,
+        id_vocabulary: str,
+        guids: str,
+    ):
+        def split_multilingual_attribute(
+            attr: dict[str, str], split_on: str = ","
+        ) -> list[dict[str, str]]:
+            split_attrs = {key: attr[key].split(split_on) for key in attr}
             values = []
             if split_attrs:
                 # TODO: double quote extraction.
-                for x in range(0, max(len(split_attrs[key]) for key in split_attrs)):
-                    values.append({
-                        key: split_attrs[key][x]
-                        for key in split_attrs
-                        if x < len(split_attrs[key]) and split_attrs[key][x]
-                    })
+                for x in range(max(len(split_attrs[key]) for key in split_attrs)):
+                    values.append(
+                        {
+                            key: split_attrs[key][x]
+                            for key in split_attrs
+                            if x < len(split_attrs[key]) and split_attrs[key][x]
+                        }
+                    )
 
             return values
 
@@ -1757,61 +1865,87 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         institutions: list[dict[str, str]] = split_multilingual_attribute(institutions)
         specific_roles: list[str] = specific_roles.split(",")
         specific_types: list[str] = specific_types.split(",")
-        id_vocabulary: list[str] = id_vocabulary.split(',') if ',' in id_vocabulary else [id_vocabulary for _ in names]
-        guids: list[str] = guids.split(',')
-        for idx in range(0, len(names)):
+        id_vocabulary: list[str] = (
+            id_vocabulary.split(",")
+            if "," in id_vocabulary
+            else [id_vocabulary for _ in names]
+        )
+        guids: list[str] = guids.split(",")
+        for idx in range(len(names)):
             self._add_netcdf_contact(
                 name=names[idx],
                 email=emails[idx] if idx < len(emails) else None,
                 contact_id=ids[idx] if idx < len(ids) else None,
                 url=urls[idx] if idx < len(urls) else None,
                 institution=institutions[idx] if idx < len(institutions) else None,
-                role=specific_roles[idx] if idx < len(specific_roles) and specific_roles[idx] else contact_default_role,
-                contact_type=specific_types[idx] if idx < len(specific_types) and specific_types[idx] else contact_default_type,
+                role=specific_roles[idx]
+                if idx < len(specific_roles) and specific_roles[idx]
+                else contact_default_role,
+                contact_type=specific_types[idx]
+                if idx < len(specific_types) and specific_types[idx]
+                else contact_default_type,
                 id_vocabulary=id_vocabulary[idx] if idx < len(id_vocabulary) else None,
-                guid=guids[idx] if idx < len(guids) else None
+                guid=guids[idx] if idx < len(guids) else None,
             )
 
-    def _add_netcdf_contact(self,
-                            name: t.Optional[ dict[str, str] | str],
-                            email: t.Optional[dict[str, str] | str],
-                            contact_id: t.Optional[str],
-                            url: t.Optional[dict[str, str] | str],
-                            institution: t.Optional[dict[str, str] | str],
-                            role: t.Union[str, ContactRole],
-                            contact_type: str,
-                            id_vocabulary: str | None,
-                            guid: str | None):
-        if contact_type == 'institution' or contact_type == 'group':
+    def _add_netcdf_contact(
+        self,
+        name: dict[str, str] | str | None,
+        email: dict[str, str] | str | None,
+        contact_id: str | None,
+        url: dict[str, str] | str | None,
+        institution: dict[str, str] | str | None,
+        role: str | ContactRole,
+        contact_type: str,
+        id_vocabulary: str | None,
+        guid: str | None,
+    ):
+        if contact_type == "institution" or contact_type == "group":
             contact = Organization(guid=guid or None, name=name, display_name=name)
             if contact_id is not None and contact_id != "":
-                if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://ror.org"):
+                if (
+                    id_vocabulary is None
+                    or id_vocabulary == ""
+                    or id_vocabulary.lower().startswith("https://ror.org")
+                ):
                     contact.ror = contact_id
                 else:
-                    self._log.warning(f"Unknown ID vocabulary for organization: {id_vocabulary}")
-        elif contact_type == 'position':
+                    self._log.warning(
+                        f"Unknown ID vocabulary for organization: {id_vocabulary}"
+                    )
+        elif contact_type == "position":
             contact = Position(guid=guid or None, name=name, display_name=name)
             if contact_id:
-                self._log.warning(f"ID provided for position: {contact_id} [{id_vocabulary}]")
+                self._log.warning(
+                    f"ID provided for position: {contact_id} [{id_vocabulary}]"
+                )
         else:
             name = first_i18n(name)
             contact = Individual(guid=guid or None, name=name, display_name=name)
             if contact_id is not None and contact_id != "":
-                if id_vocabulary is None or id_vocabulary == "" or id_vocabulary.lower().startswith("https://orcid.org"):
+                if (
+                    id_vocabulary is None
+                    or id_vocabulary == ""
+                    or id_vocabulary.lower().startswith("https://orcid.org")
+                ):
                     contact.orcid = contact_id
                 else:
-                    self._log.warning(f"Unknown ID vocabulary for individual: {id_vocabulary}")
+                    self._log.warning(
+                        f"Unknown ID vocabulary for individual: {id_vocabulary}"
+                    )
         if url is not None:
-            contact.web_page = QuickWebPage(url=url, purpose=ResourcePurpose.Information)
+            contact.web_page = QuickWebPage(
+                url=url, purpose=ResourcePurpose.Information
+            )
         if email is not None:
             if isinstance(email, str):
                 contact.guid = email
-            elif 'und' in email:
-                contact.guid = email['und']
-            elif 'en' in email:
-                contact.guid = email['en']
-            elif 'fr' in email:
-                contact.guid = email['fr']
+            elif "und" in email:
+                contact.guid = email["und"]
+            elif "en" in email:
+                contact.guid = email["en"]
+            elif "fr" in email:
+                contact.guid = email["fr"]
             contact.email = email
         # There's no ISO support for institution, but maybe we should add one?
         if isinstance(role, str):
@@ -1819,10 +1953,17 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         if role is None:
             self._log.warning(f"Missing contact role for [{name}]")
         else:
-            self.add_contact(ContactRole(role) if isinstance(role, str) else role, contact)
+            self.add_contact(
+                ContactRole(role) if isinstance(role, str) else role, contact
+            )
 
     @injector.inject
-    def add_variable(self, var: Variable, eov_prefixes: t.Optional[list[str]] = None, ontology: OCProc2Ontology = None):
+    def add_variable(
+        self,
+        var: Variable,
+        eov_prefixes: list[str] | None = None,
+        ontology: OCProc2Ontology = None,
+    ):
         """
         :param var: A variable to add to the dataset
         :param eov_prefixes: Provide either or both of "seaSurface" or "subSurface" to set the EOVs properly. Otherwise you'll need to set the EOVs manually depending on the depths sampled.
@@ -1830,7 +1971,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         self.variables.append(var)
         cnodc_name = var.cnodc_name
         if cnodc_name:
-            if '/' in cnodc_name:
+            if "/" in cnodc_name:
                 pieces = cnodc_name.rsplit("/")
                 cnodc_name = pieces[-1]
             if ontology.exists(cnodc_name):
@@ -1842,11 +1983,17 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
                 var.ioos_category = ioos_cat
                 if element.essential_ocean_vars:
                     if len(element.essential_ocean_vars) == 1:
-                        self.essential_ocean_variables.add(EssentialOceanVariable(list(element.essential_ocean_vars)[0]))
+                        self.essential_ocean_variables.add(
+                            EssentialOceanVariable(
+                                list(element.essential_ocean_vars)[0]
+                            )
+                        )
                     elif eov_prefixes:
                         for eov in element.essential_ocean_vars:
                             if any(eov.startswith(x) for x in eov_prefixes):
-                                self.essential_ocean_variables.add(EssentialOceanVariable(eov))
+                                self.essential_ocean_variables.add(
+                                    EssentialOceanVariable(eov)
+                                )
             else:
                 var.ioos_category = IOOSCategory.Other
         if var.standard_name is not None:
@@ -1863,37 +2010,40 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             self.geospatial_vertical_max = var.actual_max
         elif axis == Axis.Time:
             units = var.units
-            if ' since ' in units.lower():
-                pieces = units.lower().split(' ')
+            if " since " in units.lower():
+                pieces = units.lower().split(" ")
                 try:
                     epoch = awaretime.AwareDateTime.utcfromisoformat(pieces[2].upper())
                     if var.actual_min is not None:
-                        self.time_coverage_start = epoch + datetime.timedelta(**{pieces[0]: var.actual_min})
+                        self.time_coverage_start = epoch + datetime.timedelta(
+                            **{pieces[0]: var.actual_min}
+                        )
                     if var.actual_max is not None:
-                        self.time_coverage_end = epoch + datetime.timedelta(**{pieces[0]: var.actual_max})
+                        self.time_coverage_end = epoch + datetime.timedelta(
+                            **{pieces[0]: var.actual_max}
+                        )
                 except Exception as ex:
-                    self._log.exception(f"Exception handling time units: [{units}]: {type(ex)}: {str(ex)}")
+                    self._log.exception(
+                        f"Exception handling time units: [{units}]: {type(ex)}: {ex!s}"
+                    )
             else:
                 self._log.warning(f"Unrecognized time units {units}")
 
     def build_request_body(self) -> dict:
-        body = {
-            'metadata': DatasetMetadata.clean_for_request_body(self.export())
-        }
-        for key in list(body['metadata'].keys()):
-            if key[0] == '_':
-                body[key[1:]] = body['metadata'][key]
-                del body['metadata'][key]
+        body = {"metadata": DatasetMetadata.clean_for_request_body(self.export())}
+        for key in list(body["metadata"].keys()):
+            if key[0] == "_":
+                body[key[1:]] = body["metadata"][key]
+                del body["metadata"][key]
         return body
 
-    def add_file_direct_link(self,
-                             file_url: ct.AcceptAsLanguageDict,
-                             file_name: dict[str, str],
-                             guid: str = 'direct_link_channel'):
-        dist = DistributionChannel(
-            guid=guid,
-            display_name=file_name
-        )
+    def add_file_direct_link(
+        self,
+        file_url: ct.AcceptAsLanguageDict,
+        file_name: dict[str, str],
+        guid: str = "direct_link_channel",
+    ):
+        dist = DistributionChannel(guid=guid, display_name=file_name)
         dist.primary_link = Resource(
             guid=f"{guid}_resource",
             url=file_url,
@@ -1903,7 +2053,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             goc_content_type=GCContentType.Dataset,
             goc_formats=[GCContentFormat.DataNetCDF],
             purpose=ResourcePurpose.FileAccess,
-            resource_type=ResourceType.File
+            resource_type=ResourceType.File,
         )
         dist.add_contact(ContactRole.Distributor, Common.Contact_CNODC)
         self.distributors.append(dist)
@@ -1914,24 +2064,24 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             if v is None:
                 return True
             elif isinstance(v, str):
-                return v == '' or k == '_cls_'
+                return v == "" or k == "_cls_"
             elif isinstance(v, t.Collection):
                 return len(v) == 0
             return False
+
         if isinstance(d, (t.Mapping, FrozenDict)):
             return {
-                str(k): DatasetMetadata.clean_for_request_body(v) for k, v in d.items() if not _is_empty_value(v, k)
+                str(k): DatasetMetadata.clean_for_request_body(v)
+                for k, v in d.items()
+                if not _is_empty_value(v, k)
             }
         elif isinstance(d, t.Sequence) and not isinstance(d, str):
-            return [
-                DatasetMetadata.clean_for_request_body(v) for v in d
-            ]
+            return [DatasetMetadata.clean_for_request_body(v) for v in d]
         else:
             return json.clean_for_json(d)
 
 
 class Common:
-
     DefaultActivationWorkflow = "cnodc_activation"
     DefaultPublicationWorkflow = "cnodc_publish"
 
@@ -1950,7 +2100,3 @@ class Common:
     MetadataStandard_ISO191151 = Citation(guid="metadata_standard_iso19115-1")
 
     MetadataProfile_CIOOS = Citation(guid="metadata_profile_cioos")
-
-
-
-

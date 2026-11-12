@@ -1,101 +1,93 @@
 """
 
-    Provides math functions that add a few additional key pieces of functionality.
+Provides math functions that add a few additional key pieces of functionality.
 
-    * The ScienceNumber class supports uncertainty and stores units.
-    * All functions can mix float / decimal / ScienceNumber arguments (the most precise is kept)
+* The ScienceNumber class supports uncertainty and stores units.
+* All functions can mix float / decimal / ScienceNumber arguments (the most precise is kept)
 
 """
 
 from medsutil.math.types import (
     AnyNumber,
-    is_science_number,
     BasicNumber,
-    NumberString,
     NonScienceNumber,
-    Placeholder
+    NumberString,
+    Placeholder,
+    is_science_number,
 )
+
 # Nice easy alias for any number - this covers floats, ints, decimals, NumberStrings, and ScientificNumbers
 Number = AnyNumber
 
 from medsutil.math._common import (
-    nominal_value,
+    ceil,
+    collapse,
+    convert,
+    floor,
     is_complex,
     is_infinity,
     is_nan,
-    collapse,
-    convert,
     match_convert,
+    nominal_value,
     round_to_int,
     round_to_place,
-    floor,
-    ceil,
 )
 from medsutil.math._constants import (
-    tau,
-    inf,
-    e,
-    pi,
-    epsilon_sqrt,
+    DEFAULT_ABS_TOL,
     DEFAULT_REL_TOL,
-    DEFAULT_ABS_TOL
+    e,
+    epsilon_sqrt,
+    inf,
+    pi,
+    tau,
 )
 from medsutil.math._functions import (
-    sqrt,
-
-    exp,
-    ln,
-    log10,
-    log2,
-    log,
-
-    pow_,
     add,
-    sub,
-    mul,
-    div,
-    neg,
-    modulo,
-
-    gt,
-    lt,
+    add_in_quadrature,
     between,
-    lte,
-    gte,
+    calculate_polynomial,
+    copy_sign,
+    div,
     eq,
+    exp,
+    gt,
+    gte,
     is_close,
-
+    is_exact_int,
+    is_zero,
+    ln,
+    log,
+    log2,
+    log10,
+    lt,
+    lte,
     max_,
     min_,
-    sum_,
-    product,
-
-    calculate_polynomial,
-    add_in_quadrature,
-
-    sign,
-    copy_sign,
     modulo,
-
-    to_exact_int,
-    is_zero,
-    is_exact_int,
+    mul,
+    neg,
+    pow_,
+    product,
+    sign,
+    sqrt,
+    sub,
+    sum_,
     test_compatibility,
-
+    to_exact_int,
 )
 from medsutil.math._trig import (
-    cos,
-    sin,
-    tan,
-    asin,
     acos,
+    asin,
     atan,
     atan2,
-    radians,
+    cos,
     degrees,
+    radians,
+    sin,
+    tan,
 )
 from medsutil.math.numbers import (
-    ScienceNumber,
     LinearCombination,
-    with_error_propagation
+    ScienceNumber,
+    with_error_propagation,
 )

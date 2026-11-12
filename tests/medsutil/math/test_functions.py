@@ -1,20 +1,22 @@
 import decimal
 import math
 
-from medsutil.math import _functions as functions, NumberString, ScienceNumber
+from medsutil.math import NumberString, ScienceNumber
+from medsutil.math import _functions as functions
 from tests.helpers.base_test_case import BaseTestCase, sub_tests
 
 
 class TestFunctions(BaseTestCase):
-
-    @sub_tests([
-        (5, 5, 7.07106781),
-        (5.0, 5.0, 7.07106781),
-        (NumberString("5.0"), 5, 7.07106781),
-        (5, NumberString("5.0"), 7.07106781),
-        (decimal.Decimal("5"), 5, decimal.Decimal("7.07106781")),
-        (decimal.Decimal("5"), NumberString("5"), decimal.Decimal("7.07106781")),
-    ])
+    @sub_tests(
+        [
+            (5, 5, 7.07106781),
+            (5.0, 5.0, 7.07106781),
+            (NumberString("5.0"), 5, 7.07106781),
+            (5, NumberString("5.0"), 7.07106781),
+            (decimal.Decimal(5), 5, decimal.Decimal("7.07106781")),
+            (decimal.Decimal(5), NumberString("5"), decimal.Decimal("7.07106781")),
+        ]
+    )
     def test_add_in_quad(self, x, y, expected):
         self.assertAlmostEqual(functions.add_in_quadrature(x, y), expected)
 
@@ -97,90 +99,109 @@ class TestFunctions(BaseTestCase):
         self.assertIsNone(result.units)
         self.assertAlmostEqual(result.std_dev, 2)
 
-
-    @sub_tests([
-        (1, True),
-        (100, True),
-        (1e4, True),
-        (1e-3, False),
-        (0, True),
-        (decimal.Decimal(0), True),
-        (decimal.Decimal("0.5"), False),
-        (decimal.Decimal("1.0"), True),
-        (NumberString("0"), True),
-        (NumberString("-203"), True),
-        (NumberString("-0.1"), False),
-    ])
+    @sub_tests(
+        [
+            (1, True),
+            (100, True),
+            (1e4, True),
+            (1e-3, False),
+            (0, True),
+            (decimal.Decimal(0), True),
+            (decimal.Decimal("0.5"), False),
+            (decimal.Decimal("1.0"), True),
+            (NumberString("0"), True),
+            (NumberString("-203"), True),
+            (NumberString("-0.1"), False),
+        ]
+    )
     def test_is_exact_int(self, val, expected):
         self.assertIs(functions.is_exact_int(val), expected)
 
-
-    @sub_tests([
-        (5, -1, -5),
-        (-5, 1, 5),
-        (5, 1, 5),
-        (-5, -1, -5),
-        (5, 0, 5),
-        (-5, 0, -5),
-        (NumberString("5"), NumberString("-1"), -5),
-        (decimal.Decimal("5"), -1, decimal.Decimal("-5")),
-    ])
+    @sub_tests(
+        [
+            (5, -1, -5),
+            (-5, 1, 5),
+            (5, 1, 5),
+            (-5, -1, -5),
+            (5, 0, 5),
+            (-5, 0, -5),
+            (NumberString("5"), NumberString("-1"), -5),
+            (decimal.Decimal(5), -1, decimal.Decimal(-5)),
+        ]
+    )
     def test_copy_sign(self, take_value, take_sign, expected):
         self.assertEqual(expected, functions.copy_sign(take_value, take_sign))
 
-    @sub_tests([
-        (5, 1,),
-        (1, 1,),
-        (0, 0,),
-        (-1, -1),
-        (-5, -1),
-        (math.nan, None),
-    ])
+    @sub_tests(
+        [
+            (
+                5,
+                1,
+            ),
+            (
+                1,
+                1,
+            ),
+            (
+                0,
+                0,
+            ),
+            (-1, -1),
+            (-5, -1),
+            (math.nan, None),
+        ]
+    )
     def test_sign(self, value, sign):
         if sign is None:
             self.assertIsNone(functions.sign(value))
         else:
             self.assertEqual(sign, functions.sign(value))
 
-    @sub_tests([
-        (5, 5, True),
-        (5.0, 5, True),
-        (-5.0, 5, False),
-        (NumberString("5"), 5, True),
-        (ScienceNumber(5, units="m"), ScienceNumber(500, units="cm"), True),
-        (ScienceNumber(5, units="m"), ScienceNumber(5, units="cm"), False),
-    ])
+    @sub_tests(
+        [
+            (5, 5, True),
+            (5.0, 5, True),
+            (-5.0, 5, False),
+            (NumberString("5"), 5, True),
+            (ScienceNumber(5, units="m"), ScienceNumber(500, units="cm"), True),
+            (ScienceNumber(5, units="m"), ScienceNumber(5, units="cm"), False),
+        ]
+    )
     def test_eq(self, x, y, result):
         self.assertIs(functions.eq(x, y), result)
 
-    @sub_tests([
-        (1, 3, 5, True),
-        (1, 1, 5, True),
-        (1, 5, 5, True),
-        (1, 5, 5, False, False, False),
-        (1, 1, 5, False, False, False),
-    ])
-    def test_between(self, lower, x, upper, result, include_lower=True, include_upper=True):
+    @sub_tests(
+        [
+            (1, 3, 5, True),
+            (1, 1, 5, True),
+            (1, 5, 5, True),
+            (1, 5, 5, False, False, False),
+            (1, 1, 5, False, False, False),
+        ]
+    )
+    def test_between(
+        self, lower, x, upper, result, include_lower=True, include_upper=True
+    ):
         self.assertIs(
-            functions.between(lower, x, upper, include_lower_bound=include_lower, include_upper_bound=include_upper),
-            result
+            functions.between(
+                lower,
+                x,
+                upper,
+                include_lower_bound=include_lower,
+                include_upper_bound=include_upper,
+            ),
+            result,
         )
 
     def test_sum_scinum(self):
-        args = [
-            ScienceNumber(k, std_dev=1)
-            for k in range(1, 11)
-        ]
+        args = [ScienceNumber(k, std_dev=1) for k in range(1, 11)]
         s = functions.sum_(*args)
         self.assertIsInstance(s, ScienceNumber)
         self.assertAlmostEqual(s.nominal_value, 55)
         self.assertAlmostEqual(s.std_dev, 3.1622776602)
 
     def test_product_scinum(self):
-        args = [
-            ScienceNumber(k, std_dev=1)
-            for k in range(1, 11)
-        ]
+        args = [ScienceNumber(k, std_dev=1) for k in range(1, 11)]
         s = functions.product(*args)
         self.assertIsInstance(s, ScienceNumber)
         self.assertAlmostEqual(s.nominal_value, 3628800)
@@ -191,7 +212,7 @@ class TestFunctions(BaseTestCase):
             5,
             ScienceNumber(6),
             NumberString("7"),
-            decimal.Decimal("8"),
+            decimal.Decimal(8),
         ]
         self.assertEqual(functions.min_(*args), 5)
 
@@ -200,14 +221,12 @@ class TestFunctions(BaseTestCase):
             5,
             ScienceNumber(6),
             NumberString("7"),
-            decimal.Decimal("8"),
+            decimal.Decimal(8),
         ]
-        self.assertEqual(functions.max_(*args), decimal.Decimal("8"))
-
+        self.assertEqual(functions.max_(*args), decimal.Decimal(8))
 
     def test_sig_figs(self):
         self.assertEqual(2, functions.significant_digits(0.005))
 
     def test_sig_figs_neg(self):
         self.assertIsNone(functions.significant_digits(-0.005))
-

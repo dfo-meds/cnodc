@@ -1,84 +1,84 @@
-from autoinject import injector
 import typing as t
 
+from autoinject import injector
 from zirconium import ApplicationConfig
 
 from gcapp.i18n.base import LanguageDetector
 from medsutil.ocproc2 import OCProc2Ontology
 
 TRANSLATIONS = {
-    'und': {
-        'choice_dialog_ok': 'Selectionnez | Select',
-        'language_select_dialog_title': 'Langage | Language',
+    "und": {
+        "choice_dialog_ok": "Selectionnez | Select",
+        "language_select_dialog_title": "Langage | Language",
     },
-    'en': {
-        'choice_dialog_ok': 'Select',
-        'language_select_dialog_title': 'Language',
-        'root_title': 'CNODC - QC Dashboard',
-        'menu_file': 'File',
-        'menu_login': 'Login',
-        'no_user_logged_in': '(none)',
-        'user_logged_in': '{username} ',
-        'error_message_title': 'Error',
-        'login_dialog_title': 'Login',
-        'login_dialog_username': 'Username',
-        'login_dialog_password': 'Password',   # noqa: B105 #not hard-coded password
-        'invalid_credentials': 'Invalid username and/or password',   # noqa: B105 #not hard-coded password
-        'remote_api_error': 'An error occurred on the server: {message}\nError code: {code}',
-        'station_reload': 'Refresh Station List',
-        'menu_qc': 'Quality Control',
-        'menu_reload_stations': 'Sync Stations',
-        'parameter_list_name': 'Element',
-        'parameter_list_value': 'Value',
-        'parameter_list_units': 'Units',
-        'parameter_list_quality': 'Q',
-        'parameter_context_edit': 'Edit',
-        'parameter_context_flag_good': 'Good (1)',
-        'parameter_context_flag_probably_good': 'Probably Good (2)',
-        'parameter_context_flag_dubious': 'Dubious (3)',
-        'parameter_context_flag_erroneous': 'Erroneous (4)',
-        'parameter_context_flag_missing': 'Missing (9)',
-        'prompt_min_value': 'Minimum: {min}',
-        'prompt_max_value': 'Maximum: {max}',
-        'prompt_range': 'Range: [{min}, {max}]',
-        'hour': 'Hour',
-        'minute': 'Minute',
-        'second': 'Second',
-        'timezone': 'TZ',
-        'metadata': 'Metadata',
-        'coordinates': 'Coordinates',
-        'parameters': 'Parameters',
-        'data_type_choice_title': 'Choose Data Type',
-        'data_type_choice_prompt': 'Select the type of data',
-        'data_type_string': 'Text',
-        'data_type_integer': 'Integer',
-        'data_type_datetime': 'Date and Time',
-        'data_type_date': 'Date',
-        'data_type_decimal': 'Real Number',
-        'data_type_not_supported_title': 'Not Supported',
-        'data_type_not_supported_message': 'Editing {data_type} elements is not supported',
-        'close_without_saving_title': 'Unsaved Changes',
-        'close_without_saving_message': 'You have unsaved changes, are you sure you want to close the batch?',
-        'menu_next_station_failure': 'Load Next Station Failure',
-        'action_item_name': 'Action',
-        'action_item_object': 'Target',
-        'action_item_value': 'New Value',
-        'remove': 'Remove',
-        'record_set_label_profile': 'Profile #{index}',
-        'history_time': 'Time',
-        'history_message': 'Message',
-        'history_source': 'Origin',
-        'history_type': 'Type',
-        'message_type_i': 'Informational',
-        'message_type_n': 'Note',
-        'message_type_w': 'Warning',
-        'message_type_e': 'Error',
-        'flag_at_and_below': 'Flag [{flag}] at position and below',
-        'flag_at_and_right': 'Flag [{flag}] at position and right',
-        'qc_test_name': 'Test Name',
-        'qc_test_time': 'Time Run',
-        'qc_test_error_name': 'Error',
-        'qc_test_element_name': 'Element',
+    "en": {
+        "choice_dialog_ok": "Select",
+        "language_select_dialog_title": "Language",
+        "root_title": "CNODC - QC Dashboard",
+        "menu_file": "File",
+        "menu_login": "Login",
+        "no_user_logged_in": "(none)",
+        "user_logged_in": "{username} ",
+        "error_message_title": "Error",
+        "login_dialog_title": "Login",
+        "login_dialog_username": "Username",
+        "login_dialog_password": "Password",  # noqa: B105 #not hard-coded password
+        "invalid_credentials": "Invalid username and/or password",  # noqa: B105 #not hard-coded password
+        "remote_api_error": "An error occurred on the server: {message}\nError code: {code}",
+        "station_reload": "Refresh Station List",
+        "menu_qc": "Quality Control",
+        "menu_reload_stations": "Sync Stations",
+        "parameter_list_name": "Element",
+        "parameter_list_value": "Value",
+        "parameter_list_units": "Units",
+        "parameter_list_quality": "Q",
+        "parameter_context_edit": "Edit",
+        "parameter_context_flag_good": "Good (1)",
+        "parameter_context_flag_probably_good": "Probably Good (2)",
+        "parameter_context_flag_dubious": "Dubious (3)",
+        "parameter_context_flag_erroneous": "Erroneous (4)",
+        "parameter_context_flag_missing": "Missing (9)",
+        "prompt_min_value": "Minimum: {min}",
+        "prompt_max_value": "Maximum: {max}",
+        "prompt_range": "Range: [{min}, {max}]",
+        "hour": "Hour",
+        "minute": "Minute",
+        "second": "Second",
+        "timezone": "TZ",
+        "metadata": "Metadata",
+        "coordinates": "Coordinates",
+        "parameters": "Parameters",
+        "data_type_choice_title": "Choose Data Type",
+        "data_type_choice_prompt": "Select the type of data",
+        "data_type_string": "Text",
+        "data_type_integer": "Integer",
+        "data_type_datetime": "Date and Time",
+        "data_type_date": "Date",
+        "data_type_decimal": "Real Number",
+        "data_type_not_supported_title": "Not Supported",
+        "data_type_not_supported_message": "Editing {data_type} elements is not supported",
+        "close_without_saving_title": "Unsaved Changes",
+        "close_without_saving_message": "You have unsaved changes, are you sure you want to close the batch?",
+        "menu_next_station_failure": "Load Next Station Failure",
+        "action_item_name": "Action",
+        "action_item_object": "Target",
+        "action_item_value": "New Value",
+        "remove": "Remove",
+        "record_set_label_profile": "Profile #{index}",
+        "history_time": "Time",
+        "history_message": "Message",
+        "history_source": "Origin",
+        "history_type": "Type",
+        "message_type_i": "Informational",
+        "message_type_n": "Note",
+        "message_type_w": "Warning",
+        "message_type_e": "Error",
+        "flag_at_and_below": "Flag [{flag}] at position and below",
+        "flag_at_and_right": "Flag [{flag}] at position and right",
+        "qc_test_name": "Test Name",
+        "qc_test_time": "Time Run",
+        "qc_test_error_name": "Error",
+        "qc_test_element_name": "Element",
         "record_list_title": "Records",
         "child_record_list_title": "Child Records",
         "record_label": "Record {index}",
@@ -93,76 +93,79 @@ TRANSLATIONS = {
         "tooltip_save": "Save (Ctrl-S)",
         "tooltip_load_new": "Load",
         "station_list": "Stations",
-        "menu_change_password": "Change Password",   # noqa: B105 #not hard-coded password
+        "menu_change_password": "Change Password",  # noqa: B105 #not hard-coded password
         "menu_logout": "Logout",
         "menu_create_station": "Create Station",
         "password_change_1": "Password",  # noqa: B105 #not hard-coded password
-        "password_change_2": "Repeat Password",   # noqa: B105 #not hard-coded password
-        'password_change_message': 'Your new password must be at least 15 characters long.',  # noqa: B105 #not hard-coded password
-        'password_change_success_title': 'Password Changed',  # noqa: B105 #not hard-coded password
-        'password_change_success_message': 'Your password has been changed',  # noqa: B105 #not hard-coded password
-        'logout_success_title': 'Logged Out',
-        'logout_success_message': 'You have been logged out.',
-        'qc_error_station_no_id': 'No Station ID Detected',
-        'qc_error_station_no_record': 'No Station Match Found',
-        'qc_error_station_bad_uuid': 'Invalid CNODC Station ID',
-        'qc_error_station_incomplete': 'Incomplete Station Record',
-        'qc_error_station_many_records': 'Several Station Matches Found',
+        "password_change_2": "Repeat Password",  # noqa: B105 #not hard-coded password
+        "password_change_message": "Your new password must be at least 15 characters long.",  # noqa: B105 #not hard-coded password
+        "password_change_success_title": "Password Changed",  # noqa: B105 #not hard-coded password
+        "password_change_success_message": "Your password has been changed",  # noqa: B105 #not hard-coded password
+        "logout_success_title": "Logged Out",
+        "logout_success_message": "You have been logged out.",
+        "qc_error_station_no_id": "No Station ID Detected",
+        "qc_error_station_no_record": "No Station Match Found",
+        "qc_error_station_bad_uuid": "Invalid CNODC Station ID",
+        "qc_error_station_incomplete": "Incomplete Station Record",
+        "qc_error_station_many_records": "Several Station Matches Found",
     },
-    'fr': {
-        'choice_dialog_ok': 'Selectionnez',
-        'language_select_dialog_title': 'Langage',
-        'root_title': 'CNDOC - Tableau de bord pour CQ',
-    }
+    "fr": {
+        "choice_dialog_ok": "Selectionnez",
+        "language_select_dialog_title": "Langage",
+        "root_title": "CNDOC - Tableau de bord pour CQ",
+    },
 }
 
 
 class DesktopLanguageDetector(LanguageDetector):
-
     config: ApplicationConfig
 
     @injector.construct
     def __init__(self):
-        self._current_language: str = t.cast(str, self.config.as_str("language", default="und"))
+        self._current_language: str = t.cast(
+            str, self.config.as_str("language", default="und")
+        )
 
     def set_language(self, language: str):
         self._current_language = language
 
     def detect_language(self, supported_languages: t.Sequence[str]) -> str:
-        return self._current_language if self._current_language in supported_languages else "und"
+        return (
+            self._current_language
+            if self._current_language in supported_languages
+            else "und"
+        )
 
 
 @injector.injectable
 class OCProc2Translator:
-
     detector: LanguageDetector
     ontology: OCProc2Ontology
 
-    ELEMENT_TYPE_NAMES = {
-        'metadata': {
-            'en': 'Metadata',
-            'fr': 'Métadonnées',
+    ELEMENT_TYPE_NAMES: t.ClassVar[dict[str, dict[str, str]]] = {
+        "metadata": {
+            "en": "Metadata",
+            "fr": "Métadonnées",
         },
-        'coordinates': {
-            'en': 'Coordinates',
-            'fr': 'Coordonnées',
+        "coordinates": {
+            "en": "Coordinates",
+            "fr": "Coordonnées",
         },
-        'parameters': {
-            'en': 'Parameters',
-            'fr': 'Paramètres',
-        }
+        "parameters": {
+            "en": "Parameters",
+            "fr": "Paramètres",
+        },
     }
 
     @injector.construct
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
     def translate_recordset_type(self, rs_type: str) -> str:
         info = self.ontology.recordset_info(rs_type)
         if info is not None:
             return info.label(self.detector.detect_language(["en", "fr"]))
         else:
-            return (' '.join(rs_type.split('_'))).lower().title()
+            return (" ".join(rs_type.split("_"))).lower().title()
 
     def translate_element_name(self, element_name: str) -> str:
         info = self.ontology.info(element_name)
@@ -173,7 +176,10 @@ class OCProc2Translator:
 
     def translate_element_type(self, element_type: str) -> str:
         lang = self.detector.detect_language(["en", "fr"])
-        if element_type in self.ELEMENT_TYPE_NAMES and lang in self.ELEMENT_TYPE_NAMES[element_type]:
+        if (
+            element_type in self.ELEMENT_TYPE_NAMES
+            and lang in self.ELEMENT_TYPE_NAMES[element_type]
+        ):
             return self.ELEMENT_TYPE_NAMES[element_type][lang]
         else:
             return element_type.title()
@@ -183,4 +189,4 @@ class OCProc2Translator:
         if info is not None:
             return info.documentation(self.detector.detect_language(["en", "fr"]))
         else:
-            return ''
+            return ""

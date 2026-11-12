@@ -1,22 +1,26 @@
 import pathlib
+
 from autoinject import auto, injector
 
 from gcapp.system import System
 
 PLUGIN_DIR = pathlib.Path(__file__).parent.absolute()
 
+
 @injector.inject
 def init_plugin(system: System = auto()):
 
-    from dmd.metadata.metadata import MetadataRegistry
     from dmd.metadata.entities import EntityRegistry
+    from dmd.metadata.metadata import MetadataRegistry
     from dmd.metadata.vocabularies import VocabularyRegistry
 
     @system.on_setup
     @injector.inject
-    def on_setup(mreg: MetadataRegistry = auto(),
-                 vreg: VocabularyRegistry = auto(),
-                 ereg: EntityRegistry = auto()):
+    def on_setup(
+        mreg: MetadataRegistry = auto(),
+        vreg: VocabularyRegistry = auto(),
+        ereg: EntityRegistry = auto(),
+    ):
         mreg.register_metadata_fields_from_yaml(PLUGIN_DIR / "metadata.yaml")
         mreg.register_profiles_from_yaml(PLUGIN_DIR / "profiles.yaml")
         mreg.register_formatter_template_directory(PLUGIN_DIR / "templates")
@@ -24,6 +28,3 @@ def init_plugin(system: System = auto()):
         ereg.register_from_yaml(PLUGIN_DIR / "entities.yaml")
         vreg.register_terms_from_csv("goc_places", PLUGIN_DIR / "places.csv")
         vreg.register_terms_from_csv("goc_subjects", PLUGIN_DIR / "subjects.csv")
-
-
-

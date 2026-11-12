@@ -1,19 +1,20 @@
 import decimal
-import medsutil.math._constants as constants
-import medsutil.math.types as mt
 import typing as t
 
+import medsutil.math._constants as constants
+import medsutil.math.types as mt
 from medsutil.math import _common
 
 
 def units_first(*args, **kwargs):
     for x in args:
-        if hasattr(x, 'units'):
+        if hasattr(x, "units"):
             return x.units
     for x in kwargs.values():
-        if hasattr(x, 'units'):
+        if hasattr(x, "units"):
             return x.units
-    return ''
+    return ""
+
 
 def units_multiply(x, y):
     x_units = units_first(x)
@@ -29,12 +30,13 @@ def units_multiply(x, y):
     else:
         return ""
 
+
 def units_div(x, y):
     x_units = units_first(x)
     y_units = units_first(y)
     if x_units and y_units:
         if x_units == y_units:
-            return f""
+            return ""
         return f"({x_units})(({y_units})^-1)"
     elif x_units:
         return x_units
@@ -43,8 +45,10 @@ def units_div(x, y):
     else:
         return ""
 
+
 def units_div_r(y, x):
     return units_div(x, y)
+
 
 def units_power(base, exponent):
     b_units = units_first(base)
@@ -58,60 +62,71 @@ def units_power(base, exponent):
     else:
         return ""
 
+
 def units_power_r(exponent, base):
     return units_power(base, exponent)
+
 
 def derivative_0(*args, **kwargs):
     return 0
 
+
 def derivative_1(*args, **kwargs):
     return 1
+
 
 def derivative_neg1(*args, **kwargs):
     return -1
 
+
 def derivative_x(x, *args, **kwargs):
     return _common.nominal_value(x)
+
 
 def derivative_y(x, y, *args, **kwargs):
     return _common.nominal_value(y)
 
+
 def derivative_numerator(x, y, *args, **kwargs):
     return 1 / _common.nominal_value(y)
 
+
 def derivative_denominator(x, y, *args, **kwargs):
     x, y = _common.match_convert(x, y)
-    return (-x) / (y ** 2)
+    return (-x) / (y**2)
+
 
 def derivative_pythagoras_x(x, y, *args, **kwargs):
     x, y = _common.match_convert(x, y)
-    return x / _common.sqrt((x ** 2) + (y ** 2))
+    return x / _common.sqrt((x**2) + (y**2))
+
 
 def derivative_pythagoras_y(x, y, *args, **kwargs):
     x, y = _common.match_convert(x, y)
-    return y / _common.sqrt((x ** 2) + (y ** 2))
+    return y / _common.sqrt((x**2) + (y**2))
+
 
 def derivative_power_base(base, exponent):
     base, exponent = _common.match_convert(base, exponent)
     if base > 0 or (exponent % 1 == 0 and (base < 0 or exponent >= 1)):
-        return no_complex_or_nan(
-            exponent * (base ** (exponent - 1))
-        )
+        return no_complex_or_nan(exponent * (base ** (exponent - 1)))
     elif base == 0 and exponent == 0:
         return 0
     else:
-        raise mt.NotSupportedMathOperation(f"No derivative can be calculated for [({base})^({exponent})]")
+        raise mt.NotSupportedMathOperation(
+            f"No derivative can be calculated for [({base})^({exponent})]"
+        )
+
 
 def derivative_power_exponent(base, exponent):
     base, exponent = _common.match_convert(base, exponent)
     if base > 0:
-        return no_complex_or_nan(
-            _common.ln(base) * (base ** exponent)
-        )
+        return no_complex_or_nan(_common.ln(base) * (base**exponent))
     elif base == 0 and exponent == 0:
         return 0
     else:
         raise mt.NotSupportedMathOperation("No derivative can be calculated")
+
 
 def derivative_modulo(value, modulo):
     value, modulo = _common.match_convert(value, modulo)
@@ -119,11 +134,16 @@ def derivative_modulo(value, modulo):
     nd = numerical_derivative(value_type.__mod__, 1)
     return nd(value, modulo)
 
+
 def derivative_modulo_rev(modulo, value):
     return derivative_modulo(value, modulo)
 
-def numerical_derivative[T](func: t.Callable[..., T], with_respect_to: str | int) -> t.Callable[..., T]:
+
+def numerical_derivative[T](
+    func: t.Callable[..., T], with_respect_to: str | int
+) -> t.Callable[..., T]:
     is_kwarg = isinstance(with_respect_to, str)
+
     def _numerical_derivative(*args, **kwargs):
         change_args: list | dict = list(args) if not is_kwarg else kwargs
         base_step_size = constants.epsilon_sqrt(change_args[with_respect_to].__class__)
@@ -136,9 +156,15 @@ def numerical_derivative[T](func: t.Callable[..., T], with_respect_to: str | int
         change_args[with_respect_to] -= double_step
         shift_minus = func(*(args if is_kwarg else change_args), **kwargs)
         return (shift_plus - shift_minus) / double_step
+
     return _numerical_derivative
 
-def newton_raphson_approximation(x: decimal.Decimal, guess: decimal.Decimal, _next_term: t.Callable[[decimal.Decimal, decimal.Decimal], decimal.Decimal]) -> decimal.Decimal:
+
+def newton_raphson_approximation(
+    x: decimal.Decimal,
+    guess: decimal.Decimal,
+    _next_term: t.Callable[[decimal.Decimal, decimal.Decimal], decimal.Decimal],
+) -> decimal.Decimal:
     decimal.getcontext().prec += 2
     last_guess = None
     while last_guess is None or last_guess != guess:
@@ -147,11 +173,15 @@ def newton_raphson_approximation(x: decimal.Decimal, guess: decimal.Decimal, _ne
     decimal.getcontext().prec -= 2
     return guess
 
-def taylor_series_approximation(x: decimal.Decimal, _build_nth_term: t.Callable[[int], t.Callable[[decimal.Decimal], decimal.Decimal]]) -> decimal.Decimal:
+
+def taylor_series_approximation(
+    x: decimal.Decimal,
+    _build_nth_term: t.Callable[[int], t.Callable[[decimal.Decimal], decimal.Decimal]],
+) -> decimal.Decimal:
     n = 0
     decimal.getcontext().prec += 2
     last_value = None
-    current_value = decimal.Decimal("0")
+    current_value = decimal.Decimal(0)
     while last_value is None or last_value != current_value:
         last_value = current_value
         term_n = _build_nth_term(n)(x)
@@ -160,16 +190,10 @@ def taylor_series_approximation(x: decimal.Decimal, _build_nth_term: t.Callable[
     decimal.getcontext().prec -= 2
     return current_value
 
+
 def no_complex_or_nan(x):
     if _common.is_complex(x):
         raise mt.NotSupportedMathOperation("Complex numbers are not supported")
     elif _common.is_nan(x):
         raise mt.NotSupportedMathOperation("NaN found")
     return x
-
-
-
-
-
-
-

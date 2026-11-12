@@ -1,4 +1,3 @@
-import enum
 import math
 import pathlib
 import typing as t
@@ -7,23 +6,39 @@ import yaml
 from autoinject import injector
 
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import BaseRecord, AbstractElement
-from medsutil.ocproc2.codecs.ops import Instruction, SingleValueInstruction, OPSContext, EncodeDecodeGroup, \
-    NoopInstruction, ElementInstruction
+from medsutil.ocproc2 import AbstractElement, BaseRecord
+from medsutil.ocproc2.codecs.meds.structs import (
+    HistoryGroup,
+    MedsEncoding,
+    ProfileInfoGroup,
+    ProfileLevelGroup,
+    ProfileRecord,
+    StationRecord,
+    SurfaceCodeGroup,
+    SurfaceParameterGroup,
+)
+from medsutil.ocproc2.codecs.ops import (
+    ElementInstruction,
+    EncodeDecodeGroup,
+    Instruction,
+    NoopInstruction,
+    OPSContext,
+    SingleValueInstruction,
+)
 from medsutil.ocproc2.elements import SingleElement
+from medsutil.ocproc2.history import ActionType, HistoryEntry
 from medsutil.ocproc2.structures import ParentRecord
-from medsutil.ocproc2.codecs.meds.structs import StationRecord, MedsEncoding, SurfaceCodeGroup, SurfaceParameterGroup, \
-    ProfileInfoGroup, ProfileRecord, ProfileLevelGroup, HistoryGroup
-from medsutil.ocproc2.util import combine_quality_scores, find_quality_for_protocol
 from medsutil.units import UnitConverter
-from medsutil.ocproc2.history import HistoryEntry, ActionType
 
 
 def extract_anemometer_height(e: SingleElement) -> int | None:
     if not e.is_numeric():
         return None
     v = e.to_int(no_loss=False)
-    if e.metadata.best("SensorHeightReference", "") == "local_ground_corrected" and v == 10:
+    if (
+        e.metadata.best("SensorHeightReference", "") == "local_ground_corrected"
+        and v == 10
+    ):
         return 999
     elif v < 999:
         return v
@@ -33,7 +48,6 @@ def extract_anemometer_height(e: SingleElement) -> int | None:
 
 @injector.injectable_global
 class MedsCodeMap:
-
     converter: UnitConverter = None
 
     @injector.construct
@@ -73,10 +87,9 @@ class MedsCodeMap:
 
         return "  "
 
-
-    def prestandardize_instruction(self,
-                                   instruction: str | dict,
-                                   pcode: str | None = None) -> dict:
+    def prestandardize_instruction(
+        self, instruction: str | dict, pcode: str | None = None
+    ) -> dict:
         inst: dict
         if isinstance(instruction, str):
             if "/" in instruction:
@@ -92,7 +105,7 @@ class MedsCodeMap:
         if pcode:
             inst["pcode"] = pcode
         if "data_type" not in inst:
-            if "units" in inst and inst["units"]:
+            if inst.get("units"):
                 inst["data_type"] = "float"
             else:
                 inst["data_type"] = "string"
@@ -105,7 +118,9 @@ class MedsCodeMap:
                 inst[key] = f"{__name__}{inst[key][8:]}"
         return inst
 
-    def pcode_list_for_encode(self, is_surface: bool = False, parameters_only: bool = False) -> t.Iterable[str]:
+    def pcode_list_for_encode(
+        self, is_surface: bool = False, parameters_only: bool = False
+    ) -> t.Iterable[str]:
         codes: list[tuple[str, int]] = []
         for pcode, entry in self._meds_map.items():
             # exclude any fake elements we built to help with decoding
@@ -129,7 +144,9 @@ class MedsCodeMap:
         if pcode not in self._instruction_cache:
             if pcode not in self._meds_map:
                 raise ValueError(f"No meds pcode instruction defined for [{pcode}]")
-            self._instruction_cache[pcode] = Instruction.parse_instruction(self._meds_map[pcode])
+            self._instruction_cache[pcode] = Instruction.parse_instruction(
+                self._meds_map[pcode]
+            )
         return self._instruction_cache[pcode]
 
     def find_instruction(self, element_name: str) -> Instruction | None:
@@ -153,16 +170,12 @@ class MedsCodeMap:
         return None
 
     SOURCE_MAP = {
-
         "pipeman_desktop": "PDSK",
-        
         "finalizer": "PNFN",
         "merger": "PMER",
-
         "integrity_check": "PNIN",
         "platform_check": "PNPL",
         "duplicate_check": "PNDP",
-
         "decoder": "PDEC",
         "temperature_inversion_check": "PGTI",
         "spike_gradient_check": "PGSG",
@@ -176,15 +189,12 @@ class MedsCodeMap:
         "coordinate_check": "PGCO",
         "constant_check": "PGCN",
         "bathymetry_check": "PGBA",
-
         "bufr_decode": "PDBF",
         "ascii_trackob": "PDAO",
         "ascii_tesac": "PDAT",
         "ascii_waveob": "PDAW",
         "ascii_buoy": "PDAB",
         "ascii_bathy": "PDAY",
-
-
     }
 
     def convert_source_name(self, source_name: str) -> str:
@@ -194,118 +204,108 @@ class MedsCodeMap:
 
 
 class MedsConverter:
-
     PRECISION_BOUNDS = {
         # NB: I is explicitly stated as "greater than 0.2"
         # therefore I'm assuming that the ranges are (min, max]
         # i.e the minimum is excluded and the maximum is included
-    #   PARAM   CODE    MIN     MAX     TYPE
+        #   PARAM   CODE    MIN     MAX     TYPE
         "PSAL": [
-            (   "5",    0.001,  0.001,  'E'),
-            (   "6",    0.0001, 0.0001, 'E'),
-
-            (   "B",    0.001,  0.002,  'K'),
-            (   "C",    0.002,  0.005,  'K'),
-            (   "D",    0.005,  0.01,   'K'),
-            (   "E",    0.01,   0.02,   'K'),
-            (   "F",    0.02,   0.05,   'K'),
-            (   "G",    0.05,   0.1,    'K'),
-            (   "H",    0.1,    0.2,    'K'),
-            (   "I",    0.2,    None,   'K'),
-
-            (   "1",    None,   0.02,   'U'),
-            (   "2",    0.02,   None,   'U'),
+            ("5", 0.001, 0.001, "E"),
+            ("6", 0.0001, 0.0001, "E"),
+            ("B", 0.001, 0.002, "K"),
+            ("C", 0.002, 0.005, "K"),
+            ("D", 0.005, 0.01, "K"),
+            ("E", 0.01, 0.02, "K"),
+            ("F", 0.02, 0.05, "K"),
+            ("G", 0.05, 0.1, "K"),
+            ("H", 0.1, 0.2, "K"),
+            ("I", 0.2, None, "K"),
+            ("1", None, 0.02, "U"),
+            ("2", 0.02, None, "U"),
         ],
         "HCDT": [
-            (   "1",    1,      1,      'E'),
-            (   "2",    10,     10,     'E'),
-            (   "5",    0.1,    0.1,    'E'),
-            (   "6",    0.0001, 0.0001, 'E'),
-
-            (   "B",    0.001,  0.002,  'K'),
-            (   "C",    0.002,  0.005,  'K'),
-            (   "D",    0.005,  0.01,   'K'),
-            (   "E",    0.01,   0.02,   'K'),
-            (   "F",    0.02,   0.05,   'K'),
-            (   "G",    0.05,   0.1,    'K'),
-            (   "H",    0.1,    0.2,    'K'),
-            (   "I",    0.2,    None,   'K'),
+            ("1", 1, 1, "E"),
+            ("2", 10, 10, "E"),
+            ("5", 0.1, 0.1, "E"),
+            ("6", 0.0001, 0.0001, "E"),
+            ("B", 0.001, 0.002, "K"),
+            ("C", 0.002, 0.005, "K"),
+            ("D", 0.005, 0.01, "K"),
+            ("E", 0.01, 0.02, "K"),
+            ("F", 0.02, 0.05, "K"),
+            ("G", 0.05, 0.1, "K"),
+            ("H", 0.1, 0.2, "K"),
+            ("I", 0.2, None, "K"),
         ],
         "CNDC": [
-            (   "2",    0.1,    0.1,    'E'),
-            (   "5",    0.001,  0.001,  'E'),
-            (   "6",    0.0001, 0.0001, 'E'),
-
-            (   "B",    0.001,  0.002,  'K'),
-            (   "C",    0.002,  0.005,  'K'),
-            (   "D",    0.005,  0.01,   'K'),
-            (   "E",    0.01,   0.02,   'K'),
-            (   "F",    0.02,   0.05,   'K'),
-            (   "G",    0.05,   0.1,    'K'),
-            (   "H",    0.1,    0.2,    'K'),
-            (   "I",    0.2,    None,   'K'),
+            ("2", 0.1, 0.1, "E"),
+            ("5", 0.001, 0.001, "E"),
+            ("6", 0.0001, 0.0001, "E"),
+            ("B", 0.001, 0.002, "K"),
+            ("C", 0.002, 0.005, "K"),
+            ("D", 0.005, 0.01, "K"),
+            ("E", 0.01, 0.02, "K"),
+            ("F", 0.02, 0.05, "K"),
+            ("G", 0.05, 0.1, "K"),
+            ("H", 0.1, 0.2, "K"),
+            ("I", 0.2, None, "K"),
         ],
         "TRAN": [
-            (   "2",    0.1,    0.1,    'E'),
-            (   "3",    1,      1,      'E'),
-            (   "5",    0.001,  0.001,  'E'),
-            (   "6",    0.0001, 0.0001, 'E'),
-
-            (   "B",    0.001,  0.002,  'K'),
-            (   "C",    0.002,  0.005,  'K'),
-            (   "D",    0.005,  0.01,   'K'),
-            (   "E",    0.01,   0.02,   'K'),
-            (   "F",    0.02,   0.05,   'K'),
-            (   "G",    0.05,   0.1,    'K'),
-            (   "H",    0.1,    0.2,    'K'),
-            (   "I",    0.2,    None,   'K'),
+            ("2", 0.1, 0.1, "E"),
+            ("3", 1, 1, "E"),
+            ("5", 0.001, 0.001, "E"),
+            ("6", 0.0001, 0.0001, "E"),
+            ("B", 0.001, 0.002, "K"),
+            ("C", 0.002, 0.005, "K"),
+            ("D", 0.005, 0.01, "K"),
+            ("E", 0.01, 0.02, "K"),
+            ("F", 0.02, 0.05, "K"),
+            ("G", 0.05, 0.1, "K"),
+            ("H", 0.1, 0.2, "K"),
+            ("I", 0.2, None, "K"),
         ],
         "HCSP": [
-            (   "1",    1,      1,      'E'),
-            (   "2",    0.1,    0.1,    'E'),
-            (   "5",    0.001,  0.001,  'E'),
-            (   "6",    0.0001, 0.0001, 'E'),
-
-            (   "B",    0.001,  0.002,  'K'),
-            (   "C",    0.002,  0.005,  'K'),
-            (   "D",    0.005,  0.01,   'K'),
-            (   "E",    0.01,   0.02,   'K'),
-            (   "F",    0.02,   0.05,   'K'),
-            (   "G",    0.05,   0.1,    'K'),
-            (   "H",    0.1,    0.2,    'K'),
-            (   "I",    0.2,    None,   'K'),
+            ("1", 1, 1, "E"),
+            ("2", 0.1, 0.1, "E"),
+            ("5", 0.001, 0.001, "E"),
+            ("6", 0.0001, 0.0001, "E"),
+            ("B", 0.001, 0.002, "K"),
+            ("C", 0.002, 0.005, "K"),
+            ("D", 0.005, 0.01, "K"),
+            ("E", 0.01, 0.02, "K"),
+            ("F", 0.02, 0.05, "K"),
+            ("G", 0.05, 0.1, "K"),
+            ("H", 0.1, 0.2, "K"),
+            ("I", 0.2, None, "K"),
         ],
         "TEMP": [
-            (   "2",    0.1,    0.1,    'E'),
-            (   "5",    0.001,  0.001,  'E'),
-            (   "6",    0.0001, 0.0001, 'E'),
-            (   "B",    0.001,  0.002,  'K'),
-            (   "C",    0.002,  0.005,  'K'),
-            (   "D",    0.005,  0.01,   'K'),
-            (   "E",    0.01,   0.02,   'K'),
-            (   "F",    0.02,   0.05,   'K'),
-            (   "G",    0.05,   0.1,    'K'),
-            (   "H",    0.1,    0.2,    'K'),
-            (   "I",    0.2,    None,   'K'),
-            (   "1",    None,   0.01,   'U'),
+            ("2", 0.1, 0.1, "E"),
+            ("5", 0.001, 0.001, "E"),
+            ("6", 0.0001, 0.0001, "E"),
+            ("B", 0.001, 0.002, "K"),
+            ("C", 0.002, 0.005, "K"),
+            ("D", 0.005, 0.01, "K"),
+            ("E", 0.01, 0.02, "K"),
+            ("F", 0.02, 0.05, "K"),
+            ("G", 0.05, 0.1, "K"),
+            ("H", 0.1, 0.2, "K"),
+            ("I", 0.2, None, "K"),
+            ("1", None, 0.01, "U"),
         ],
-        "_":    [
-            (   "5",    0.001,  0.001,  'E'),
-            (   "6",    0.0001, 0.0001, 'E'),
-
-            (   "B",    0.001,  0.002,  'K'),
-            (   "C",    0.002,  0.005,  'K'),
-            (   "D",    0.005,  0.01,   'K'),
-            (   "E",    0.01,   0.02,   'K'),
-            (   "F",    0.02,   0.05,   'K'),
-            (   "G",    0.05,   0.1,    'K'),
-            (   "H",    0.1,    0.2,    'K'),
-            (   "I",    0.2,    None,   'K'),
-
-            (   "1",    None,   0.01,   'U'),
-            (   "2",    0.01,   None,   'U'),
+        "_": [
+            ("5", 0.001, 0.001, "E"),
+            ("6", 0.0001, 0.0001, "E"),
+            ("B", 0.001, 0.002, "K"),
+            ("C", 0.002, 0.005, "K"),
+            ("D", 0.005, 0.01, "K"),
+            ("E", 0.01, 0.02, "K"),
+            ("F", 0.02, 0.05, "K"),
+            ("G", 0.05, 0.1, "K"),
+            ("H", 0.1, 0.2, "K"),
+            ("I", 0.2, None, "K"),
+            ("1", None, 0.01, "U"),
+            ("2", 0.01, None, "U"),
         ],
-
         "OSI$": [],
         "PRP$": [],
         "PRQ$": [],
@@ -314,8 +314,7 @@ class MedsConverter:
     code_map: MedsCodeMap = None
 
     @injector.construct
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
     def ocproc2_to_station(self, record: ParentRecord) -> StationRecord:
         sr = StationRecord()
@@ -330,7 +329,10 @@ class MedsConverter:
         lat = record.coordinates.ideal("Latitude")
         lon = record.coordinates.ideal("Longitude")
         if lat and lon and lat.is_numeric() and lon.is_numeric():
-            sr.coordinates = (lon.to_float("degrees_east"), lat.to_float("degrees_north"))
+            sr.coordinates = (
+                lon.to_float("degrees_east"),
+                lat.to_float("degrees_north"),
+            )
             sr.quality_position = context.get_quality(lat, lon)
 
         header = record.metadata.ideal("GTSHeader")
@@ -341,8 +343,11 @@ class MedsConverter:
             sr.gts_source_node = pieces[1]
             if record.metadata.has_value("GTSHeaderFullDate"):
                 if record.metadata["GTSHeaderFullDate"].is_iso_datetime():
-                    sr.gts_bulletin_time = record.metadata["GTSHeaderFullDate"].to_datetime().strftime("%Y%m%d%H%M")
-
+                    sr.gts_bulletin_time = (
+                        record.metadata["GTSHeaderFullDate"]
+                        .to_datetime()
+                        .strftime("%Y%m%d%H%M")
+                    )
 
         sr.iumsgno = 0
 
@@ -356,7 +361,7 @@ class MedsConverter:
         else:
             sr.stream_source = "I"
 
-        sr.data_availability = 'A'
+        sr.data_availability = "A"
 
         if record.metadata.has_value("MEDSCruiseID"):
             sr.cruise_id = record.metadata["MEDSCruiseID"].to_string()
@@ -368,7 +373,9 @@ class MedsConverter:
         depth_pcodes = self._encode_profile_info_groups(sr, context)
         data_type = self.identify_data_type(record, depth_pcodes)
         sr.data_type = data_type
-        source_name = self.code_map.convert_source_code(record.metadata.best("CNODCSource", coerce=str, default=""))
+        source_name = self.code_map.convert_source_code(
+            record.metadata.best("CNODCSource", coerce=str, default="")
+        )
         sr.stream_identifier = f"{source_name}{data_type}"
         # note: maybe best to update this?
         sr.qc_version = "1.3"
@@ -380,7 +387,13 @@ class MedsConverter:
 
         return sr
 
-    def add_history(self, sr: StationRecord, x: HistoryEntry, record: ParentRecord, context: OPSContext):
+    def add_history(
+        self,
+        sr: StationRecord,
+        x: HistoryEntry,
+        record: ParentRecord,
+        context: OPSContext,
+    ):
         code = self.code_map.convert_action_type(x.action_type)
         if code is not None:
             hg = HistoryGroup()
@@ -393,7 +406,9 @@ class MedsConverter:
             hg.previous_value = 9999.999
             hg.action_locator = 9999.999
             if x.affected_path:
-                pcode, locator, previous = self.extract_history_location(record, x.affected_path, context)
+                pcode, locator, previous = self.extract_history_location(
+                    record, x.affected_path, context
+                )
                 if pcode is not None:
                     hg.action_pcode = pcode
                 if locator is not None:
@@ -402,7 +417,9 @@ class MedsConverter:
                     hg.previous_value = previous
             sr.history_groups.append(hg)
 
-    def extract_history_location(self, record: ParentRecord, path: str, context: OPSContext) -> tuple[str | None, float | None, float | None]:
+    def extract_history_location(
+        self, record: ParentRecord, path: str, context: OPSContext
+    ) -> tuple[str | None, float | None, float | None]:
         obj = record
         depth_or_pressure = None
         path_parts = path.split("/")
@@ -410,13 +427,28 @@ class MedsConverter:
         previous_names: list[str] = []
         while obj is not None and path_parts:
             if isinstance(obj, BaseRecord):
-                if obj.coordinates.has_value("Depth") and obj.coordinates["Depth"].is_numeric():
+                if (
+                    obj.coordinates.has_value("Depth")
+                    and obj.coordinates["Depth"].is_numeric()
+                ):
                     depth_or_pressure = obj.coordinates["Depth"].to_float("m")
-                elif obj.coordinates.has_value("Pressure") and obj.coordinates["Pressure"].is_numeric():
+                elif (
+                    obj.coordinates.has_value("Pressure")
+                    and obj.coordinates["Pressure"].is_numeric()
+                ):
                     depth_or_pressure = obj.coordinates["Pressure"].to_float("dbar")
             if isinstance(obj, AbstractElement):
-                if len(previous_names) >= 2 and previous_names[-2] in ("coordinates", "parameters"):
-                    element_names.append(("/".join(previous_names[-2:]), depth_or_pressure, obj.metadata.get("Unadjusted", default=None)))
+                if len(previous_names) >= 2 and previous_names[-2] in (
+                    "coordinates",
+                    "parameters",
+                ):
+                    element_names.append(
+                        (
+                            "/".join(previous_names[-2:]),
+                            depth_or_pressure,
+                            obj.metadata.get("Unadjusted", default=None),
+                        )
+                    )
             next_name = path_parts.pop(0)
             obj = obj.find_child([next_name])
             previous_names.append(next_name)
@@ -424,8 +456,16 @@ class MedsConverter:
             return self.correct_element_value(*element_names[-1], context=context)
         return None, None, None
 
-    def correct_element_value(self, element_name: str, depth_or_pressure: float | None, element: AbstractElement | None, context: OPSContext) -> tuple[str | None, float | None, float | None]:
-        instruction = self._normalize_encode_instruction(self.code_map.find_instruction(element_name), none_on_missing=True)
+    def correct_element_value(
+        self,
+        element_name: str,
+        depth_or_pressure: float | None,
+        element: AbstractElement | None,
+        context: OPSContext,
+    ) -> tuple[str | None, float | None, float | None]:
+        instruction = self._normalize_encode_instruction(
+            self.code_map.find_instruction(element_name), none_on_missing=True
+        )
         if instruction is None:
             return None, None, None
         if "pcode" not in instruction.extras:
@@ -440,7 +480,9 @@ class MedsConverter:
 
     def identify_data_type(self, record: ParentRecord, depth_pcodes: set[str]) -> str:
         data_mode = record.metadata.best("CNODCDataMode", coerce=str, default="??")
-        platform_type = record.metadata.best("CNODCPlatformType", coerce=str, default=None)
+        platform_type = record.metadata.best(
+            "CNODCPlatformType", coerce=str, default=None
+        )
         if record.metadata.has_value("CNODCInstrumentTypes"):
             instrument_types = record.metadata["CNODCInstrumentTypes"].value
         else:
@@ -476,30 +518,48 @@ class MedsConverter:
                 sr.surface_code_groups.append(scg)
                 idx += 1
 
-    def _encode_profile_info_groups(self, sr: StationRecord, context: OPSContext) -> set[str]:
+    def _encode_profile_info_groups(
+        self, sr: StationRecord, context: OPSContext
+    ) -> set[str]:
         pcodes = set()
         if "PROFILE" in context.record.subrecords:
             for rs_idx, rs in context.record.subrecords["PROFILE"].items():
                 with context.recordset_context(rs, "PROFILE"):
                     for pcode in self.code_map.pcode_list_for_encode(False, True):
-                        prof_values, d_values, prof_priority, d_type = self._get_profile_values(pcode, context)
+                        prof_values, d_values, prof_priority, d_type = (
+                            self._get_profile_values(pcode, context)
+                        )
                         if prof_values:
                             pcodes.add(pcode)
-                            self._encode_profile_info_group(pcode, prof_values, prof_priority, d_values, d_type, sr, context)
+                            self._encode_profile_info_group(
+                                pcode,
+                                prof_values,
+                                prof_priority,
+                                d_values,
+                                d_type,
+                                sr,
+                                context,
+                            )
         return pcodes
 
-    def _encode_profile_info_group(self,
-                                   pcode: str,
-                                   prof_values: list[tuple[t.SupportsFloat, int | None, float | None, float | None]],
-                                   prof_priority: int,
-                                   depth_values: list[tuple[float, int | None, float | None, float | None]],
-                                   depth_type: str,
-                                   sr: StationRecord,
-                                   context: OPSContext):
+    def _encode_profile_info_group(
+        self,
+        pcode: str,
+        prof_values: list[
+            tuple[t.SupportsFloat, int | None, float | None, float | None]
+        ],
+        prof_priority: int,
+        depth_values: list[tuple[float, int | None, float | None, float | None]],
+        depth_type: str,
+        sr: StationRecord,
+        context: OPSContext,
+    ):
         pig = ProfileInfoGroup()
         pig.profile_type = pcode
-        pig.is_duplicate = False    #  I don't think we ever get a duplicate profile in the current system, but maybe we should consider?
-        digit_indicator = context.recordset.metadata.best("DigitizationMethod", default=None, coerce=str)
+        pig.is_duplicate = False  #  I don't think we ever get a duplicate profile in the current system, but maybe we should consider?
+        digit_indicator = context.recordset.metadata.best(
+            "DigitizationMethod", default=None, coerce=str
+        )
         if digit_indicator == "inflection_points":
             pig.digitization_code = "8"
         else:
@@ -512,7 +572,7 @@ class MedsConverter:
         pr.uses_pressure_levels = depth_type == "P"
         pig.profiles.append(pr)
 
-        for idx in range(0, min(len(prof_values), len(depth_values))):
+        for idx in range(min(len(prof_values), len(depth_values))):
             if depth_values[idx][0] is not None:
                 level = ProfileLevelGroup()
                 level.depth_pressure = depth_values[idx][0]
@@ -521,9 +581,13 @@ class MedsConverter:
                 level.parameter_quality = str(prof_values[idx][1] or 0)
                 pr.level_groups.append(level)
 
-    def _get_precision_code(self,
-                            pcode: str,
-                            prof_values: list[tuple[t.SupportsFloat, int | None, float | None, float | None]]):
+    def _get_precision_code(
+        self,
+        pcode: str,
+        prof_values: list[
+            tuple[t.SupportsFloat, int | None, float | None, float | None]
+        ],
+    ):
         if pcode not in self.PRECISION_BOUNDS:
             pcode = "_"
         worst_sigma, best_sigma = self._get_precision_bounds(prof_values)
@@ -534,7 +598,11 @@ class MedsConverter:
                 best_uniform = best_sigma * math.sqrt(3) * 2
             for code, min_val, max_val, code_type in self.PRECISION_BOUNDS[pcode]:
                 if code_type == "E":
-                    if best_uniform is not None and math.isclose(min_val, worst_uniform) and math.isclose(min_val, best_uniform):
+                    if (
+                        best_uniform is not None
+                        and math.isclose(min_val, worst_uniform)
+                        and math.isclose(min_val, best_uniform)
+                    ):
                         return code
                 else:
                     if code_type == "K" and best_uniform is None:
@@ -545,12 +613,16 @@ class MedsConverter:
                         if worst_uniform < min_val:
                             continue
                     if max_val is not None:
-                        if worst_uniform > max_val and not math.isclose(worst_uniform, max_val):
+                        if worst_uniform > max_val and not math.isclose(
+                            worst_uniform, max_val
+                        ):
                             continue
                     return code
         return "4"
 
-    def _get_precision_bounds(self, prof_values: list[tuple[t.Any, t.Any, float | None, float | None]]) -> tuple[float | None, float | None]:
+    def _get_precision_bounds(
+        self, prof_values: list[tuple[t.Any, t.Any, float | None, float | None]]
+    ) -> tuple[float | None, float | None]:
         worst_sigmas = []
         best_sigmas = []
         for _, _, worst_sigma, best_sigma in prof_values:
@@ -569,7 +641,14 @@ class MedsConverter:
             best_sigma = None
         return worst_sigma, best_sigma
 
-    def _get_profile_values(self, pcode: str, context: OPSContext) -> tuple[list[tuple[t.SupportsFloat, int | None, float | None, float | None]], list[tuple[float, int | None, float | None, float | None]], int, str]:
+    def _get_profile_values(
+        self, pcode: str, context: OPSContext
+    ) -> tuple[
+        list[tuple[t.SupportsFloat, int | None, float | None, float | None]],
+        list[tuple[float, int | None, float | None, float | None]],
+        int,
+        str,
+    ]:
         instruction = self._get_encode_instruction(pcode)
         depths = []
         n_with_depth = 0
@@ -579,7 +658,9 @@ class MedsConverter:
         if instruction is not None:
             for record in context.recordset.records.iterate_with_load():
                 with context.record_context(record):
-                    value, quality, one_sigma, se = instruction.get_value_with_details(context)
+                    value, quality, one_sigma, se = instruction.get_value_with_details(
+                        context
+                    )
                     if value is None:
                         continue
                     depth = None
@@ -590,13 +671,17 @@ class MedsConverter:
                     pressure_q = None
                     pressure_s_worst = None
                     pressure_s_best = None
-                    if record.coordinates.has_value("Depth") and not instruction.extras.get("skip_depth", False):
+                    if record.coordinates.has_value(
+                        "Depth"
+                    ) and not instruction.extras.get("skip_depth", False):
                         d = record.coordinates["Depth"].ideal()
                         depth = d.to_float("meters")
                         depth_q = context.get_quality(d)
                         _, depth_s_worst, depth_s_best = d.precision_information()
                         n_with_depth += 1
-                    if record.coordinates.has_value("Pressure") and not instruction.extras.get("skip_pressure", False):
+                    if record.coordinates.has_value(
+                        "Pressure"
+                    ) and not instruction.extras.get("skip_pressure", False):
                         p = record.coordinates["Pressure"].ideal()
                         pressure = p.to_float("dbar")
                         pressure_q = context.get_quality(p)
@@ -604,7 +689,9 @@ class MedsConverter:
                         n_with_pressure += 1
                     if depth is not None or pressure is not None:
                         depths.append((depth, depth_q, depth_s_worst, depth_s_best))
-                        pressures.append((pressure, pressure_q, pressure_s_worst, pressure_s_best))
+                        pressures.append(
+                            (pressure, pressure_q, pressure_s_worst, pressure_s_best)
+                        )
                         values.append((value, quality, one_sigma, se))
         if n_with_depth >= n_with_pressure:
             return values, depths, instruction.extras.get("priority", 0), "D"
@@ -614,7 +701,9 @@ class MedsConverter:
     def _get_encode_instruction(self, pcode: str) -> SingleValueInstruction | None:
         return self._normalize_encode_instruction(self.code_map.lookup(pcode))
 
-    def _normalize_encode_instruction(self, instruction, none_on_missing: bool = False) -> SingleValueInstruction | None:
+    def _normalize_encode_instruction(
+        self, instruction, none_on_missing: bool = False
+    ) -> SingleValueInstruction | None:
         if isinstance(instruction, EncodeDecodeGroup):
             instruction = instruction.get_instruction(True)
         if isinstance(instruction, SingleValueInstruction):
@@ -651,43 +740,46 @@ class MedsConverter:
                 spg.priority = priority
                 sr.surface_parameter_groups.append(spg)
 
-    def station_to_ocproc2(self, station: StationRecord, encoding: MedsEncoding) -> ParentRecord:
+    def station_to_ocproc2(
+        self, station: StationRecord, encoding: MedsEncoding
+    ) -> ParentRecord:
         pr = ParentRecord()
         pr.coordinates["Time"] = SingleElement(
             station.observation_time,
             DatePrecision="minute",
-            Quality=SingleElement(
-                station.quality_datetime,
-                TestProtocol="meds"
-            ),
+            Quality=SingleElement(station.quality_datetime, TestProtocol="meds"),
         )
         pr.coordinates["Longitude"] = SingleElement(
             station.longitude,
             Units="degrees_east",
-            Quality=SingleElement(
-                station.quality_position,
-                TestProtocol="meds"
-            ),
+            Quality=SingleElement(station.quality_position, TestProtocol="meds"),
             Uncertainty=SingleElement(
-                "0.00005" if encoding is MedsEncoding.MEDS_ASCII else (station.longitude * (2 ** -24)),
-                UncertaintyType="uniform"
-            )
+                "0.00005"
+                if encoding is MedsEncoding.MEDS_ASCII
+                else (station.longitude * (2**-24)),
+                UncertaintyType="uniform",
+            ),
         )
         pr.coordinates["Latitude"] = SingleElement(
             station.latitude,
             Units="degrees_north",
-            Quality=SingleElement(
-                station.quality_position,
-                TestProtocol="meds"
-            ),
+            Quality=SingleElement(station.quality_position, TestProtocol="meds"),
             Uncertainty=SingleElement(
-                "0.00005" if encoding is MedsEncoding.MEDS_ASCII else (station.longitude * (2 ** -24)),
-                UncertaintyType="uniform"
-            )
+                "0.00005"
+                if encoding is MedsEncoding.MEDS_ASCII
+                else (station.longitude * (2**-24)),
+                UncertaintyType="uniform",
+            ),
         )
-        if station.gts_bulletin_time or station.gts_header_info or station.gts_source_node:
+        if (
+            station.gts_bulletin_time
+            or station.gts_header_info
+            or station.gts_source_node
+        ):
             # TODO: should we format bulletin time properly?
-            pr.metadata["GTSHeader"] = f"{station.gts_header_info or ""} {station.gts_source_node or ""} {station.gts_bulletin_time or ""}"
+            pr.metadata["GTSHeader"] = (
+                f"{station.gts_header_info or ''} {station.gts_source_node or ''} {station.gts_bulletin_time or ''}"
+            )
 
         # TODO: surface group decode
         # TODO: profile decode
@@ -713,9 +805,8 @@ class MedsConverter:
         # 1770 / 4770
         "PFR$": [
             (0, 3, ""),  # TODO, when we figure out what code this is
-            (3, 5, "RCT$")
-        ]
-
+            (3, 5, "RCT$"),
+        ],
     }
 
     def _handle_ggi(self, value: str, context: OPSContext):
@@ -728,12 +819,18 @@ class MedsConverter:
 
         # tesac this is 8 8 8 k1 k2 (k2 is salinity depth which is 0-3)
         else:
-            self._handle_split_code(value, codes=[
-                (3, 4, "GGDI"),
-                (4, 5, "GGSL"),
-            ], context=context)
+            self._handle_split_code(
+                value,
+                codes=[
+                    (3, 4, "GGDI"),
+                    (4, 5, "GGSL"),
+                ],
+                context=context,
+            )
 
-    def _handle_split_code(self, value: str, codes: list[tuple[int, int, str]], context: OPSContext):
+    def _handle_split_code(
+        self, value: str, codes: list[tuple[int, int, str]], context: OPSContext
+    ):
         value = value.ljust(5, "/")
         for start_idx, end_idx, pcode in codes:
             instruction = self._get_encode_instruction(pcode)

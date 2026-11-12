@@ -1,10 +1,11 @@
 import logging
 import pathlib
+import queue
 import signal
 import threading
 import typing as t
+
 import yaml
-import queue
 
 from cnodcsubmit.scanner import CNODCLocalScanner
 from cnodcsubmit.sender import CNODCSubmissionManager
@@ -22,7 +23,6 @@ def run():
 
 
 class CNODCOrchestrator:
-
     def __init__(self, config: dict[str, t.Any]):
         self.config = config
         self._halt = threading.Event()
@@ -51,7 +51,9 @@ class CNODCOrchestrator:
         self._log.info("Signal %s caught", sig_num)
         self._halt.set()
         self._break_count += 1
-        self._log.debug("Break count [%s], halt flag [%s]", self._break_count, self._halt.is_set())
+        self._log.debug(
+            "Break count [%s], halt flag [%s]", self._break_count, self._halt.is_set()
+        )
         if self._break_count >= 3:
             self._log.critical("Critical halt")
             raise KeyboardInterrupt
@@ -71,7 +73,7 @@ class CNODCOrchestrator:
                 transfer_queue=self._transfer_queue,
                 halt=self._halt,
                 stop=threading.Event(),
-                config=self.config["scanners"][scanner_name]
+                config=self.config["scanners"][scanner_name],
             )
             scanner.start()
             self._threads[key] = scanner
@@ -85,7 +87,7 @@ class CNODCOrchestrator:
                 transfer_queue=self._transfer_queue,
                 halt=self._halt,
                 stop=threading.Event(),
-                config=self.config["sender"]
+                config=self.config["sender"],
             )
             sender.start()
             self._threads["_sender"] = sender

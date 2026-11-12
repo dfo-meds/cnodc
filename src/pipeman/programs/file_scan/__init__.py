@@ -1,1 +1,1 @@
-from .file_scan import FileScanTask, FileDownloadWorker
+from .file_scan import FileDownloadWorker, FileScanTask

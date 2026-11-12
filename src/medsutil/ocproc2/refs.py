@@ -1,11 +1,10 @@
-import abc
-import dataclasses
 import enum
 import typing as t
 
 if t.TYPE_CHECKING:
     from medsutil import ocproc2 as ocproc2
     from medsutil.ocproc2.util import ObjectWithMetadata
+
 
 class ElementType(enum.IntFlag):
     COORDINATES = enum.auto()
@@ -19,9 +18,7 @@ class ElementType(enum.IntFlag):
     METADATA = PARENT_METADATA | CHILD_METADATA | ELEMENT_METADATA | RECORDSET_METADATA
 
 
-
 class AnyRef:
-
     def __init__(self, path: str, parent: AnyRef | None = None):
         self.path: str = path
         self.parent: AnyRef | None = parent
@@ -36,24 +33,28 @@ class AnyRef:
     def ref_object(self) -> ObjectWithMetadata:
         raise NotImplementedError
 
-    def _child_element_refs(self, element_map: ocproc2.ElementMap, element_type: ElementType, base_path: str) -> t.Iterable[SingleElementRef | MultiElementRef]:
+    def _child_element_refs(
+        self, element_map: ocproc2.ElementMap, element_type: ElementType, base_path: str
+    ) -> t.Iterable[SingleElementRef | MultiElementRef]:
         for element_name, element in element_map.items():
             yield ElementRef.build(
                 element=element,
                 element_name=element_name,
                 element_type=element_type,
                 path=base_path + f"/{element_name}",
-                parent=self
+                parent=self,
             )
 
-class ElementRef(AnyRef):
 
-    def __init__(self,
-                 path: str,
-                 element: ocproc2.AbstractElement,
-                 element_name: str,
-                 element_type: ElementType,
-                 parent: AnyRef = None):
+class ElementRef(AnyRef):
+    def __init__(
+        self,
+        path: str,
+        element: ocproc2.AbstractElement,
+        element_name: str,
+        element_type: ElementType,
+        parent: AnyRef = None,
+    ):
         super().__init__(path, parent)
         self.element: ocproc2.AbstractElement = element
         self.element_name: str = element_name
@@ -66,13 +67,17 @@ class ElementRef(AnyRef):
     def values_keyed_for_sensor_rank(self) -> dict[int, SingleElementRef]:
         ranked = {}
         for index, sref in enumerate(self.single_element_refs()):
-            sref.sensor_rank = sref.element.metadata.best("SensorRank", coerce=int, default=-1 * index)
+            sref.sensor_rank = sref.element.metadata.best(
+                "SensorRank", coerce=int, default=-1 * index
+            )
             ranked[sref.sensor_rank] = sref
         return ranked
 
     def value_for_sensor_rank(self, sensor_rank: int) -> SingleElementRef | None:
         for index, sref in enumerate(self.single_element_refs()):
-            sref.sensor_rank = sref.element.metadata.best("SensorRank", coerce=int, default=-1 * index)
+            sref.sensor_rank = sref.element.metadata.best(
+                "SensorRank", coerce=int, default=-1 * index
+            )
             if sref.sensor_rank == sensor_rank:
                 return sref
         return None
@@ -84,28 +89,45 @@ class ElementRef(AnyRef):
         raise NotImplementedError
 
     def metadata_refs(self) -> t.Iterable[SingleElementRef | MultiElementRef]:
-        yield from self._child_element_refs(self.element.metadata, ElementType.ELEMENT_METADATA, f"{self.path.rstrip("/")}/metadata")
+        yield from self._child_element_refs(
+            self.element.metadata,
+            ElementType.ELEMENT_METADATA,
+            f"{self.path.rstrip('/')}/metadata",
+        )
 
     def setdefault_metadata_ref(self, name: str) -> SingleElementRef | MultiElementRef:
         return t.cast(SingleElementRef | MultiElementRef, self.metadata_ref(name, True))
 
-    def metadata_ref(self, name: str, create_when_missing: bool = False) -> SingleElementRef | MultiElementRef | None:
-        return ElementRef.build_ref_from_element_map(self.element.metadata, name, ElementType.ELEMENT_METADATA, f"{self.path.rstrip("/")}/metadata", create_when_missing, self)
+    def metadata_ref(
+        self, name: str, create_when_missing: bool = False
+    ) -> SingleElementRef | MultiElementRef | None:
+        return ElementRef.build_ref_from_element_map(
+            self.element.metadata,
+            name,
+            ElementType.ELEMENT_METADATA,
+            f"{self.path.rstrip('/')}/metadata",
+            create_when_missing,
+            self,
+        )
 
     @staticmethod
-    def build(element: ocproc2.AbstractElement, **kwargs) -> SingleElementRef | MultiElementRef:
+    def build(
+        element: ocproc2.AbstractElement, **kwargs
+    ) -> SingleElementRef | MultiElementRef:
         if not element.is_multivalue():
             return SingleElementRef(element=element, **kwargs)
         else:
             return MultiElementRef(element=element, **kwargs)
 
     @staticmethod
-    def build_ref_from_element_map(element_map: ocproc2.ElementMap,
-                                   name: str,
-                                   element_type: ElementType,
-                                   parent_path: str,
-                                   create_when_missing: bool,
-                                   parent: AnyRef) -> t.Optional[SingleElementRef | MultiElementRef]:
+    def build_ref_from_element_map(
+        element_map: ocproc2.ElementMap,
+        name: str,
+        element_type: ElementType,
+        parent_path: str,
+        create_when_missing: bool,
+        parent: AnyRef,
+    ) -> SingleElementRef | MultiElementRef | None:
         if name not in element_map:
             if create_when_missing:
                 element_map[name] = None
@@ -116,9 +138,8 @@ class ElementRef(AnyRef):
             element_name=name,
             element_type=element_type,
             path=parent_path.rstrip("/") + f"/{name}",
-            parent=parent
+            parent=parent,
         )
-
 
 
 class SingleElementRef(ElementRef):
@@ -152,22 +173,40 @@ class MultiElementRef(ElementRef):
                 element_type=self.element_type,
                 element_name=self.element_name,
                 path=self.path.rstrip("/") + f"/{idx}",
-                parent=self
+                parent=self,
             )
 
 
 class RecordSetRef(AnyRef):
-
-    def __init__(self, path: str, recordset: ocproc2.RecordSet, recordset_type: str, parent: AnyRef | None = None):
+    def __init__(
+        self,
+        path: str,
+        recordset: ocproc2.RecordSet,
+        recordset_type: str,
+        parent: AnyRef | None = None,
+    ):
         super().__init__(path, parent)
         self.recordset: ocproc2.RecordSet = recordset
         self.recordset_type: str = recordset_type
 
     def metadata_refs(self) -> t.Iterable[SingleElementRef | MultiElementRef]:
-        yield from self._child_element_refs(self.recordset.metadata, ElementType.RECORDSET_METADATA, f"{self.path.rstrip("/")}/metadata")
+        yield from self._child_element_refs(
+            self.recordset.metadata,
+            ElementType.RECORDSET_METADATA,
+            f"{self.path.rstrip('/')}/metadata",
+        )
 
-    def metadata_ref(self, name: str, create_when_missing: bool = False) -> SingleElementRef | MultiElementRef | None:
-        return ElementRef.build_ref_from_element_map(self.recordset.metadata, name, ElementType.RECORDSET_METADATA, f"{self.path.rstrip("/")}/metadata", create_when_missing, self)
+    def metadata_ref(
+        self, name: str, create_when_missing: bool = False
+    ) -> SingleElementRef | MultiElementRef | None:
+        return ElementRef.build_ref_from_element_map(
+            self.recordset.metadata,
+            name,
+            ElementType.RECORDSET_METADATA,
+            f"{self.path.rstrip('/')}/metadata",
+            create_when_missing,
+            self,
+        )
 
     def setdefault_metadata_ref(self, name: str) -> SingleElementRef | MultiElementRef:
         return t.cast(SingleElementRef | MultiElementRef, self.metadata_ref(name, True))
@@ -178,7 +217,7 @@ class RecordSetRef(AnyRef):
                 record=record,
                 recordset_type=self.recordset_type,
                 path=(self.path.rstrip("/") + f"/{idx}"),
-                parent=self
+                parent=self,
             )
 
     @property
@@ -189,41 +228,55 @@ class RecordSetRef(AnyRef):
 class RecordRef(AnyRef):
     RECORD_METADATA_TYPE = ElementType.CHILD_METADATA
 
-    def __init__(self, path: str, record: ocproc2.BaseRecord, parent: AnyRef | None = None):
+    def __init__(
+        self, path: str, record: ocproc2.BaseRecord, parent: AnyRef | None = None
+    ):
         super().__init__(path, parent)
         self.record: ocproc2.BaseRecord = record
 
     def profiles(self) -> t.Iterable[RecordSetRef]:
         yield from self.recordset_refs("PROFILE")
 
-    def recordset_refs(self, limit_types: t.Container[str] | None = None) -> t.Iterable[RecordSetRef]:
-        for recordset_type, recordset_dict in self.record.subrecords.record_sets.items():
+    def recordset_refs(
+        self, limit_types: t.Container[str] | None = None
+    ) -> t.Iterable[RecordSetRef]:
+        for (
+            recordset_type,
+            recordset_dict,
+        ) in self.record.subrecords.record_sets.items():
             if limit_types is None or recordset_type in limit_types:
-                base_path = f"{self.path.rstrip("/")}/{recordset_type}"
+                base_path = f"{self.path.rstrip('/')}/{recordset_type}"
                 for idx, recordset in recordset_dict.items():
                     yield RecordSetRef(
                         recordset=recordset,
                         recordset_type=recordset_type,
                         path=f"{base_path}/{idx}",
-                        parent=self
+                        parent=self,
                     )
+
     def recordset_ref(self, recordset_type: str, idx: int) -> t.Iterable[RecordSetRef]:
         yield RecordSetRef(
             recordset=self.record.subrecords[recordset_type][idx],
             recordset_type=recordset_type,
-            path=f"{self.path.rstrip("/")}/{recordset_type}/{idx}",
-            parent=self
+            path=f"{self.path.rstrip('/')}/{recordset_type}/{idx}",
+            parent=self,
         )
 
-    def record_refs(self, limit_types: t.Container[str] | None = None) -> t.Iterable[ChildRecordRef]:
+    def record_refs(
+        self, limit_types: t.Container[str] | None = None
+    ) -> t.Iterable[ChildRecordRef]:
         for rs_ref in self.recordset_refs(limit_types):
             yield from rs_ref.record_refs()
 
-    def single_element_refs(self, limit_types: ElementType | None = None) -> t.Iterable[SingleElementRef]:
+    def single_element_refs(
+        self, limit_types: ElementType | None = None
+    ) -> t.Iterable[SingleElementRef]:
         for element in self.element_refs(limit_types):
             yield from element.single_element_refs()
 
-    def element_refs(self, limit_types: ElementType = None) -> t.Iterable[SingleElementRef | MultiElementRef]:
+    def element_refs(
+        self, limit_types: ElementType = None
+    ) -> t.Iterable[SingleElementRef | MultiElementRef]:
         if limit_types is None or ElementType.PARAMETERS in limit_types:
             yield from self.parameter_refs()
         if limit_types is None or ElementType.COORDINATES in limit_types:
@@ -232,31 +285,76 @@ class RecordRef(AnyRef):
             yield from self.metadata_refs()
 
     def metadata_refs(self) -> t.Iterable[SingleElementRef | MultiElementRef]:
-        yield from self._child_element_refs(self.record.metadata, self.RECORD_METADATA_TYPE, f"{self.path.rstrip("/")}/metadata")
+        yield from self._child_element_refs(
+            self.record.metadata,
+            self.RECORD_METADATA_TYPE,
+            f"{self.path.rstrip('/')}/metadata",
+        )
 
     def parameter_refs(self) -> t.Iterable[SingleElementRef | MultiElementRef]:
-        yield from self._child_element_refs(self.record.parameters, ElementType.PARAMETERS, f"{self.path.rstrip("/")}/parameters")
+        yield from self._child_element_refs(
+            self.record.parameters,
+            ElementType.PARAMETERS,
+            f"{self.path.rstrip('/')}/parameters",
+        )
 
     def coordinate_refs(self) -> t.Iterable[SingleElementRef | MultiElementRef]:
-        yield from self._child_element_refs(self.record.coordinates, ElementType.COORDINATES, f"{self.path.rstrip("/")}/coordinates")
+        yield from self._child_element_refs(
+            self.record.coordinates,
+            ElementType.COORDINATES,
+            f"{self.path.rstrip('/')}/coordinates",
+        )
 
-    def metadata_ref(self, name: str, create_when_missing: bool = False) -> SingleElementRef | MultiElementRef | None:
-        return ElementRef.build_ref_from_element_map(self.record.metadata, name, self.RECORD_METADATA_TYPE, f"{self.path.rstrip("/")}/metadata", create_when_missing, self)
+    def metadata_ref(
+        self, name: str, create_when_missing: bool = False
+    ) -> SingleElementRef | MultiElementRef | None:
+        return ElementRef.build_ref_from_element_map(
+            self.record.metadata,
+            name,
+            self.RECORD_METADATA_TYPE,
+            f"{self.path.rstrip('/')}/metadata",
+            create_when_missing,
+            self,
+        )
 
     def setdefault_metadata_ref(self, name: str) -> SingleElementRef | MultiElementRef:
         return t.cast(SingleElementRef | MultiElementRef, self.metadata_ref(name, True))
 
-    def coordinate_ref(self, name: str, create_when_missing: bool = False) -> SingleElementRef | MultiElementRef | None:
-        return ElementRef.build_ref_from_element_map(self.record.coordinates, name, ElementType.COORDINATES, f"{self.path.rstrip("/")}/coordinates", create_when_missing, self)
+    def coordinate_ref(
+        self, name: str, create_when_missing: bool = False
+    ) -> SingleElementRef | MultiElementRef | None:
+        return ElementRef.build_ref_from_element_map(
+            self.record.coordinates,
+            name,
+            ElementType.COORDINATES,
+            f"{self.path.rstrip('/')}/coordinates",
+            create_when_missing,
+            self,
+        )
 
-    def setdefault_coordinate_ref(self, name: str) -> SingleElementRef | MultiElementRef:
-        return t.cast(SingleElementRef | MultiElementRef, self.coordinate_ref(name, True))
+    def setdefault_coordinate_ref(
+        self, name: str
+    ) -> SingleElementRef | MultiElementRef:
+        return t.cast(
+            SingleElementRef | MultiElementRef, self.coordinate_ref(name, True)
+        )
 
-    def parameter_ref(self, name: str, create_when_missing: bool = False) -> SingleElementRef | MultiElementRef | None:
-        return ElementRef.build_ref_from_element_map(self.record.parameters, name, ElementType.PARAMETERS, f"{self.path.rstrip("/")}/parameters", create_when_missing, self)
+    def parameter_ref(
+        self, name: str, create_when_missing: bool = False
+    ) -> SingleElementRef | MultiElementRef | None:
+        return ElementRef.build_ref_from_element_map(
+            self.record.parameters,
+            name,
+            ElementType.PARAMETERS,
+            f"{self.path.rstrip('/')}/parameters",
+            create_when_missing,
+            self,
+        )
 
     def setdefault_parameter_ref(self, name: str) -> SingleElementRef | MultiElementRef:
-        return t.cast(SingleElementRef | MultiElementRef, self.parameter_ref(name, True))
+        return t.cast(
+            SingleElementRef | MultiElementRef, self.parameter_ref(name, True)
+        )
 
     @property
     def ref_object(self) -> ocproc2.BaseRecord:
@@ -275,23 +373,30 @@ class ChildRecordRef(RecordRef):
     record: ocproc2.ChildRecord
     RECORD_METADATA_TYPE = ElementType.CHILD_METADATA
 
-    def __init__(self, path: str, record: ocproc2.ChildRecord, recordset_type: str, parent: AnyRef = None):
+    def __init__(
+        self,
+        path: str,
+        record: ocproc2.ChildRecord,
+        recordset_type: str,
+        parent: AnyRef = None,
+    ):
         super().__init__(path, record, parent)
         self.recordset_type: str = recordset_type
 
 
 class RecordCrawler:
-
-    def __init__(self,
-                 record_cb: t.Callable[[RecordRef], t.Any] | None = None,
-                 parent_record_cb: t.Callable[[ParentRecordRef], t.Any] | None = None,
-                 child_record_cb: t.Callable[[ChildRecordRef], t.Any] | None = None,
-                 element_cb: t.Callable[[ElementRef], t.Any] | None = None,
-                 multi_element_cb: t.Callable[[MultiElementRef], t.Any] | None = None,
-                 single_element_cb: t.Callable[[SingleElementRef], t.Any] | None = None,
-                 recordset_cb: t.Callable[[RecordSetRef], t.Any] | None = None,
-                 limit_element_types: ElementType | None = None,
-                 limit_subrecord_types: t.Container[str] | None = None):
+    def __init__(
+        self,
+        record_cb: t.Callable[[RecordRef], t.Any] | None = None,
+        parent_record_cb: t.Callable[[ParentRecordRef], t.Any] | None = None,
+        child_record_cb: t.Callable[[ChildRecordRef], t.Any] | None = None,
+        element_cb: t.Callable[[ElementRef], t.Any] | None = None,
+        multi_element_cb: t.Callable[[MultiElementRef], t.Any] | None = None,
+        single_element_cb: t.Callable[[SingleElementRef], t.Any] | None = None,
+        recordset_cb: t.Callable[[RecordSetRef], t.Any] | None = None,
+        limit_element_types: ElementType | None = None,
+        limit_subrecord_types: t.Container[str] | None = None,
+    ):
         self._record_cb = record_cb
         self._parent_record_cb = parent_record_cb
         self._child_record_cb = child_record_cb
@@ -301,8 +406,12 @@ class RecordCrawler:
         self._recordset_cb = recordset_cb
         self._limit_element_types = limit_element_types
         self._limit_subrecord_types = limit_subrecord_types
-        self._crawl_elements = any(x is not None for x in (element_cb, multi_element_cb, single_element_cb))
-        self._crawl_children = self._crawl_elements or any(x is not None for x in (recordset_cb, record_cb, child_record_cb))
+        self._crawl_elements = any(
+            x is not None for x in (element_cb, multi_element_cb, single_element_cb)
+        )
+        self._crawl_children = self._crawl_elements or any(
+            x is not None for x in (recordset_cb, record_cb, child_record_cb)
+        )
         self._crawl_record_elements = self._crawl_elements and (
             self._limit_element_types is not ElementType.RECORDSET_METADATA
         )

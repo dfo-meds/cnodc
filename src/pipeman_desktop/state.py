@@ -8,17 +8,21 @@ from tkinter import messagebox as tkmb
 import zrlog
 
 from gcapp.i18n import base as i18n
-from medsutil import ocproc2 as ocproc2, json
+from medsutil import json, ocproc2
 from medsutil.awaretime import AwareDateTime
-from medsutil.ocproc2 import OCProc2Action, AssignPlatform
-from pipeman_desktop.util import BatchOpenState, ReviewResult, CloseBatchResult, build_local_record
+from medsutil.ocproc2 import AssignPlatform, OCProc2Action
+from pipeman_desktop.util import (
+    BatchOpenState,
+    CloseBatchResult,
+    ReviewResult,
+    build_local_record,
+)
 
 if t.TYPE_CHECKING:
     from pipeman_desktop.main_app import PipemanDesktop
 
 
 class HistoryEntry:
-
     def undo(self, app: PipemanDesktop):
         raise NotImplementedError
 
@@ -27,8 +31,11 @@ class HistoryEntry:
 
 
 class ActionHistoryEntry(HistoryEntry):
-
-    def __init__(self, actions: list[tuple[str, OCProc2Action]] | None = None, remove_actions: list[int] | None = None):
+    def __init__(
+        self,
+        actions: list[tuple[str, OCProc2Action]] | None = None,
+        remove_actions: list[int] | None = None,
+    ):
         super().__init__()
         self._actions = actions or []
         self._remove_actions = remove_actions or []
@@ -39,12 +46,16 @@ class ActionHistoryEntry(HistoryEntry):
     def undo(self, app: PipemanDesktop):
         if self._removed_actions is not None:
             with app.local_db.cursor() as cur:
-                self._apply_actions(cur, self._removed_actions, self._inserted_ids or [])
+                self._apply_actions(
+                    cur, self._removed_actions, self._inserted_ids or []
+                )
             self._refresh_actions(app)
 
     def redo(self, app: PipemanDesktop):
         with app.local_db.cursor() as cur:
-            self._removed_actions, self._inserted_ids = self._apply_actions(cur, self._actions, self._remove_actions)
+            self._removed_actions, self._inserted_ids = self._apply_actions(
+                cur, self._actions, self._remove_actions
+            )
             self._remove_actions = []
         self._refresh_actions(app)
 
@@ -53,54 +64,63 @@ class ActionHistoryEntry(HistoryEntry):
         app.state.refresh_record_list()
         app.state.update_record(app.state.current_working_uuid, True)
 
-    def _apply_actions(self,
-                       cur,
-                       actions: list[tuple[str, OCProc2Action]],
-                       remove_actions: list[int]) -> tuple[list[tuple[str, OCProc2Action]], list[tuple[int]]]:
-            unique_uuids = {x[0] for x in actions}
-            for db_index in remove_actions:
-                cur.execute("SELECT record_uuid FROM actions WHERE rowid = ?", (db_index,))
-                unique_uuids.add(cur.fetchone()[0])
+    def _apply_actions(
+        self, cur, actions: list[tuple[str, OCProc2Action]], remove_actions: list[int]
+    ) -> tuple[list[tuple[str, OCProc2Action]], list[tuple[int]]]:
+        unique_uuids = {x[0] for x in actions}
+        for db_index in remove_actions:
+            cur.execute("SELECT record_uuid FROM actions WHERE rowid = ?", (db_index,))
+            unique_uuids.add(cur.fetchone()[0])
 
-            removed_actions = []
-            new_indices = []
-            for record_uuid in unique_uuids:
-                cur.execute("SELECT record_content FROM records WHERE record_uuid = ?", (record_uuid,))
-                row = cur.fetchone()
-                parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
+        removed_actions = []
+        new_indices = []
+        for record_uuid in unique_uuids:
+            cur.execute(
+                "SELECT record_content FROM records WHERE record_uuid = ?",
+                (record_uuid,),
+            )
+            row = cur.fetchone()
+            parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
 
-                new_actions = [x[1] for x in actions if x[0] == record_uuid]
-                cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (record_uuid,))
-                removed_indexes = []
-                for rowid, other_action_text in cur.fetchall():
-                    other_action = OCProc2Action.import_from_map(json.load_dict(other_action_text))
-                    if rowid in remove_actions or any(other_action.conflicts_with(action) for action in new_actions):
-                        removed_indexes.append(rowid)
-                        removed_actions.append((record_uuid, other_action))
-                    else:
-                        other_action.apply(parent)
-                for rowid in removed_indexes:
-                    cur.execute("DELETE FROM actions WHERE rowid = ?", (rowid,))
-                has_errors = 0
-                for action in new_actions:
-                    if has_errors == 0:
-                        has_errors = 1
-                    if action.is_blocker:
-                        has_errors = 2
-                    cur.execute("INSERT INTO actions (record_uuid, action_text) VALUES (?, ?) RETURNING rowid", (
-                        record_uuid,
-                        json.dumps(action.export())
-                    ))
-                    new_indices.append(cur.fetchone()[0])
-                    action.apply(parent)
-                info = build_local_record(parent, record_uuid)
-                info["has_errors"] = has_errors
-                cur.update("records", info, {"record_uuid": record_uuid})
-            cur.commit()
-            return removed_actions, new_indices
+            new_actions = [x[1] for x in actions if x[0] == record_uuid]
+            cur.execute(
+                "SELECT rowid, action_text FROM actions WHERE record_uuid = ?",
+                (record_uuid,),
+            )
+            removed_indexes = []
+            for rowid, other_action_text in cur.fetchall():
+                other_action = OCProc2Action.import_from_map(
+                    json.load_dict(other_action_text)
+                )
+                if rowid in remove_actions or any(
+                    other_action.conflicts_with(action) for action in new_actions
+                ):
+                    removed_indexes.append(rowid)
+                    removed_actions.append((record_uuid, other_action))
+                else:
+                    other_action.apply(parent)
+            for rowid in removed_indexes:
+                cur.execute("DELETE FROM actions WHERE rowid = ?", (rowid,))
+            has_errors = 0
+            for action in new_actions:
+                if has_errors == 0:
+                    has_errors = 1
+                if action.is_blocker:
+                    has_errors = 2
+                cur.execute(
+                    "INSERT INTO actions (record_uuid, action_text) VALUES (?, ?) RETURNING rowid",
+                    (record_uuid, json.dumps(action.export())),
+                )
+                new_indices.append(cur.fetchone()[0])
+                action.apply(parent)
+            info = build_local_record(parent, record_uuid)
+            info["has_errors"] = has_errors
+            cur.update("records", info, {"record_uuid": record_uuid})
+        cur.commit()
+        return removed_actions, new_indices
+
 
 class DisplayChange(enum.IntFlag):
-
     USER = enum.auto()
     BATCH_STATE = enum.auto()
     RECORD = enum.auto()
@@ -119,27 +139,30 @@ class DisplayChange(enum.IntFlag):
 
 
 class SimpleRecordInfo:
-
-    def __init__(self,
-                 idx: int,
-                 rowid: int,
-                 record_uuid: str,
-                 lat: t.Optional[float] = None,
-                 lon: t.Optional[float] = None,
-                 ts: t.Optional[str] = None,
-                 has_errors: t.Optional[bool] = None,
-                 lat_qc: t.Optional[int] = None,
-                 lon_qc: t.Optional[int] = None,
-                 time_qc: t.Optional[int] = None,
-                 platform_id: t.Optional[str] = None,
-                 source_uuid: str | None = None,
-                 received_date: str | None = None):
+    def __init__(
+        self,
+        idx: int,
+        rowid: int,
+        record_uuid: str,
+        lat: float | None = None,
+        lon: float | None = None,
+        ts: str | None = None,
+        has_errors: bool | None = None,
+        lat_qc: int | None = None,
+        lon_qc: int | None = None,
+        time_qc: int | None = None,
+        platform_id: str | None = None,
+        source_uuid: str | None = None,
+        received_date: str | None = None,
+    ):
         self.index: int = idx
         self.rowid: int = rowid
         self.record_uuid: str = record_uuid
         self.latitude: float | None = float(lat) if lat is not None else None
         self.longitude: float | None = float(lon) if lon is not None else None
-        self.timestamp: AwareDateTime | None = AwareDateTime.fromisoformat(ts) if ts else None
+        self.timestamp: AwareDateTime | None = (
+            AwareDateTime.fromisoformat(ts) if ts else None
+        )
         self.has_errors: bool = bool(has_errors)
         self.platform_id: str | None = platform_id
         self.latitude_qc: int = int(lat_qc) if lat_qc is not None else 0
@@ -150,7 +173,6 @@ class SimpleRecordInfo:
 
 
 class ApplicationState:
-
     def __init__(self, app: PipemanDesktop):
         self._log = zrlog.get_logger("pipeman_desktop.state")
         self._qc_mode = "empty"
@@ -160,16 +182,16 @@ class ApplicationState:
         self._custom_by_error_mode: t.Any = None
         self._error_mode: str | None = None
         self._test_protocol: str | None = None
-        self._username: t.Optional[str] = None
+        self._username: str | None = None
         self._available_services: list[str] | None = None
         self._queue_ready_report: list[tuple[str, str | None, int, int]] = []
         self._batch_save_in_progress: bool = False
         self._platform_save_in_progress: bool = False
         self._batch_service_name: str | None = None
-        self._batch_state: t.Optional[BatchOpenState] = None
+        self._batch_state: BatchOpenState | None = None
         self._has_unsaved_changes: bool = False
         self._batch_records: dict[str, SimpleRecordInfo] | None = {}
-        self._batch_close_op: t.Optional[ReviewResult] = None
+        self._batch_close_op: ReviewResult | None = None
         self._batch_actions: list[str] | None = None
         self._current_working_uuid: str | None = None
         self._current_parent: ocproc2.ParentRecord | None = None
@@ -178,10 +200,10 @@ class ApplicationState:
         self._current_record: ocproc2.BaseRecord | None = None
         self._current_child_path: str | None = None
         self._current_file_id: int | None = None
-        self.subrecord_path: t.Optional[str] = None
-        self.child_record: t.Optional[ocproc2.ChildRecord] = None
-        self.child_recordset: t.Optional[ocproc2.RecordSet] = None
-        self.actions: t.Optional[list[OCProc2Action]] = None
+        self.subrecord_path: str | None = None
+        self.child_record: ocproc2.ChildRecord | None = None
+        self.child_recordset: ocproc2.RecordSet | None = None
+        self.actions: list[OCProc2Action] | None = None
 
     @property
     def current_file_id(self) -> int | None:
@@ -197,7 +219,7 @@ class ApplicationState:
 
     @property
     def test_protocol(self) -> str:
-        return self._test_protocol or 'nodb'
+        return self._test_protocol or "nodb"
 
     @property
     def qc_file_path(self) -> pathlib.Path | None:
@@ -261,13 +283,22 @@ class ApplicationState:
         self._app.refresh_display(self, change_type)
 
     def has_access(self, service_name: str) -> bool:
-        return self._available_services is not None and service_name in self._available_services
+        return (
+            self._available_services is not None
+            and service_name in self._available_services
+        )
 
-    def logout(self,
-               after_success: t.Callable[[], t.Any] | None = None,
-               after_error: t.Callable[[], t.Any] | None = None,
-               after_cancel: t.Callable[[], t.Any] | None = None):
-        result = CloseBatchResult.UNABLE_TO_CLOSE if self._batch_state is not None else CloseBatchResult.ALREADY_CLOSED
+    def logout(
+        self,
+        after_success: t.Callable[[], t.Any] | None = None,
+        after_error: t.Callable[[], t.Any] | None = None,
+        after_cancel: t.Callable[[], t.Any] | None = None,
+    ):
+        result = (
+            CloseBatchResult.UNABLE_TO_CLOSE
+            if self._batch_state is not None
+            else CloseBatchResult.ALREADY_CLOSED
+        )
         if self.can_logout():
             result = self.close_current_batch(
                 batch_action=ReviewResult.RELEASE,
@@ -275,17 +306,24 @@ class ApplicationState:
                     self._finish_logout,
                     after_success=after_success,
                     after_error=after_error,
-                    after_cancel=after_cancel
-                )
+                    after_cancel=after_cancel,
+                ),
             )
-        self._finish_logout(result, after_success=after_success, after_error=after_error, after_cancel=after_cancel)
+        self._finish_logout(
+            result,
+            after_success=after_success,
+            after_error=after_error,
+            after_cancel=after_cancel,
+        )
         return result
 
-    def _finish_logout(self,
-                       result: CloseBatchResult | None = None,
-                       after_success: t.Callable[[], t.Any] | None = None,
-                       after_error: t.Callable[[], t.Any] | None = None,
-                       after_cancel: t.Callable[[], t.Any] | None = None):
+    def _finish_logout(
+        self,
+        result: CloseBatchResult | None = None,
+        after_success: t.Callable[[], t.Any] | None = None,
+        after_error: t.Callable[[], t.Any] | None = None,
+        after_cancel: t.Callable[[], t.Any] | None = None,
+    ):
 
         # this indicates we're coming in after the dispatcher has attempted to close the
         # current batch, so we try to determine the current state.
@@ -302,7 +340,7 @@ class ApplicationState:
                 title=i18n.tr("dialog.close_without_saving_error.title"),
                 message=i18n.tr("dialog.close_without_saving_error.message"),
             )
-            if result:
+            if user_option:
                 self.force_close_current_batch()
                 result = CloseBatchResult.ALREADY_CLOSED
             else:
@@ -316,26 +354,28 @@ class ApplicationState:
         elif result is CloseBatchResult.CANCELLED:
             after_cancel()
 
-    def _real_logout(self,
-                     after_success: t.Callable[[], t.Any] | None = None,
-                     after_error: t.Callable[[], t.Any] | None = None,):
+    def _real_logout(
+        self,
+        after_success: t.Callable[[], t.Any] | None = None,
+        after_error: t.Callable[[], t.Any] | None = None,
+    ):
         self._app.dispatcher.submit_job(
-            'pipeman_desktop.client.api_client.logout',
-            on_success=functools.partial(self._logout_success, after_success=after_success),
+            "pipeman_desktop.client.api_client.logout",
+            on_success=functools.partial(
+                self._logout_success, after_success=after_success
+            ),
             on_error=functools.partial(self._logout_error, after_error=after_error),
         )
 
-    def _logout_success(self,
-                        result,
-                        after_success: t.Callable[[], t.Any] | None = None):
+    def _logout_success(
+        self, result, after_success: t.Callable[[], t.Any] | None = None
+    ):
 
         self._app.state.update_user_info(None, None)
         if after_success is not None:
             after_success()
 
-    def _logout_error(self,
-                      result,
-                      after_error: t.Callable[[], t.Any] | None = None):
+    def _logout_error(self, result, after_error: t.Callable[[], t.Any] | None = None):
         self._app.show_user_exception(result)
         if after_error is not None:
             after_error()
@@ -351,10 +391,19 @@ class ApplicationState:
         self._queue_ready_report = result
         self.refresh_display(DisplayChange.QUEUE_INFO)
 
-    def queue_ready_count(self, queue_name: str, subqueue_name: str | None = None, escalation_level: int | None = None) -> int:
+    def queue_ready_count(
+        self,
+        queue_name: str,
+        subqueue_name: str | None = None,
+        escalation_level: int | None = None,
+    ) -> int:
         total = 0
         for x in self._queue_ready_report:
-            if x[0] == queue_name and (subqueue_name is None or subqueue_name == x[1]) and (escalation_level is None or x[2] == escalation_level):
+            if (
+                x[0] == queue_name
+                and (subqueue_name is None or subqueue_name == x[1])
+                and (escalation_level is None or x[2] == escalation_level)
+            ):
                 total += x[3]
         return total
 
@@ -364,17 +413,27 @@ class ApplicationState:
                 self.update_save_flags(True)
                 self._app.dispatcher.submit_job(
                     "pipeman_desktop.client.api_client.save_changes",
-                    on_error=functools.partial(self._on_save_error, after_save=after_save),
-                    on_success=functools.partial(self._on_save_success, after_save=after_save)
+                    on_error=functools.partial(
+                        self._on_save_error, after_save=after_save
+                    ),
+                    on_success=functools.partial(
+                        self._on_save_success, after_save=after_save
+                    ),
                 )
             else:
                 self._on_save_success(True, after_save=after_save)
 
-    def _on_save_error(self, ex: Exception, after_save: t.Callable[[bool | None], t.Any] | None = None):
+    def _on_save_error(
+        self, ex: Exception, after_save: t.Callable[[bool | None], t.Any] | None = None
+    ):
         self._app.show_user_exception(ex)
         self._on_save_success(None, after_save)
 
-    def _on_save_success(self, result: bool | None, after_save: t.Callable[[bool | None], t.Any] | None = None):
+    def _on_save_success(
+        self,
+        result: bool | None,
+        after_save: t.Callable[[bool | None], t.Any] | None = None,
+    ):
         if result is False:
             self._app.show_user_info(
                 i18n.tr("dialog.save_fail.title"),
@@ -391,11 +450,14 @@ class ApplicationState:
             return False
         if self.batch_state is None or self.batch_state != BatchOpenState.OPEN:
             return False
-        return self.has_access(f"batch_qc.{self._batch_service_name}.save") and self.has_unsaved_changes
+        return (
+            self.has_access(f"batch_qc.{self._batch_service_name}.save")
+            and self.has_unsaved_changes
+        )
 
-    def open_qc_batch(self,
-                      batch_service_name: str,
-                      on_no_item: t.Callable | None = None):
+    def open_qc_batch(
+        self, batch_service_name: str, on_no_item: t.Callable | None = None
+    ):
         self._batch_service_name = batch_service_name
         self._batch_state = BatchOpenState.OPENING
         self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
@@ -404,17 +466,27 @@ class ApplicationState:
             job_kwargs={
                 "batch_service_name": self._batch_service_name,
             },
-            on_success=functools.partial(self._on_qc_batch_open_success, on_no_item=on_no_item),
-            on_error=functools.partial(self._on_qc_batch_open_error, on_no_item=on_no_item)
+            on_success=functools.partial(
+                self._on_qc_batch_open_success, on_no_item=on_no_item
+            ),
+            on_error=functools.partial(
+                self._on_qc_batch_open_error, on_no_item=on_no_item
+            ),
         )
 
-    def _on_qc_batch_open_error(self, ex: Exception, on_no_item: t.Callable | None = None):
+    def _on_qc_batch_open_error(
+        self, ex: Exception, on_no_item: t.Callable | None = None
+    ):
         self._app.show_user_exception(ex)
         self._batch_state = BatchOpenState.OPEN_ERROR
         self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING)
         self._on_qc_batch_open_success(False, on_no_item)
 
-    def _on_qc_batch_open_success(self, result: tuple[list[str], str, str, t.Any] | None | bool, on_no_item: t.Callable | None = None):
+    def _on_qc_batch_open_success(
+        self,
+        result: tuple[list[str], str, str, t.Any] | None | bool,
+        on_no_item: t.Callable | None = None,
+    ):
         if isinstance(result, tuple):
             self._batch_actions = result[0]
             self._test_protocol = result[1]
@@ -423,14 +495,22 @@ class ApplicationState:
             self._batch_state = BatchOpenState.OPEN
             self._has_unsaved_changes = False
             self.update_qc_state(result[2])
-            self.refresh_display(DisplayChange.BATCH_STATE | DisplayChange.SAVING | DisplayChange.RECORD_LIST)
+            self.refresh_display(
+                DisplayChange.BATCH_STATE
+                | DisplayChange.SAVING
+                | DisplayChange.RECORD_LIST
+            )
         else:
             self._batch_actions = None
             self._test_protocol = None
             if result is not False:
                 self._app.show_user_info(
-                    title=i18n.tr(f'dialog.no_items.title', service=self.batch_service_name),
-                    message=i18n.tr(f'dialog.no_items.message', service=self.batch_service_name),
+                    title=i18n.tr(
+                        "dialog.no_items.title", service=self.batch_service_name
+                    ),
+                    message=i18n.tr(
+                        "dialog.no_items.message", service=self.batch_service_name
+                    ),
                 )
             if on_no_item is not None:
                 on_no_item()
@@ -443,7 +523,10 @@ class ApplicationState:
             return False
         if self.batch_state is not None:
             return False
-        return any(x.startswith("batch_qc.") and x.endswith(".open") for x in self._available_services)
+        return any(
+            x.startswith("batch_qc.") and x.endswith(".open")
+            for x in self._available_services
+        )
 
     def force_close_current_batch(self):
         if self._batch_state is not None:
@@ -451,11 +534,13 @@ class ApplicationState:
             self.update_batch_state(BatchOpenState.CLOSING)
             self._on_close_current_batch_success(True)
 
-    def close_current_batch(self,
-                            batch_action: ReviewResult,
-                            on_success: t.Callable | None = None,
-                            on_error: t.Callable | None = None,
-                            after_close: t.Callable | None = None) -> CloseBatchResult:
+    def close_current_batch(
+        self,
+        batch_action: ReviewResult,
+        on_success: t.Callable | None = None,
+        on_error: t.Callable | None = None,
+        after_close: t.Callable | None = None,
+    ) -> CloseBatchResult:
         if self.can_close_current_batch(batch_action):
             if self.has_unsaved_changes:
                 result = tkmb.askyesno(
@@ -471,24 +556,44 @@ class ApplicationState:
                 job_kwargs={
                     "close_operation": batch_action.value,
                 },
-                on_success=functools.partial(self._on_close_current_batch_success, on_success=on_success, after_close=after_close),
-                on_error=functools.partial(self._on_close_current_batch_error, on_error=on_error, after_close=after_close)
+                on_success=functools.partial(
+                    self._on_close_current_batch_success,
+                    on_success=on_success,
+                    after_close=after_close,
+                ),
+                on_error=functools.partial(
+                    self._on_close_current_batch_error,
+                    on_error=on_error,
+                    after_close=after_close,
+                ),
             )
             return CloseBatchResult.CLOSING
         elif self._batch_state is None:
-            self._on_close_current_batch_success(True, on_success=on_success, after_close=after_close)
+            self._on_close_current_batch_success(
+                True, on_success=on_success, after_close=after_close
+            )
             return CloseBatchResult.ALREADY_CLOSED
         else:
             return CloseBatchResult.UNABLE_TO_CLOSE
 
-    def _on_close_current_batch_error(self, ex: Exception, on_error: t.Callable | None = None, after_close: t.Callable | None = None):
+    def _on_close_current_batch_error(
+        self,
+        ex: Exception,
+        on_error: t.Callable | None = None,
+        after_close: t.Callable | None = None,
+    ):
         self._app.show_user_exception(ex)
         self.update_batch_state(BatchOpenState.CLOSE_ERROR)
         if on_error is not None:
             on_error()
         self._on_close_current_batch_success(None, after_close=after_close)
 
-    def _on_close_current_batch_success(self, result: bool | None, on_success: t.Callable | None = None, after_close: t.Callable | None = None):
+    def _on_close_current_batch_success(
+        self,
+        result: bool | None,
+        on_success: t.Callable | None = None,
+        after_close: t.Callable | None = None,
+    ):
         if result:
             if self._batch_state is not None:
                 self.update_batch_state(BatchOpenState.CLOSED)
@@ -503,17 +608,19 @@ class ApplicationState:
         if after_close is not None:
             after_close()
 
-    BATCH_VARIABLE_AVAILABILITY = {
+    BATCH_VARIABLE_AVAILABILITY = (
         ReviewResult.DESCALATE,
         ReviewResult.ESCALATE,
         ReviewResult.CONTINUE,
         ReviewResult.STOP,
-    }
+    )
 
     def refresh_record_list(self, broadcast: bool = True):
         self._batch_records = {}
         with self._app.local_db.cursor() as cur:
-            cur.execute("SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, platform_id, source_uuid, received_date FROM records ORDER BY platform_id ASC, datetime ASC")
+            cur.execute(
+                "SELECT rowid, record_uuid, lat, lon, datetime, has_errors, lat_qc, lon_qc, datetime_qc, platform_id, source_uuid, received_date FROM records ORDER BY platform_id ASC, datetime ASC"
+            )
             for idx, row in enumerate(cur.fetchall()):
                 record = SimpleRecordInfo(idx + 1, *row)
                 self._batch_records[record.record_uuid] = record
@@ -522,21 +629,37 @@ class ApplicationState:
 
     def can_close_current_batch(self, batch_action: ReviewResult) -> bool:
         if self.batch_save_in_progress:
-            self._log.debug("Cannot close batch to [%s] because save is in progress", batch_action)
+            self._log.debug(
+                "Cannot close batch to [%s] because save is in progress", batch_action
+            )
             return False
         if self.batch_state is None or self.batch_state != BatchOpenState.OPEN:
-            self._log.debug("Cannot close batch to [%s] because batch is not in an open state", batch_action)
+            self._log.debug(
+                "Cannot close batch to [%s] because batch is not in an open state",
+                batch_action,
+            )
             return False
-        if batch_action is ReviewResult.CONTINUE and any(x.has_errors == 2 for x in self.batch_records.values()):
-            self._log.debug("Cannot close batch to [%s] because there are blocking errors", batch_action)
+        if batch_action is ReviewResult.CONTINUE and any(
+            x.has_errors == 2 for x in self.batch_records.values()
+        ):
+            self._log.debug(
+                "Cannot close batch to [%s] because there are blocking errors",
+                batch_action,
+            )
             return False
         if batch_action.value.startswith("_"):
             return True
         if batch_action in self.BATCH_VARIABLE_AVAILABILITY:
-            if self._batch_actions is not None and batch_action.value in self._batch_actions:
+            if (
+                self._batch_actions is not None
+                and batch_action.value in self._batch_actions
+            ):
                 return True
             else:
-                self._log.debug("Cannot close batch to [%s] because the state is not available", batch_action)
+                self._log.debug(
+                    "Cannot close batch to [%s] because the state is not available",
+                    batch_action,
+                )
                 return False
         else:
             return True
@@ -545,21 +668,18 @@ class ApplicationState:
         results = set()
         if self._available_services is not None:
             for key in self._available_services:
-                pieces = key.split('.')
+                pieces = key.split(".")
                 if pieces[0] == "batch_qc" and len(pieces) > 1 and pieces[1]:
                     results.add(pieces[1])
-        return {
-            x: i18n.tr(f"batch_qc.{x}", default=x)
-            for x in results
-        }
+        return {x: i18n.tr(f"batch_qc.{x}", default=x) for x in results}
 
     def load_closest(self, path: str):
-        all_items: list[str] = path.split('/')
+        all_items: list[str] = path.split("/")
         if "subrecords" in all_items:
             idx = -1
             while all_items[idx] != "subrecords":
                 idx -= 1
-            self.update_child_path("/".join(all_items[:idx+4]))
+            self.update_child_path("/".join(all_items[: idx + 4]))
         else:
             self.update_child_path(None)
 
@@ -568,11 +688,14 @@ class ApplicationState:
             return False
         if self.platform_save_in_progress:
             return False
-        return self._available_services is not None and "desktop.create_platform" in self._available_services
+        return (
+            self._available_services is not None
+            and "desktop.create_platform" in self._available_services
+        )
 
     def add_history_entry(self, history: HistoryEntry):
         history.redo(self._app)
-        self._history = self._history[:self._current_item+1]
+        self._history = self._history[: self._current_item + 1]
         self._history.append(history)
         self._current_item += 1
         self.refresh_display(DisplayChange.HISTORY)
@@ -597,6 +720,7 @@ class ApplicationState:
 
     def add_action_metadata(self, action: OCProc2Action) -> OCProc2Action:
         from pipeman_desktop import VERSION
+
         action.source_name = "pipeman_desktop"
         action.source_version = VERSION
         action.source_instance = socket.gethostname()
@@ -617,7 +741,10 @@ class ApplicationState:
             self.update_file_id(None)
         else:
             with self._app.local_db.cursor() as cur:
-                cur.execute("SELECT rowid FROM files WHERE source_uuid = ? AND received_date = ?", (new_file_uuid, received_date))
+                cur.execute(
+                    "SELECT rowid FROM files WHERE source_uuid = ? AND received_date = ?",
+                    (new_file_uuid, received_date),
+                )
                 row = cur.fetchone()
                 if row:
                     self.update_file_id(row[0])
@@ -629,40 +756,76 @@ class ApplicationState:
             self._current_file_id = file_rowid
             self.refresh_display(DisplayChange.SOURCE_FILE)
 
-    def update_all_record_platforms(self, platform_uuid: str | None, platform_type: str | None = None):
-        self.add_history_entry(ActionHistoryEntry([
-            (record.record_uuid, self.add_action_metadata(AssignPlatform(
-                platform_uuid=platform_uuid,
-                platform_type=platform_type,
-                test_protocol=self._test_protocol
-            )))
-            for record in self.batch_records.values()
-        ]))
+    def update_all_record_platforms(
+        self, platform_uuid: str | None, platform_type: str | None = None
+    ):
+        self.add_history_entry(
+            ActionHistoryEntry(
+                [
+                    (
+                        record.record_uuid,
+                        self.add_action_metadata(
+                            AssignPlatform(
+                                platform_uuid=platform_uuid,
+                                platform_type=platform_type,
+                                test_protocol=self._test_protocol,
+                            )
+                        ),
+                    )
+                    for record in self.batch_records.values()
+                ]
+            )
+        )
 
-    def update_record_platform(self,
-                               record_uuid: str,
-                               platform_uuid: str | None,
-                               platform_type: str | None = None):
-        self.add_history_entry(ActionHistoryEntry([
-            (record_uuid, self.add_action_metadata(AssignPlatform(
-                platform_uuid=platform_uuid,
-                platform_type=platform_type,
-                test_protocol=self._test_protocol
-            )))
-        ]))
+    def update_record_platform(
+        self,
+        record_uuid: str,
+        platform_uuid: str | None,
+        platform_type: str | None = None,
+    ):
+        self.add_history_entry(
+            ActionHistoryEntry(
+                [
+                    (
+                        record_uuid,
+                        self.add_action_metadata(
+                            AssignPlatform(
+                                platform_uuid=platform_uuid,
+                                platform_type=platform_type,
+                                test_protocol=self._test_protocol,
+                            )
+                        ),
+                    )
+                ]
+            )
+        )
 
     def add_actions(self, actions: t.Iterable[OCProc2Action]):
         if self.current_working_uuid is not None:
-            self.add_history_entry(ActionHistoryEntry([
-                (t.cast(str, self.current_working_uuid), self.add_action_metadata(action))
-                for action in actions
-            ]))
+            self.add_history_entry(
+                ActionHistoryEntry(
+                    [
+                        (
+                            t.cast(str, self.current_working_uuid),
+                            self.add_action_metadata(action),
+                        )
+                        for action in actions
+                    ]
+                )
+            )
 
     def add_action(self, action: OCProc2Action):
         if self.current_working_uuid is not None:
-            self.add_history_entry(ActionHistoryEntry([
-                (t.cast(str, self.current_working_uuid), self.add_action_metadata(action)),
-            ]))
+            self.add_history_entry(
+                ActionHistoryEntry(
+                    [
+                        (
+                            t.cast(str, self.current_working_uuid),
+                            self.add_action_metadata(action),
+                        ),
+                    ]
+                )
+            )
 
     def delete_action(self, db_id: int):
         self.add_history_entry(ActionHistoryEntry(remove_actions=[db_id]))
@@ -682,47 +845,83 @@ class ApplicationState:
             self._current_actions = None
             self._current_recordset = None
             self._current_child_path = None
-            self.refresh_display(DisplayChange.RECORD | DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET | DisplayChange.ACTION)
+            self.refresh_display(
+                DisplayChange.RECORD
+                | DisplayChange.RECORD_CHILD
+                | DisplayChange.RECORD_SET
+                | DisplayChange.ACTION
+            )
             self.update_file_uuid(None, None)
         elif force_reload or working_uuid != self._current_working_uuid:
             with self._app.local_db.cursor() as cur:
-                cur.execute("SELECT record_content, source_uuid, received_date FROM records WHERE record_uuid = ?", (working_uuid,))
+                cur.execute(
+                    "SELECT record_content, source_uuid, received_date FROM records WHERE record_uuid = ?",
+                    (working_uuid,),
+                )
                 row = cur.fetchone()
                 if row is None:
                     raise ValueError("Invalid record ID")
-                self._current_parent = ocproc2.ParentRecord.build_from_mapping(json.load_dict(row[0]))
+                self._current_parent = ocproc2.ParentRecord.build_from_mapping(
+                    json.load_dict(row[0])
+                )
                 self._update_actions(working_uuid)
                 self._current_recordset = None
                 self._current_record = self._current_parent
-                if working_uuid == self._current_working_uuid and self._current_child_path is not None:
-                    self.update_child_path(self._current_child_path, force_reload=True, _send_refresh=False)
+                if (
+                    working_uuid == self._current_working_uuid
+                    and self._current_child_path is not None
+                ):
+                    self.update_child_path(
+                        self._current_child_path, force_reload=True, _send_refresh=False
+                    )
                 else:
                     self._current_child_path = None
                 self._current_working_uuid = working_uuid
-                self.refresh_display(DisplayChange.RECORD | DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET | DisplayChange.ACTION)
+                self.refresh_display(
+                    DisplayChange.RECORD
+                    | DisplayChange.RECORD_CHILD
+                    | DisplayChange.RECORD_SET
+                    | DisplayChange.ACTION
+                )
                 self.update_file_uuid(row[1], row[2])
 
     def _update_actions(self, working_uuid: str | None = None):
-        if working_uuid is None: working_uuid = self._current_working_uuid
-        if working_uuid is None: return
+        if working_uuid is None:
+            working_uuid = self._current_working_uuid
+        if working_uuid is None:
+            return
         with self._app.local_db.cursor() as cur:
-            cur.execute("SELECT rowid, action_text FROM actions WHERE record_uuid = ?", (working_uuid,))
+            cur.execute(
+                "SELECT rowid, action_text FROM actions WHERE record_uuid = ?",
+                (working_uuid,),
+            )
             self._current_actions = {}
             for rowid, action in cur.fetchall():
                 operation = OCProc2Action.import_from_map(json.load_dict(action))
                 operation.apply(self._current_parent)
                 self._current_actions[rowid] = operation
 
-    def update_child_path(self, subrecord_path: str | None, force_reload: bool = False, _send_refresh: bool = True):
+    def update_child_path(
+        self,
+        subrecord_path: str | None,
+        force_reload: bool = False,
+        _send_refresh: bool = True,
+    ):
         if subrecord_path is None and self._current_child_path is not None:
             self._current_record = None
             self._current_recordset = None
             self._current_child_path = None
             if _send_refresh:
-                self.refresh_display(DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET)
+                self.refresh_display(
+                    DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET
+                )
         if force_reload or subrecord_path != self._current_child_path:
             self._current_child_path = subrecord_path
-            child = self._current_parent.find_child(subrecord_path) if subrecord_path is not None else None
+            child = (
+                self._current_parent.find_child(subrecord_path)
+                if subrecord_path is not None
+                else None
+            )
             if isinstance(child, ocproc2.RecordSet):
                 self._current_recordset = child
                 self._current_record = None
@@ -734,7 +933,9 @@ class ApplicationState:
                 self._current_recordset = None
                 self._current_child_path = None
             if _send_refresh:
-                self.refresh_display(DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET)
+                self.refresh_display(
+                    DisplayChange.RECORD_CHILD | DisplayChange.RECORD_SET
+                )
 
     def update_user_info(self, username: str | None, access_list: list[str]) -> bool:
         if self.username != username or self._available_services != access_list:
@@ -746,15 +947,26 @@ class ApplicationState:
             return True
         return False
 
-    def update_save_flags(self, saving_batch: bool | None = None, has_unsaved_changes: t.Optional[bool] = None, saving_platform: bool | None = None):
+    def update_save_flags(
+        self,
+        saving_batch: bool | None = None,
+        has_unsaved_changes: bool | None = None,
+        saving_platform: bool | None = None,
+    ):
         broadcast: bool = False
         if saving_batch is not None and saving_batch != self._batch_save_in_progress:
             self._batch_save_in_progress = bool(saving_batch)
             broadcast = True
-        if saving_platform is not None and saving_platform != self._platform_save_in_progress:
+        if (
+            saving_platform is not None
+            and saving_platform != self._platform_save_in_progress
+        ):
             self._platform_save_in_progress = bool(saving_platform)
             broadcast = True
-        if has_unsaved_changes is not None and has_unsaved_changes != self._has_unsaved_changes:
+        if (
+            has_unsaved_changes is not None
+            and has_unsaved_changes != self._has_unsaved_changes
+        ):
             self._has_unsaved_changes = bool(has_unsaved_changes)
             broadcast = True
         if broadcast:
@@ -777,10 +989,10 @@ class ApplicationState:
 
     def ordered_simple_records(self) -> list[SimpleRecordInfo]:
         srs = list(self.batch_records.values())
-        srs.sort(key=lambda x: (x.platform_id or '', x.timestamp))
+        srs.sort(key=lambda x: (x.platform_id or "", x.timestamp))
         return srs
 
-    def current_coordinates(self) -> t.Optional[tuple[float, float]]:
+    def current_coordinates(self) -> tuple[float, float] | None:
         if self.current_working_uuid is None:
             return None
         if self.batch_records is None:

@@ -1,47 +1,43 @@
-import functools
 import pathlib
 import queue
+import threading
 import time
 import tkinter as tk
 import tkinter.messagebox as tkmb
-import tkinter.ttk as ttk
 import traceback
+import typing as t
+import uuid
+from tkinter import ttk
 
 import zrlog
-from gcapp.system import System
-from medsutil.savedata import SaveData
-from pipeman_desktop.panes.relationships_pane import RelationshipsPane
-from pipeman_desktop.state import DisplayChange, ApplicationState
-from pipeman_desktop.client.local_db import LocalDatabase
-from pipeman_desktop.panes.action_pane import ActionPane
-from pipeman_desktop.panes.qc_pane import QCPane
-from pipeman_desktop.components.choice_dialog import ask_choice
-import gcapp.i18n.base as i18n
-import threading
-import uuid
-import typing as t
+from autoinject import injector
 
+import gcapp.i18n.base as i18n
+from gcapp.i18n.base import TranslatableError, TranslationManager
+from gcapp.system import System
+from medsutil.dynamic import dynamic_object
+from medsutil.savedata import SaveData
+from pipeman_desktop.client.local_db import LocalDatabase
+from pipeman_desktop.components.choice_dialog import ask_choice
+from pipeman_desktop.components.loading_wheel import LoadingWheel
+from pipeman_desktop.components.menu_manager import MenuManager
+from pipeman_desktop.i18n import DesktopLanguageDetector
+from pipeman_desktop.messenger import CrossThreadMessenger
+from pipeman_desktop.panes.action_pane import ActionPane
 from pipeman_desktop.panes.error_pane import ErrorPane
 from pipeman_desktop.panes.graph_pane import GraphPane
 from pipeman_desktop.panes.history_pane import HistoryPane
-from pipeman_desktop.components.loading_wheel import LoadingWheel
 from pipeman_desktop.panes.login_pane import LoginPane
-from pipeman_desktop.components.menu_manager import MenuManager
-from pipeman_desktop.messenger import CrossThreadMessenger
-from pipeman_desktop.panes.parameter_pane import ParameterPane
-from pipeman_desktop.panes.record_list_pane import RecordListPane
-from pipeman_desktop.panes.platform_pane import PlatformPane
 from pipeman_desktop.panes.map_pane import MapPane
-
-from gcapp.i18n.base import TranslatableError, TranslationManager
-from medsutil.dynamic import dynamic_object
-from autoinject import injector
-
-from pipeman_desktop.i18n import DesktopLanguageDetector
+from pipeman_desktop.panes.parameter_pane import ParameterPane
+from pipeman_desktop.panes.platform_pane import PlatformPane
+from pipeman_desktop.panes.qc_pane import QCPane
+from pipeman_desktop.panes.record_list_pane import RecordListPane
+from pipeman_desktop.panes.relationships_pane import RelationshipsPane
+from pipeman_desktop.state import ApplicationState, DisplayChange
 
 
 class PipemanDispatcher(threading.Thread):
-
     messenger: CrossThreadMessenger = None
 
     @injector.construct
@@ -85,12 +81,14 @@ class PipemanDispatcher(threading.Thread):
             self.result_queue.put_nowait((job_id, result))
             self.is_working.clear()
 
-    def submit_job(self,
-                   job_callable: str,
-                   on_success: t.Callable,
-                   on_error: t.Callable = None,
-                   job_args: list = None,
-                   job_kwargs: dict = None):
+    def submit_job(
+        self,
+        job_callable: str,
+        on_success: t.Callable,
+        on_error: t.Callable | None = None,
+        job_args: list | None = None,
+        job_kwargs: dict| None = None,
+    ):
 
         _ = dynamic_object(job_callable)
         job_id = str(uuid.uuid4())
@@ -104,7 +102,11 @@ class PipemanDispatcher(threading.Thread):
                 self._process_result(item[0], item[1])
             except queue.Empty:
                 break
-        if self.is_working.is_set() or not self.work_queue.empty() or not self.result_queue.empty():
+        if (
+            self.is_working.is_set()
+            or not self.work_queue.empty()
+            or not self.result_queue.empty()
+        ):
             self._loading.enable()
         else:
             self._loading.disable()
@@ -112,22 +114,29 @@ class PipemanDispatcher(threading.Thread):
     def _process_result(self, job_id: str, results: t.Any):
         if job_id in self._job_map:
             try:
-                if isinstance(results, tuple) and len(results) == 2 and isinstance(results[0], traceback.TracebackException):
-                    output = ''.join(results[0].format())
-                    zrlog.get_logger('desktop.dispatcher').error(f"Exception in dispatched method: {output}")
+                if (
+                    isinstance(results, tuple)
+                    and len(results) == 2
+                    and isinstance(results[0], traceback.TracebackException)
+                ):
+                    output = "".join(results[0].format())
+                    zrlog.get_logger("desktop.dispatcher").error(
+                        f"Exception in dispatched method: {output}"
+                    )
                     if self._job_map[job_id][1] is not None:
                         self._job_map[job_id][1](results[1])
                 else:
                     self._job_map[job_id][0](results)
-            except Exception as ex:
+            except Exception:
                 # TODO: user error handling
-                zrlog.get_logger('desktop.dispatcher').exception('Exception during dispatch handling')
+                zrlog.get_logger("desktop.dispatcher").exception(
+                    "Exception during dispatch handling"
+                )
             finally:
                 del self._job_map[job_id]
 
 
 class PipemanDesktop:
-
     local_db: LocalDatabase = None
     messenger: CrossThreadMessenger = None
     detector: i18n.LanguageDetector = None
@@ -136,30 +145,36 @@ class PipemanDesktop:
     @injector.construct
     def __init__(self, system: System):
         self._is_closing: bool = False
-        self._save_data = SaveData(pathlib.Path("~/.pipeman.preferences.json").expanduser().absolute(), True)
-        self.log = zrlog.get_logger('cnodc.desktop')
+        self._save_data = SaveData(
+            pathlib.Path("~/.pipeman.preferences.json").expanduser().absolute(), True
+        )
+        self.log = zrlog.get_logger("cnodc.desktop")
         self.state = ApplicationState(self)
         self._current_screen_size = None
         self._last_screen_width_change_time = None
         self._screen_resize_in_progress = False
         self.root = tk.Tk()
-        self.root.state('zoomed')
-        self.root.title(i18n.tr('root_title'))
-        self.root.geometry('900x500')
+        self.root.state("zoomed")
+        self.root.title(i18n.tr("root_title"))
+        self.root.geometry("900x500")
         self.root.bind("<Configure>", self.on_configure)
         self.root.bind("<Control-z>", self.state.undo)
         self.root.bind("<Control-y>", self.state.redo)
-        self.root.protocol('WM_DELETE_WINDOW', self.close)
+        self.root.protocol("WM_DELETE_WINDOW", self.close)
         self._run_on_startup = True
         s = ttk.Style()
-        s.configure('Errored.BorderedEntry.TFrame', background='red')
-        s.configure('TButton', background='#FFFFFF')
-        s.configure('Treeview', indent=5)
+        s.configure("Errored.BorderedEntry.TFrame", background="red")
+        s.configure("TButton", background="#FFFFFF")
+        s.configure("Treeview", indent=5)
         self.menus: MenuManager = MenuManager(self.root)
-        self.menus.add_sub_menu('file', 'menu.file')
-        self.menus.add_sub_menu('qc', 'menu.qc')
-        self.menus.add_command("qc/undo", "menu.undo", self.state.undo, False, accelerator="Ctrl+Z")
-        self.menus.add_command("qc/redo", "menu.redo", self.state.redo, False, accelerator="Ctrl+Y")
+        self.menus.add_sub_menu("file", "menu.file")
+        self.menus.add_sub_menu("qc", "menu.qc")
+        self.menus.add_command(
+            "qc/undo", "menu.undo", self.state.undo, False, accelerator="Ctrl+Z"
+        )
+        self.menus.add_command(
+            "qc/redo", "menu.redo", self.state.redo, False, accelerator="Ctrl+Y"
+        )
         self._display_modes: dict[str, tk.Frame] = {}
 
         self.root.rowconfigure(0, weight=0)
@@ -169,32 +184,33 @@ class PipemanDesktop:
 
         # top bar
         self.top = ttk.Frame(self.root)
-        self.top.grid(row=0, column=0, sticky='NSEW', columnspan=3)
+        self.top.grid(row=0, column=0, sticky="NSEW", columnspan=3)
         self.top.rowconfigure(0, weight=1)
 
         # default
         self._display_modes["empty"] = self._empty_qc = tk.Frame(self.root)
-        self._empty_qc.grid(row=1, column=0, sticky='NSEW')
+        self._empty_qc.grid(row=1, column=0, sticky="NSEW")
 
         # bottom bar
         self.bottom_bar = ttk.Frame(self.root)
-        self.bottom_bar.grid(row=2, column=0, sticky='EWNS', columnspan=3)
+        self.bottom_bar.grid(row=2, column=0, sticky="EWNS", columnspan=3)
         self.bottom_bar.columnconfigure(0, weight=0)
         self.bottom_bar.columnconfigure(1, weight=1)
         self.bottom_bar.columnconfigure(2, weight=0)
 
         # Bottom bar stuff
         self.loading_wheel = LoadingWheel(self.root, self.bottom_bar)
-        self.loading_wheel.grid(row=0, column=0, sticky='W')
-        self.status_info = ttk.Label(self.bottom_bar, text="W", relief="solid", borderwidth=2)
-        self.status_info.grid(row=0, column=1, ipadx=5, ipady=2,  sticky='NSEW')
+        self.loading_wheel.grid(row=0, column=0, sticky="W")
+        self.status_info = ttk.Label(
+            self.bottom_bar, text="W", relief="solid", borderwidth=2
+        )
+        self.status_info.grid(row=0, column=1, ipadx=5, ipady=2, sticky="NSEW")
 
         # decode qc
         self._display_modes["decode"] = self.decode_qc_mode = tk.Frame(self.root)
         self.decode_qc_mode.rowconfigure(0, weight=3)
         self.decode_qc_mode.rowconfigure(1, weight=1)
         self.decode_qc_mode.columnconfigure(0, weight=1)
-
 
         # merge qc
         self._display_modes["merge"] = self.merge_qc_mode = tk.Frame(self.root)
@@ -212,23 +228,23 @@ class PipemanDesktop:
 
         # entire left-hand side
         self.batch_left = ttk.Frame(self._batch_qc_mode)
-        self.batch_left.grid(row=0, column=0, sticky='NSEW', rowspan=2)
+        self.batch_left.grid(row=0, column=0, sticky="NSEW", rowspan=2)
         self.batch_left.rowconfigure(0, weight=1)
         self.batch_left.columnconfigure(0, weight=1)
 
         # middle
         self.batch_middle = ttk.Notebook(self._batch_qc_mode)
-        self.batch_middle.grid(row=0, column=1, sticky='NSEW')
+        self.batch_middle.grid(row=0, column=1, sticky="NSEW")
 
         # right
         self.batch_right = ttk.Frame(self._batch_qc_mode)
-        self.batch_right.grid(row=0, column=2, sticky='NSEW')
+        self.batch_right.grid(row=0, column=2, sticky="NSEW")
         self.batch_right.rowconfigure(0, weight=1)
         self.batch_right.columnconfigure(0, weight=1)
 
         # below middle and right
         self.batch_bottom = ttk.Notebook(self._batch_qc_mode)
-        self.batch_bottom.grid(row=1, column=1, sticky='NSEW', columnspan=2)
+        self.batch_bottom.grid(row=1, column=1, sticky="NSEW", columnspan=2)
 
         self._current_state = "empty"
 
@@ -246,27 +262,30 @@ class PipemanDesktop:
         self._panes.append(HistoryPane(self))
         self._panes.append(PlatformPane(self))
         self._panes.append(RelationshipsPane(self))
-        self._pane_broadcast('on_init')
+        self._pane_broadcast("on_init")
 
         # make sure the Exit command is last
         self.menus.add_command("file/exit", "menu.exit", self.close)
 
     def refresh_display(self, app_state, change_type: DisplayChange):
         if change_type & DisplayChange.LANGUAGE:
-            self.root.title(i18n.tr('root.title'))
+            self.root.title(i18n.tr("root.title"))
             self.menus.update_languages()
         if change_type & DisplayChange.HISTORY:
             self.menus.set_state("qc/undo", self.state.can_undo())
             self.menus.set_state("qc/redo", self.state.can_redo())
-        if change_type & DisplayChange.QC_MODE:
-            if self._current_state != self.state.qc_mode:
-                self._display_modes[self._current_state].grid_forget()
-                self._display_modes[self.state.qc_mode].grid(row=1, column=0, sticky='NSEW')
-                self._current_state = self.state.qc_mode
-        self._pane_broadcast('refresh_display', app_state, change_type)
+        if change_type & DisplayChange.QC_MODE and self._current_state != self.state.qc_mode:
+            self._display_modes[self._current_state].grid_forget()
+            self._display_modes[self.state.qc_mode].grid(
+                row=1, column=0, sticky="NSEW"
+            )
+            self._current_state = self.state.qc_mode
+        self._pane_broadcast("refresh_display", app_state, change_type)
 
     def after(self, delay_ms: int, cb: t.Callable[..., t.Any], *args):
-        self.root.after(delay_ms, cb, *args)  # note: this is an error in tkinter's typing not mine
+        self.root.after(
+            delay_ms, cb, *args
+        )  # note: this is an error in tkinter's typing not mine
 
     def launch(self):
         self.root.mainloop()
@@ -275,7 +294,7 @@ class PipemanDesktop:
         for pane in self._panes:
             try:
                 getattr(pane, call_name)(*args, **kwargs)
-            except Exception as ex:
+            except Exception:
                 self.log.exception(f"error broadcasting {call_name} to {pane}")
 
     def show_user_info(self, title: str, message: str):
@@ -284,15 +303,14 @@ class PipemanDesktop:
     def show_user_exception(self, ex: Exception):
         if isinstance(ex, TranslatableError):
             tkmb.showerror(
-                title=i18n.tr('dialog.error_message.title'),
-                message=i18n.tr(ex.message_key)
+                title=i18n.tr("dialog.error_message.title"),
+                message=i18n.tr(ex.message_key),
             )
         else:
             tkmb.showerror(
-                title=i18n.tr('dialog.error_message.title'),
-                message=f"{ex.__class__.__name__}: {str(ex)}"
+                title=i18n.tr("dialog.error_message.title"),
+                message=f"{ex.__class__.__name__}: {ex!s}",
             )
-
 
     # CLOSE ROUTINE
 
@@ -303,18 +321,18 @@ class PipemanDesktop:
         self.state.logout(
             after_success=self._actual_close,
             after_error=self._actual_close,
-            after_cancel=self._cancel_close
+            after_cancel=self._cancel_close,
         )
 
     def _cancel_close(self):
         self.show_user_info(
-            i18n.tr('dialog.unable_to_close.title'),
-            i18n.tr('dialog.unable_to_close.message')
+            i18n.tr("dialog.unable_to_close.title"),
+            i18n.tr("dialog.unable_to_close.message"),
         )
         self._is_closing = False
 
     def _actual_close(self, e=None):
-        self._pane_broadcast('on_close')
+        self._pane_broadcast("on_close")
         if self.dispatcher.is_alive():
             self.dispatcher.halt.set()
             self.dispatcher.join()
@@ -322,7 +340,6 @@ class PipemanDesktop:
         self.messenger.close()
         self.status_info.destroy()
         self.root.destroy()
-
 
     # EVENTS
 
@@ -341,11 +358,16 @@ class PipemanDesktop:
         if isinstance(self.detector, DesktopLanguageDetector):
             language: str = str(self._save_data.get("language", "und"))
             self.detector.set_language(language)
-            if self.detector.detect_language(self.translations.supported_languages("interface")) == "und":
+            if (
+                self.detector.detect_language(
+                    self.translations.supported_languages("interface")
+                )
+                == "und"
+            ):
                 sel = ask_choice(
                     self.root,
                     options=self.translations.language_options(),
-                    title="Select Language"  # todo: add a English / French style title here
+                    title="Select Language",  # todo: add a English / French style title here
                 )
                 if sel is None:
                     self.close()
@@ -374,4 +396,3 @@ class PipemanDesktop:
                 self._last_screen_width_change_time = None
                 self.state.refresh_display(DisplayChange.SCREEN_SIZE)
         self.after(500, self.check_screen_resize_complete)
-

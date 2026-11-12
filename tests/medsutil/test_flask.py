@@ -1,7 +1,7 @@
 import itertools
-import logging
 import shutil
 import subprocess
+import typing
 
 import flask
 import zirconium
@@ -13,13 +13,11 @@ from tests.helpers.base_test_case import BaseTestCase, skip_long_test
 
 
 class BoringApp:
-
     def __call__(self, environ, start_response):
-        return 'foobar'
+        return "foobar"
 
 
 class ProxyFixDummy:
-
     def __init__(self, x):
         self._x = x
         self._proxy_called = 0
@@ -29,11 +27,9 @@ class ProxyFixDummy:
         return self._x(*args, **kwargs)
 
 
-
 @skip_long_test
 class TestProxyFix(BaseTestCase):
-
-    VALID_IPS = [
+    VALID_IPS = (
         "0.0.0.0",
         "8.8.8.8",
         "9.1.2.255",
@@ -51,29 +47,25 @@ class TestProxyFix(BaseTestCase):
         "192.168.0.0",
         "196.168.0.1",
         "255.255.255.255",
-    ]
-    INVALID_IPS = [
+    )
+    INVALID_IPS = (
         "256.256.256",
         "",
         None,
-        'foobar',
+        "foobar",
         "5",
         "256.256.256.256",
-    ]
+    )
 
-    TEST_SUBNETS = {
+    TEST_SUBNETS: typing.ClassVar[dict[str, list | tuple]]  = {
         "": [],
         "*": VALID_IPS,
         "127.0.0.1": ["127.0.0.1"],
         "10.1.2.3": ["10.1.2.3"],
-        "10.1.2.0/24": ["10.1.2.3", "10.1.2.99", "10.1.2.255", "10.1.2.0", "10.1.2.2"]
+        "10.1.2.0/24": ["10.1.2.3", "10.1.2.99", "10.1.2.255", "10.1.2.0", "10.1.2.2"],
     }
 
-    TEST_BAD_SUBNETS = [
-        "foobared",
-        "256.256.256.256",
-        "127.0.0.0/99"
-    ]
+    TEST_BAD_SUBNETS = ("foobared", "256.256.256.256", "127.0.0.0/99")
 
     def setUp(self):
         super().setUp()
@@ -102,7 +94,7 @@ class TestProxyFix(BaseTestCase):
         k = 0
         self.assertEqual(k, tpf._proxy._proxy_called)
         for ip in TestProxyFix.VALID_IPS:
-            if ip in TestProxyFix.TEST_SUBNETS['10.1.2.0/24']:
+            if ip in TestProxyFix.TEST_SUBNETS["10.1.2.0/24"]:
                 k += 1
             with self.subTest(ip=ip):
                 self.assertEqual("foobar", tpf({"REMOTE_ADDR": ip}, "b"))
@@ -121,13 +113,15 @@ class TestProxyFix(BaseTestCase):
                 self.assertEqual("foobar", tpf({"REMOTE_ADDR": ip}, "b"))
                 self.assertEqual(0, tpf._proxy._proxy_called)
 
-
     def test_good_subnets(self):
         for subnet in TestProxyFix.TEST_SUBNETS:
             tpf = TrustedProxyFix(None, subnet)
             for ip in TestProxyFix.VALID_IPS:
                 with self.subTest(subnet=subnet, ip=ip):
-                    self.assertIs(ip in TestProxyFix.TEST_SUBNETS[subnet], tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}))
+                    self.assertIs(
+                        ip in TestProxyFix.TEST_SUBNETS[subnet],
+                        tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}),
+                    )
             for ip in TestProxyFix.INVALID_IPS:
                 with self.subTest(subnet=subnet, ip=ip):
                     self.assertFalse(tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}))
@@ -137,8 +131,9 @@ class TestProxyFix(BaseTestCase):
         for ip in TestProxyFix.VALID_IPS:
             with self.subTest(ip=ip):
                 self.assertIs(
-                    ip in TestProxyFix.TEST_SUBNETS["10.1.2.0/24"] or ip in TestProxyFix.TEST_SUBNETS["127.0.0.1"],
-                        tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip})
+                    ip in TestProxyFix.TEST_SUBNETS["10.1.2.0/24"]
+                    or ip in TestProxyFix.TEST_SUBNETS["127.0.0.1"],
+                    tpf._is_upstream_trustworthy({"REMOTE_ADDR": ip}),
                 )
         for ip in TestProxyFix.INVALID_IPS:
             with self.subTest(ip=ip):
@@ -153,7 +148,6 @@ class TestProxyFix(BaseTestCase):
 
 
 class TestRequestInfo(BaseTestCase):
-
     def test_parse_proc_info(self):
         # fake full information coming from linux
         info = RequestInfo()
@@ -197,8 +191,8 @@ class TestRequestInfo(BaseTestCase):
         self.assertIsNone(info.user_agent())
         self.assertIsNone(info.username())
         self.assertIsNone(info.referrer())
-        res = subprocess.run([str(shutil.which('whoami'))], capture_output=True)
-        txt = res.stdout.decode('utf-8').replace("\t", " ").strip("\r\n\t")
+        res = subprocess.run([str(shutil.which("whoami"))], capture_output=True, check=False)
+        txt = res.stdout.decode("utf-8").replace("\t", " ").strip("\r\n\t")
         while "  " in txt:
             txt = txt.replace("  ", " ")
         pieces = txt.split(" ")
@@ -206,52 +200,49 @@ class TestRequestInfo(BaseTestCase):
         self.assertIsNotNone(info.sys_emulated_username())
 
     @injector.test_case
-    @zirconium.test_with_config({'flask': {'SECRET_KEY': 'hello_world'}})
+    @zirconium.test_with_config({"flask": {"SECRET_KEY": "hello_world"}})
     def test_with_request(self):
         info = RequestInfo()
         client = flask.Flask(__name__)
-        with client.test_client():
-            with client.test_request_context('/foobar', method='GET', headers={
-                'X-Correlation-ID': '12345',
-                'X-Client-ID': '67890',
-                'User-Agent': 'test user agent',
-                'Referer': 'http://localhost/other'
-            }, environ_base={
-                'REMOTE_ADDR': '127.0.0.1'
-            }):
-                self.assertEqual(info.request_method(), 'GET')
-                self.assertEqual(info.remote_ip(), '127.0.0.1')
-                self.assertEqual(info.correlation_id(), '12345')
-                self.assertEqual(info.client_id(), '67890')
-                self.assertEqual(info.user_agent(), 'test user agent')
-                self.assertEqual(info.request_url(), 'http://localhost/foobar')
-                self.assertEqual(info.referrer(), 'http://localhost/other')
-                self.assertIsNone(info.proxy_ip())
-                self.assertIsNone(info.username())
+        with client.test_client(), client.test_request_context(
+            "/foobar",
+            method="GET",
+            headers={
+                "X-Correlation-ID": "12345",
+                "X-Client-ID": "67890",
+                "User-Agent": "test user agent",
+                "Referer": "http://localhost/other",
+            },
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        ):
+            self.assertEqual(info.request_method(), "GET")
+            self.assertEqual(info.remote_ip(), "127.0.0.1")
+            self.assertEqual(info.correlation_id(), "12345")
+            self.assertEqual(info.client_id(), "67890")
+            self.assertEqual(info.user_agent(), "test user agent")
+            self.assertEqual(info.request_url(), "http://localhost/foobar")
+            self.assertEqual(info.referrer(), "http://localhost/other")
+            self.assertIsNone(info.proxy_ip())
+            self.assertIsNone(info.username())
 
     @injector.test_case
-    @zirconium.test_with_config({'flask': {'SECRET_KEY': 'hello_world'}})
+    @zirconium.test_with_config({"flask": {"SECRET_KEY": "hello_world"}})
     def test_less_helpful_request(self):
         info = RequestInfo()
         client = flask.Flask(__name__)
-        with client.test_client():
-            with client.test_request_context('/foobar2', method='POST', headers={
-                'X-Forwarded-For': '17.1.2.3 127.0.0.1'
-            }, environ_base={
-                'REMOTE_ADDR': '10.1.2.3'
-            }):
-                # todo: is this correct behavior?
-                self.assertEqual(info.remote_ip(), '10.1.2.3')
-                self.assertIsNone(info.proxy_ip())
-                self.assertEqual(info.correlation_id(), '')
-                self.assertEqual(info.client_id(), '')
-                self.assertEqual(info.user_agent(), '')
-                self.assertEqual(info.request_url(), 'http://localhost/foobar2')
-                self.assertIsNone(info.username())
-                self.assertIsNone(info.referrer())
-                self.assertEqual(info.request_method(), 'POST')
-
-
-
-
-
+        with client.test_client(), client.test_request_context(
+            "/foobar2",
+            method="POST",
+            headers={"X-Forwarded-For": "17.1.2.3 127.0.0.1"},
+            environ_base={"REMOTE_ADDR": "10.1.2.3"},
+        ):
+            # todo: is this correct behavior?
+            self.assertEqual(info.remote_ip(), "10.1.2.3")
+            self.assertIsNone(info.proxy_ip())
+            self.assertEqual(info.correlation_id(), "")
+            self.assertEqual(info.client_id(), "")
+            self.assertEqual(info.user_agent(), "")
+            self.assertEqual(info.request_url(), "http://localhost/foobar2")
+            self.assertIsNone(info.username())
+            self.assertIsNone(info.referrer())
+            self.assertEqual(info.request_method(), "POST")

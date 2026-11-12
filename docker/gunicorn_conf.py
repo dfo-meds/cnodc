@@ -1,9 +1,6 @@
-from __future__ import print_function
 
 import multiprocessing
 import os
-import pathlib
-import shutil
 
 from prometheus_client.multiprocess import mark_process_dead
 
@@ -37,7 +34,7 @@ enable_stdio_inheritance = os.getenv("ENABLE_STDIO_INHERITANCE", "1") == "1"
 if bind_env:
     bind = bind_env
 else:
-    bind = "{host}:{port}".format(host=host, port=port)
+    bind = f"{host}:{port}"
 
 cores = os.getenv("CPU_COUNT", multiprocessing.cpu_count())
 # Set number of workers as needed
@@ -48,7 +45,7 @@ else:
     default_web_concurrency = (workers_per_core * int(cores)) + 1
     workers = int(default_web_concurrency)
 assert workers > 0
-assert worker_class in ('sync', 'eventlet', 'gevent', 'tornado', 'gthread')
+assert worker_class in ("sync", "eventlet", "gevent", "tornado", "gthread")
 
 if os.getenv("DUMP_GUNICORN_CONFIG", "0") == "1":
     # For debugging and testing

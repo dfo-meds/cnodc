@@ -1,23 +1,26 @@
 import pathlib
-from PIL import Image, ImageTk
 import tkinter as tk
-import tkinter.ttk as ttk
+from tkinter import ttk
+
+from PIL import Image, ImageTk
 
 
 class LoadingWheel(ttk.Label):
-
     def __init__(self, root: tk.Tk, parent):
         super().__init__(parent)
-        self._image_path = pathlib.Path(__file__).absolute().parent.parent / 'resources' / 'loading.gif'
+        self._image_path = (
+            pathlib.Path(__file__).absolute().parent.parent
+            / "resources"
+            / "loading.gif"
+        )
         self._images = []
         self._max_height = 20
         self._halt = False
         self._blank = ImageTk.PhotoImage(
-            Image.new('RGBA', (self._max_height, self._max_height)),
-            master=root
+            Image.new("RGBA", (self._max_height, self._max_height)), master=root
         )
         with Image.open(self._image_path) as image:
-            for i in range(0, image.n_frames):
+            for i in range(image.n_frames):
                 try:
                     image.seek(i)
                     subimage = image.resize((self._max_height, self._max_height))
@@ -54,7 +57,3 @@ class LoadingWheel(ttk.Label):
         self._current_frame = None
         if not self._halt:
             self.configure(image=self._blank)
-
-
-
-

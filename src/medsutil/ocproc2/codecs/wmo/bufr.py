@@ -1,30 +1,46 @@
 import functools
-import typing as t
 import math
+import pathlib
+import typing as t
 
 import yaml
-import pathlib
-
-from autoinject import injector
 import zrlog
+from autoinject import injector
+from pybufrkit.decoder import Decoder
 from pybufrkit.descriptors import SequenceDescriptor
 from pybufrkit.encoder import Encoder
-from pybufrkit.tables import TableGroupCacheManager, BufrTableGroup
-from pybufrkit.decoder import Decoder
-from pybufrkit.templatedata import TemplateData, SequenceNode, DelayedReplicationNode, FixedReplicationNode, \
-    ValueDataNode, DataNode
+from pybufrkit.tables import BufrTableGroup, TableGroupCacheManager
+from pybufrkit.templatedata import (
+    DataNode,
+    DelayedReplicationNode,
+    FixedReplicationNode,
+    SequenceNode,
+    TemplateData,
+    ValueDataNode,
+)
 
+from medsutil import awaretime, ocproc2
 from medsutil.awaretime import AwareDateTime
-from medsutil.dynamic import dynamic_object
-from medsutil.ocproc2 import ParentRecord, MessageType
-from medsutil.ocproc2.codecs.gts import GtsSubDecoder
-from medsutil.ocproc2.codecs.base import DecodeResult
 from medsutil.byteseq import ByteSequenceReader
-import medsutil.ocproc2 as ocproc2
-import medsutil.awaretime as awaretime
-from medsutil.ocproc2.codecs.ops import Instruction, EncodeDecodeGroup, OPSContext, DataType, \
-    SingleValueInstruction, InstructionGroup, RepeatGroup, NoopInstruction, \
-    ContextInstruction, ValueMappedInstruction, ScaleFactorInstruction, SkipDecodeInstruction, SkipDecodeInterrupt
+from medsutil.dynamic import dynamic_object
+from medsutil.ocproc2 import MessageType, ParentRecord
+from medsutil.ocproc2.codecs.base import DecodeResult
+from medsutil.ocproc2.codecs.gts import GtsSubDecoder
+from medsutil.ocproc2.codecs.ops import (
+    ContextInstruction,
+    DataType,
+    EncodeDecodeGroup,
+    Instruction,
+    InstructionGroup,
+    NoopInstruction,
+    OPSContext,
+    RepeatGroup,
+    ScaleFactorInstruction,
+    SingleValueInstruction,
+    SkipDecodeInstruction,
+    SkipDecodeInterrupt,
+    ValueMappedInstruction,
+)
 from medsutil.ocproc2.history import ActionType
 from medsutil.sanitize import clean_wmo_id
 from medsutil.units import UnitConverter
@@ -33,7 +49,6 @@ from pipeman.exceptions import CNODCError
 
 @injector.injectable_global
 class BufrCodeMap:
-
     converter: UnitConverter = None
 
     @injector.construct
@@ -48,9 +63,9 @@ class BufrCodeMap:
         self._instruction_cache: dict[str, Instruction] = {}
         self._table_id: tuple | None = None
 
-    def prestandardize_instruction(self,
-                                   instruction: str | dict,
-                                   descriptor: int | None = None) -> dict | str:
+    def prestandardize_instruction(
+        self, instruction: str | dict, descriptor: int | None = None
+    ) -> dict | str:
         if isinstance(instruction, int):
             instruction = {
                 "descriptor": instruction,
@@ -59,16 +74,16 @@ class BufrCodeMap:
         elif isinstance(instruction, str):
             extras = {}
             if instruction.endswith("[optional]"):
-                extras['is_optional'] = True
+                extras["is_optional"] = True
                 instruction = instruction[:-10]
             if instruction.endswith("[ifany]"):
-                extras['can_omit'] = True
+                extras["can_omit"] = True
                 instruction = instruction[:-7]
             if instruction.isdigit():
                 instruction = {
                     "descriptor": int(str(instruction)),
                     "dynamic_lookup": True,
-                    **extras
+                    **extras,
                 }
             else:
                 if ":" in instruction:
@@ -78,24 +93,26 @@ class BufrCodeMap:
                     instruction = {
                         "element": instruction,
                         "descriptor": descriptor,
-                        **extras
+                        **extras,
                     }
                 else:
                     instruction = {
                         "value": instruction,
                         "descriptor": descriptor,
-                        **extras
+                        **extras,
                     }
         elif descriptor is not None:
             instruction["descriptor"] = descriptor
         return instruction
 
-    def standardize_instruction(self,
-                                instruction: str | dict | Instruction,
-                                common_kwargs: dict | None,
-                                helper: t.Callable | None,
-                                table_group: BufrTableGroup) -> dict | str | Instruction:
-        """ Rewrite incoming instructions to make sure they're compatible with OPS. """
+    def standardize_instruction(
+        self,
+        instruction: str | dict | Instruction,
+        common_kwargs: dict | None,
+        helper: t.Callable | None,
+        table_group: BufrTableGroup,
+    ) -> dict | str | Instruction:
+        """Rewrite incoming instructions to make sure they're compatible with OPS."""
         if isinstance(instruction, Instruction):
             return instruction
         instruction = self.prestandardize_instruction(instruction)
@@ -108,35 +125,43 @@ class BufrCodeMap:
                 }
                 if common_kwargs:
                     extras.update(common_kwargs)
-                instruction = self.lookup(int(instruction["descriptor"]), table_group, helper, extras)
+                instruction = self.lookup(
+                    int(instruction["descriptor"]), table_group, helper, extras
+                )
             elif "__looked_up" not in instruction and "descriptor" in instruction:
-                for k, v in self.get_table_group_arguments(int(instruction["descriptor"]), table_group).items():
+                for k, v in self.get_table_group_arguments(
+                    int(instruction["descriptor"]), table_group
+                ).items():
                     if k not in instruction:
                         instruction[k] = v
         return instruction
 
-    def get_table_group_arguments(self, descriptor_id: int, table_group: BufrTableGroup) -> dict[str, t.Any]:
+    def get_table_group_arguments(
+        self, descriptor_id: int, table_group: BufrTableGroup
+    ) -> dict[str, t.Any]:
         kwargs = {}
         lookup = table_group.lookup(descriptor_id)
-        if hasattr(lookup, 'unit'):
-            if lookup.unit.upper() in ('CCITT IA5',):
+        if hasattr(lookup, "unit"):
+            if lookup.unit.upper() in ("CCITT IA5",):
                 kwargs["data_type"] = DataType.STRING
-            elif lookup.unit.upper() in ("CODE TABLE", 'FLAG TABLE'):
+            elif lookup.unit.upper() in ("CODE TABLE", "FLAG TABLE"):
                 kwargs["data_type"] = DataType.INTEGER
             elif lookup.unit.upper() in ("NUMERIC",):
                 kwargs["data_type"] = DataType.FLOAT
             else:
                 kwargs["data_type"] = DataType.FLOAT
                 kwargs["units"] = self.standardize_units(lookup.unit)
-        if hasattr(lookup, 'scale'):
+        if hasattr(lookup, "scale"):
             kwargs["places"] = lookup.scale
         return kwargs
 
-    def lookup(self,
-               descriptor_id : int | str,
-               table_group: BufrTableGroup,
-               _helper: t.Callable | None = None,
-               _common_kwargs: dict[str, t.Any] | None = None) -> Instruction:
+    def lookup(
+        self,
+        descriptor_id: int | str,
+        table_group: BufrTableGroup,
+        _helper: t.Callable | None = None,
+        _common_kwargs: dict[str, t.Any] | None = None,
+    ) -> Instruction:
 
         # handle lookup cache
         table_group_id = table_group.B.table_group_key
@@ -153,30 +178,33 @@ class BufrCodeMap:
         else:
             return self._lookup(key, table_group, _helper, _common_kwargs)
 
-    def _lookup(self,
-               key: str,
-               table_group: BufrTableGroup,
-               _helper: t.Callable | None = None,
-               _common_kwargs: dict[str, t.Any] | None = None) -> Instruction:
+    def _lookup(
+        self,
+        key: str,
+        table_group: BufrTableGroup,
+        _helper: t.Callable | None = None,
+        _common_kwargs: dict[str, t.Any] | None = None,
+    ) -> Instruction:
         if key in self._bufr_map:
             if isinstance(self._bufr_map[key], dict):
-                base_map = {
-                    '__looked_up': True
-                }
+                base_map = {"__looked_up": True}
                 base_map.update(self.get_table_group_arguments(int(key), table_group))
                 base_map.update(t.cast(dict, self._bufr_map[key]))
             else:
                 base_map = self._bufr_map[key]
             instruction = Instruction.parse_instruction(
                 base_map,
-                helper=_helper or functools.partial(self.standardize_instruction, table_group=table_group),
-                common_kwargs=_common_kwargs
+                helper=_helper
+                or functools.partial(
+                    self.standardize_instruction, table_group=table_group
+                ),
+                common_kwargs=_common_kwargs,
             )
             return instruction
         raise ValueError(f"No bufr instruction defined for [{key}]")
 
     def standardize_units(self, unit: str):
-        if unit.upper() in ('NUMERIC', 'CCITT IA5', 'CODE TABLE', 'FLAG TABLE'):
+        if unit.upper() in ("NUMERIC", "CCITT IA5", "CODE TABLE", "FLAG TABLE"):
             return None
         if unit == "degree true" or unit == "degrees true":
             unit = "degrees"
@@ -186,7 +214,6 @@ class BufrCodeMap:
 
 
 class Bufr4Decoder(GtsSubDecoder):
-
     bufr_tables: BufrCodeMap = None
 
     @injector.construct
@@ -196,25 +223,33 @@ class Bufr4Decoder(GtsSubDecoder):
     def supports_multiple_records(self) -> bool:
         return True
 
-    def encode_from_records(self, records: list[ParentRecord], **kwargs) -> t.Iterable[bytes | bytearray]:
+    def encode_from_records(
+        self, records: list[ParentRecord], **kwargs
+    ) -> t.Iterable[bytes | bytearray]:
         encoder = _Bufr4Encoder(self.bufr_tables, records, **kwargs)
         content = encoder.encode()
-        yield b'BUFR'
-        yield (len(content) + 8).to_bytes(3, 'big')
-        yield (4).to_bytes(1, 'big')
+        yield b"BUFR"
+        yield (len(content) + 8).to_bytes(3, "big")
+        yield (4).to_bytes(1, "big")
         yield content
 
-    def decode_from_bytes(self, reader: ByteSequenceReader, header: str, skip_decode: bool, received_date: AwareDateTime | None = None) -> DecodeResult:
+    def decode_from_bytes(
+        self,
+        reader: ByteSequenceReader,
+        header: str,
+        skip_decode: bool,
+        received_date: AwareDateTime | None = None,
+    ) -> DecodeResult:
         content = bytearray()
         try:
             reader.consume(4)
-            message_length = int.from_bytes(reader.consume(3), 'big')
+            message_length = int.from_bytes(reader.consume(3), "big")
             bufr_version = int(reader.consume(1)[0])
-            content.extend(b'BUFR')
-            content.extend(message_length.to_bytes(3, 'big'))
-            content.extend(bufr_version.to_bytes(1, 'big'))
+            content.extend(b"BUFR")
+            content.extend(message_length.to_bytes(3, "big"))
+            content.extend(bufr_version.to_bytes(1, "big"))
             content.extend(reader.consume(message_length - 8))
-            original_data = header.encode('ascii') + b'\n' + content
+            original_data = header.encode("ascii") + b"\n" + content
             if skip_decode:
                 return DecodeResult(skipped=True, original=original_data)
             if bufr_version != 4:
@@ -222,20 +257,25 @@ class Bufr4Decoder(GtsSubDecoder):
             rdate = AwareDateTime.utcnow() if received_date is None else received_date
             instance = _Bufr4Decoder(self.bufr_tables, header, content)
             return DecodeResult(
-                records=[x for x in instance.convert_to_records(self.calculate_gts_header_date(header, rdate))],
+                records=[
+                    x
+                    for x in instance.convert_to_records(
+                        self.calculate_gts_header_date(header, rdate)
+                    )
+                ],
                 original=original_data,
             )
         except SkipDecodeInterrupt:
-            return DecodeResult(skipped=True, original=header.encode('ascii') + b"\n" + content)
+            return DecodeResult(
+                skipped=True, original=header.encode("ascii") + b"\n" + content
+            )
         except Exception as ex:
             return DecodeResult(
-                exc=ex,
-                original=header.encode('ascii') + b"\n" + content
+                exc=ex, original=header.encode("ascii") + b"\n" + content
             )
 
 
 class EncodeElement:
-
     def __init__(self, descriptor_id: int, value: t.Any, optional: bool = False):
         self.descriptor = descriptor_id
         self.value = value
@@ -248,7 +288,7 @@ class EncodeElement:
             return f"<{self.descriptor}={self.value}>"
 
     def __repr__(self):
-        return f'<EncodeElement {self.descriptor}={self.value}>'
+        return f"<EncodeElement {self.descriptor}={self.value}>"
 
     def can_omit(self) -> bool:
         if self.optional:
@@ -277,12 +317,13 @@ class EncodeElement:
 
 
 class _Bufr4Encoder:
-
-    def __init__(self,
-                 cds_tables: BufrCodeMap,
-                 records: list[ParentRecord],
-                 override_template: str | None = None,
-                 default_template: str | None = None):
+    def __init__(
+        self,
+        cds_tables: BufrCodeMap,
+        records: list[ParentRecord],
+        override_template: str | None = None,
+        default_template: str | None = None,
+    ):
         self._cds_tables = cds_tables
         self._records = records
         self._override_template = override_template
@@ -306,46 +347,77 @@ class _Bufr4Encoder:
     def encode(self) -> bytes | bytearray:
         metadata = self._records[0].metadata
         earliest = self.earliest_time()
-        descriptors = self.determine_encoding_template(metadata.best("BUFRDescriptors", coerce=list, default=None))
-        master_table_number = metadata.best("BUFRMasterTable", default=self._default_master_table, coerce=int)
-        master_table_version = metadata.best("BUFRMasterTableVersion", default=self._default_master_table_version, coerce=int)
-        local_table_version = metadata.best("BUFRLocalTableVersion", default=self._default_local_table_version, coerce=int)
-        originating_centre = self._default_originating_centre if self._always_override_centre else metadata.best("BUFROriginCentre", coerce=int, default=self._default_originating_centre)
-        originating_subcentre = self._default_originating_subcentre if self._always_override_centre else metadata.best("BUFROriginSubcentre", coerce=int, default=self._default_originating_subcentre)
+        descriptors = self.determine_encoding_template(
+            metadata.best("BUFRDescriptors", coerce=list, default=None)
+        )
+        master_table_number = metadata.best(
+            "BUFRMasterTable", default=self._default_master_table, coerce=int
+        )
+        master_table_version = metadata.best(
+            "BUFRMasterTableVersion",
+            default=self._default_master_table_version,
+            coerce=int,
+        )
+        local_table_version = metadata.best(
+            "BUFRLocalTableVersion",
+            default=self._default_local_table_version,
+            coerce=int,
+        )
+        originating_centre = (
+            self._default_originating_centre
+            if self._always_override_centre
+            else metadata.best(
+                "BUFROriginCentre", coerce=int, default=self._default_originating_centre
+            )
+        )
+        originating_subcentre = (
+            self._default_originating_subcentre
+            if self._always_override_centre
+            else metadata.best(
+                "BUFROriginSubcentre",
+                coerce=int,
+                default=self._default_originating_subcentre,
+            )
+        )
         self._table_group = TableGroupCacheManager.get_table_group(
             master_table_number=master_table_number,
             originating_centre=originating_centre,
             originating_subcentre=originating_subcentre,
             master_table_version=master_table_version,
-            local_table_version=local_table_version
+            local_table_version=local_table_version,
         )
         encoder = Encoder()
-        message = encoder.process([
-            self._build_section_one(),
-            self._build_section_two(
-                master_table_number=master_table_number,
-                master_table_version=master_table_version,
-                local_table_version=local_table_version,
-                originating_centre=originating_centre,
-                originating_subcentre=originating_subcentre,
-                data_category=metadata.best("BUFRDataCategory", default=31, coerce=int),
-                year=earliest.year,
-                month=earliest.month,
-                day=earliest.day,
-                hour=earliest.hour,
-                minute=earliest.minute,
-                second=earliest.second
-            ),
-            self._build_section_three(
-                subsets=len(self._records),
-                descriptors=descriptors,
-                is_observed=metadata.best("BUFRIsObservation", coerce=int, default=1) == 1,
-            ),
-            self._build_section_four(
-                descriptors=descriptors
-            ),
-            self._build_section_five(),
-        ])
+        message = encoder.process(
+            [
+                self._build_section_one(),
+                self._build_section_two(
+                    master_table_number=master_table_number,
+                    master_table_version=master_table_version,
+                    local_table_version=local_table_version,
+                    originating_centre=originating_centre,
+                    originating_subcentre=originating_subcentre,
+                    data_category=metadata.best(
+                        "BUFRDataCategory", default=31, coerce=int
+                    ),
+                    year=earliest.year,
+                    month=earliest.month,
+                    day=earliest.day,
+                    hour=earliest.hour,
+                    minute=earliest.minute,
+                    second=earliest.second,
+                ),
+                self._build_section_three(
+                    subsets=len(self._records),
+                    descriptors=descriptors,
+                    is_observed=metadata.best(
+                        "BUFRIsObservation", coerce=int, default=1
+                    )
+                    == 1,
+                ),
+                self._build_section_four(descriptors=descriptors),
+                self._build_section_five(),
+            ]
+        )
         return message.serialized_bytes
 
     def earliest_time(self) -> AwareDateTime:
@@ -353,11 +425,12 @@ class _Bufr4Encoder:
         for record in self._records:
             if record.coordinates.has_value("Time"):
                 record_time = record.coordinates.ideal("Time").to_datetime()
-                if record_time < earliest:
-                    earliest = record_time
+                earliest = min(earliest, record_time)
         return earliest.astimezone("Etc/UTC")
 
-    def determine_encoding_template(self, record_template: list[int | str] | None) -> list[int]:
+    def determine_encoding_template(
+        self, record_template: list[int | str] | None
+    ) -> list[int]:
         if self._override_template:
             return [int(x) for x in self._override_template.split(",")]
         if record_template:
@@ -368,34 +441,36 @@ class _Bufr4Encoder:
 
     def _build_section_one(self) -> list:
         return [
-            "BUFR",     # Indicates bufr message
-            0,          # Let pybufrkit handle the length
-            4           # version of BUFR
+            "BUFR",  # Indicates bufr message
+            0,  # Let pybufrkit handle the length
+            4,  # version of BUFR
         ]
 
-    def _build_section_two(self,
-                           originating_centre: int,
-                           originating_subcentre: int,
-                           data_category: int,
-                           year: int,
-                           month: int,
-                           day: int,
-                           hour: int,
-                           minute: int,
-                           second: int,
-                           data_subcategory: int = 0,
-                           master_table_number: int = 0,
-                           local_subcategory: int = 0,
-                           master_table_version: int = 33,
-                           local_table_version: int = 0) -> list:
+    def _build_section_two(
+        self,
+        originating_centre: int,
+        originating_subcentre: int,
+        data_category: int,
+        year: int,
+        month: int,
+        day: int,
+        hour: int,
+        minute: int,
+        second: int,
+        data_subcategory: int = 0,
+        master_table_number: int = 0,
+        local_subcategory: int = 0,
+        master_table_version: int = 33,
+        local_table_version: int = 0,
+    ) -> list:
         return [
-            0,          # Let pybufrkit handle the length
+            0,  # Let pybufrkit handle the length
             master_table_number,
             originating_centre,
             originating_subcentre,
-            0,          # update sequence number
-            False,      # is optional sequence present? true/false
-            "0000000",      #
+            0,  # update sequence number
+            False,  # is optional sequence present? true/false
+            "0000000",
             data_category,
             data_subcategory,
             local_subcategory,
@@ -407,36 +482,39 @@ class _Bufr4Encoder:
             hour,
             minute,
             second,
-            "",         # additional local data
+            "",  # additional local data
         ]
 
-    def _build_section_three(self,
-                             subsets: int,
-                             descriptors: list[int],
-                             is_observed: bool = True,
-                             is_compressed: bool = False) -> list:
+    def _build_section_three(
+        self,
+        subsets: int,
+        descriptors: list[int],
+        is_observed: bool = True,
+        is_compressed: bool = False,
+    ) -> list:
         return [
-            0,              # let pybufrkit calculate length
-            "00000000",     # leave blank
+            0,  # let pybufrkit calculate length
+            "00000000",  # leave blank
             subsets,
             is_observed,
             is_compressed,
-            "000000",       # leave blank
-            descriptors
+            "000000",  # leave blank
+            descriptors,
         ]
 
-    def _build_section_four(self,
-                            descriptors: list[int]) -> list:
+    def _build_section_four(self, descriptors: list[int]) -> list:
         return [
             0,
             "00000000",
             [
                 self._build_section_four_subset(record, descriptors)
                 for record in self._records
-            ]
+            ],
         ]
 
-    def _build_section_four_subset(self, record: ParentRecord, descriptors: list[int]) -> list:
+    def _build_section_four_subset(
+        self, record: ParentRecord, descriptors: list[int]
+    ) -> list:
         subset = []
         context = OPSContext(record)
         for descriptor in descriptors:
@@ -448,60 +526,101 @@ class _Bufr4Encoder:
     def _build_section_five(self) -> list:
         return ["7777"]
 
-    def _build_from_instruction(self, instruction: Instruction, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
+    def _build_from_instruction(
+        self, instruction: Instruction, context: OPSContext, null_values: bool = False
+    ) -> t.Generator[EncodeElement]:
         try:
             if isinstance(instruction, EncodeDecodeGroup):
                 instruction = instruction.get_instruction(True)
 
             if isinstance(instruction, SingleValueInstruction):
                 if null_values:
-                    yield EncodeElement(int(instruction.extras["descriptor"]), None, True)
+                    yield EncodeElement(
+                        int(instruction.extras["descriptor"]), None, True
+                    )
                 else:
                     yield EncodeElement(
                         int(instruction.extras["descriptor"]),
                         instruction.get_value(context),
-                        "can_omit" in instruction.extras and instruction.extras["can_omit"]
+                        "can_omit" in instruction.extras
+                        and instruction.extras["can_omit"],
                     )
             elif isinstance(instruction, InstructionGroup):
-                if 'is_optional' in instruction.extras and instruction.extras['is_optional']:
-                    output: list[EncodeElement] = [x for x in self._build_from_instruction_group(instruction, context, null_values=True)]
+                if (
+                    instruction.extras.get("is_optional")
+                ):
+                    output: list[EncodeElement] = [
+                        x
+                        for x in self._build_from_instruction_group(
+                            instruction, context, null_values=True
+                        )
+                    ]
                     if all(x.can_omit() for x in output):
-                        yield EncodeElement(int(instruction.extras.get("size_descriptor", 31000)), 0)
+                        yield EncodeElement(
+                            int(instruction.extras.get("size_descriptor", 31000)), 0
+                        )
                     else:
-                        yield EncodeElement(int(instruction.extras.get("size_descriptor", 31000)), 1)
+                        yield EncodeElement(
+                            int(instruction.extras.get("size_descriptor", 31000)), 1
+                        )
                         yield from output
                 else:
-                    yield from self._build_from_instruction_group(instruction, context, null_values=null_values)
+                    yield from self._build_from_instruction_group(
+                        instruction, context, null_values=null_values
+                    )
             elif isinstance(instruction, RepeatGroup):
-                yield from self._build_from_repeat_group(instruction, context, null_values=null_values)
+                yield from self._build_from_repeat_group(
+                    instruction, context, null_values=null_values
+                )
             # note: ValueMappedInstruction and ContextInstruction not supported
             elif not isinstance(instruction, NoopInstruction):
                 raise ValueError("Invalid instruction")
 
         except Exception as e:
-            if 'descriptor' in instruction.extras:
-                e.add_note(f"Error while handling instruction: {instruction.extras['descriptor']} [{instruction}]")
+            if "descriptor" in instruction.extras:
+                e.add_note(
+                    f"Error while handling instruction: {instruction.extras['descriptor']} [{instruction}]"
+                )
             else:
                 e.add_note(f"Error while handling instruction: [{instruction}]")
             raise
 
-    def _build_raw_from_instruction_group(self, instruction: InstructionGroup, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
+    def _build_raw_from_instruction_group(
+        self,
+        instruction: InstructionGroup,
+        context: OPSContext,
+        null_values: bool = False,
+    ) -> t.Generator[EncodeElement]:
         for i in instruction.iterate_instructions(context):
             yield from self._build_from_instruction(i, context, null_values=null_values)
 
-    def _build_from_instruction_group(self, instruction: InstructionGroup, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
+    def _build_from_instruction_group(
+        self,
+        instruction: InstructionGroup,
+        context: OPSContext,
+        null_values: bool = False,
+    ) -> t.Generator[EncodeElement]:
         if "descriptor" not in instruction.extras:
-            yield from self._build_raw_from_instruction_group(instruction, context, null_values=null_values)
+            yield from self._build_raw_from_instruction_group(
+                instruction, context, null_values=null_values
+            )
         else:
             descriptor_id = int(instruction.extras["descriptor"])
             try:
                 descriptor = self.table_group.lookup(descriptor_id)
                 if isinstance(descriptor, SequenceDescriptor):
-                    yield EncodeElement(descriptor.id, [
-                        x
-                        for x in
-                        self._filter_results(descriptor, self._build_raw_from_instruction_group(instruction, context, null_values=null_values))
-                    ])
+                    yield EncodeElement(
+                        descriptor.id,
+                        [
+                            x
+                            for x in self._filter_results(
+                                descriptor,
+                                self._build_raw_from_instruction_group(
+                                    instruction, context, null_values=null_values
+                                ),
+                            )
+                        ],
+                    )
                 else:
                     raise ValueError("Invalid descriptor")
 
@@ -509,11 +628,16 @@ class _Bufr4Encoder:
                 ex.add_note(f"Error while building descriptor [{descriptor_id}]")
                 raise
 
-    def _filter_results(self, descriptor: SequenceDescriptor, results: t.Generator[EncodeElement, None, None]) -> t.Iterable[EncodeElement]:
+    def _filter_results(
+        self,
+        descriptor: SequenceDescriptor,
+        results: t.Generator[EncodeElement],
+    ) -> t.Iterable[EncodeElement]:
         def _next_element():
             value = next(results)
             self._log.debug("Sequence for [%s], found value [%s]", descriptor.id, value)
             return value
+
         for x in descriptor.members:
             searching_for = x.id
             try:
@@ -526,9 +650,11 @@ class _Bufr4Encoder:
                             repeats = result_next.value
                             yield result_next
                         else:
-                            raise TypeError(f"expecting repeat flag, found: {result_next.descriptor} for {x.id}")
-                    for i in range(0, repeats):
-                        searching_for = 'subelements'
+                            raise TypeError(
+                                f"expecting repeat flag, found: {result_next.descriptor} for {x.id}"
+                            )
+                    for i in range(repeats):
+                        searching_for = "subelements"
                         yield from self._filter_results(x, results)
                 else:
                     result_next = _next_element()
@@ -536,10 +662,14 @@ class _Bufr4Encoder:
                         result_next = _next_element()
                     yield result_next
             except StopIteration as ex:
-                ex.add_note(f"looking for descriptor [{searching_for}], but iteration ended early")
+                ex.add_note(
+                    f"looking for descriptor [{searching_for}], but iteration ended early"
+                )
                 raise
 
-    def _build_from_repeat_group(self, instruction: RepeatGroup, context: OPSContext, null_values: bool = False) -> t.Generator[EncodeElement, None, None]:
+    def _build_from_repeat_group(
+        self, instruction: RepeatGroup, context: OPSContext, null_values: bool = False
+    ) -> t.Generator[EncodeElement]:
         groups = []
         l_groups = 0
         if not null_values:
@@ -552,29 +682,33 @@ class _Bufr4Encoder:
                     continue
                 groups.append(group)
                 l_groups += 1
-                if instruction.repeats is not None and 0 < instruction.repeats <= l_groups:
+                if (
+                    instruction.repeats is not None
+                    and 0 < instruction.repeats <= l_groups
+                ):
                     break
         if instruction.repeats is not None:
             no_context_instructions = instruction.no_context_instructions()
             while l_groups < instruction.repeats:
                 group = []
                 for x in no_context_instructions:
-                    group.extend(self._build_from_instruction(x, context, null_values=True))
+                    group.extend(
+                        self._build_from_instruction(x, context, null_values=True)
+                    )
                 groups.append(group)
                 l_groups += 1
         if "size_descriptor" in instruction.extras:
-            yield EncodeElement(int(instruction.extras["size_descriptor"]), l_groups, l_groups == 0)
+            yield EncodeElement(
+                int(instruction.extras["size_descriptor"]), l_groups, l_groups == 0
+            )
         for group in groups:
             yield from group
 
 
-
 class _Bufr4Decoder:
-
-    def __init__(self,
-                 bufr_tables: BufrCodeMap,
-                 header: str,
-                 content: t.Union[bytearray, bytes]):
+    def __init__(
+        self, bufr_tables: BufrCodeMap, header: str, content: bytearray | bytes
+    ):
         self.bufr_tables = bufr_tables
         self.header = header
         self._log = zrlog.get_logger("ocproc2.codecs.wmo.bufr.decode")
@@ -582,15 +716,15 @@ class _Bufr4Decoder:
         self.raw_content = content
         self.message = decoder.process(self.raw_content)
         self.raw_data: TemplateData = self.message.template_data.value
-        self.pybufr_tables = TableGroupCacheManager.get_table_group_by_key(self.message.table_group_key)
+        self.pybufr_tables = TableGroupCacheManager.get_table_group_by_key(
+            self.message.table_group_key
+        )
         self.source_name = "bufr_decode"
         self.source_version = "1.0"
 
     def warn(self, message, ctx: OPSContext):
         message = "{txt} [{hierarchy}] [{header}]".format(
-            txt=message,
-            header=self.header,
-            hierarchy=ctx.extras["hierarchy"]
+            txt=message, header=self.header, hierarchy=ctx.extras["hierarchy"]
         )
         self._log.warning(message)
         ctx.parent.add_history_entry(
@@ -598,43 +732,50 @@ class _Bufr4Decoder:
             source_name=self.source_name,
             source_version=self.source_version,
             source_instance="",
-            message_type=MessageType.WARNING)
+            message_type=MessageType.WARNING,
+        )
 
     def convert_to_records(self, full_date: str) -> t.Iterable[ocproc2.ParentRecord]:
-        pieces = self.header.split(' ')
+        pieces = self.header.split(" ")
         try:
-            if pieces[3][0] in ('C', 'A', 'P'):
-                raise CNODCError("BUFR decoder not configured to properly handle CCx AAx or Pxx messages", "BUFR_DECODE", 1000)
+            if pieces[3][0] in ("C", "A", "P"):
+                raise CNODCError(
+                    "BUFR decoder not configured to properly handle CCx AAx or Pxx messages",
+                    "BUFR_DECODE",
+                    1000,
+                )
         except IndexError:
             pass
         descriptors = list(x for x in self.message.unexpanded_descriptors.value)
         common_metadata = {
-            'GTSHeader': self.header,
-            'GTSHeaderFullDate': full_date,
-            'BUFRDescriptors': ocproc2.SingleElement(descriptors),
-            'BUFROriginCentre': self.message.originating_centre.value,
-            'BUFROriginSubcentre': self.message.originating_subcentre.value,
-            'BUFRDataCategory': self.message.data_category.value,
-            'BUFRMasterTableVersion': self.message.master_table_version.value,
-            'BUFRLocalTableVersion': self.message.local_table_version.value,
-            'BUFRMasterTable': self.message.master_table_number.value,
-            'BUFRIsObservation': 1 if self.message.is_observation.value else 0,
-            'CNODCIsBroadcast': 1,
-            'CNODCDataMode': 'RT',
-            'BUFRMessageTime': awaretime.AwareDateTime(
+            "GTSHeader": self.header,
+            "GTSHeaderFullDate": full_date,
+            "BUFRDescriptors": ocproc2.SingleElement(descriptors),
+            "BUFROriginCentre": self.message.originating_centre.value,
+            "BUFROriginSubcentre": self.message.originating_subcentre.value,
+            "BUFRDataCategory": self.message.data_category.value,
+            "BUFRMasterTableVersion": self.message.master_table_version.value,
+            "BUFRLocalTableVersion": self.message.local_table_version.value,
+            "BUFRMasterTable": self.message.master_table_number.value,
+            "BUFRIsObservation": 1 if self.message.is_observation.value else 0,
+            "CNODCIsBroadcast": 1,
+            "CNODCDataMode": "RT",
+            "BUFRMessageTime": awaretime.AwareDateTime(
                 year=self.message.year.value,
                 month=self.message.month.value,
                 day=self.message.day.value,
                 hour=self.message.hour.value,
                 minute=self.message.minute.value,
                 second=self.message.second.value,
-                tzinfo="Etc/UTC"
-            ).isoformat()
+                tzinfo="Etc/UTC",
+            ).isoformat(),
         }
-        for n in range(0, self.message.n_subsets.value):
+        for n in range(self.message.n_subsets.value):
             yield self._convert_subset_to_record(n, common_metadata)
 
-    def _convert_subset_to_record(self, subset_number: int, common_metadata: dict) -> ocproc2.ParentRecord:
+    def _convert_subset_to_record(
+        self, subset_number: int, common_metadata: dict
+    ) -> ocproc2.ParentRecord:
         self._log.debug("Decoding subset %s", subset_number + 1)
         context = OPSContext(ocproc2.ParentRecord())
         context.extras["subset"] = subset_number
@@ -642,15 +783,14 @@ class _Bufr4Decoder:
         context.parent.metadata.update(common_metadata)
         context.parent.metadata["BUFRSubsetIndex"] = subset_number
         self._iterate_on_nodes(
-            self.raw_data.decoded_nodes_all_subsets[subset_number],
-            context
+            self.raw_data.decoded_nodes_all_subsets[subset_number], context
         )
         context.parent.add_history_action(
             message="Record created",
             source_name=self.source_name,
             source_version=self.source_version,
             source_instance="",
-            action_type=ActionType.CREATE
+            action_type=ActionType.CREATE,
         )
         return context.parent
 
@@ -683,7 +823,9 @@ class _Bufr4Decoder:
 
             # Custom handling
             if hasattr(self, test_name):
-                self._log.debug("Parsing node %s using custom function", node.descriptor.id)
+                self._log.debug(
+                    "Parsing node %s using custom function", node.descriptor.id
+                )
                 getattr(self, test_name)(node, context)
 
             # Basic instructions
@@ -692,7 +834,7 @@ class _Bufr4Decoder:
                 self._apply_instruction(
                     self.bufr_tables.lookup(node.descriptor.id, self.pybufr_tables),
                     node,
-                    context
+                    context,
                 )
 
             # Replication
@@ -710,37 +852,59 @@ class _Bufr4Decoder:
             ex.add_note(f"Node: {node.__class__}: {node}: {node.descriptor.id}")
             raise
 
-    def _parse_replication_node(self, node: DelayedReplicationNode | FixedReplicationNode, ctx: OPSContext):
+    def _parse_replication_node(
+        self, node: DelayedReplicationNode | FixedReplicationNode, ctx: OPSContext
+    ):
         n_total, n_elements, n_repeats = self._parse_repetition_info(node, ctx)
-        self._log.debug("Parsing replication node %s [%s repeats of %s elements]", node.descriptor.id, n_repeats, n_elements)
-        descriptors = set(
-            n.descriptor.id
-            for n in node.members
+        self._log.debug(
+            "Parsing replication node %s [%s repeats of %s elements]",
+            node.descriptor.id,
+            n_repeats,
+            n_elements,
         )
+        descriptors = set(n.descriptor.id for n in node.members)
         map_to = None
         coord_name = None
         for x in descriptors:
             try:
                 instruction = self.bufr_tables.lookup(x, self.pybufr_tables)
-                if 'begin_subrecord_type' in instruction.extras:
-                    if map_to is not None and instruction.extras["begin_subrecord_type"] != map_to:
+                if "begin_subrecord_type" in instruction.extras:
+                    if (
+                        map_to is not None
+                        and instruction.extras["begin_subrecord_type"] != map_to
+                    ):
                         self.warn(f"Overriding subrecord type {map_to}", ctx)
                     map_to = instruction.extras["begin_subrecord_type"]
                     coord_name = (x,)
             except ValueError:
                 continue
-        if map_to is None and n_repeats > 1 and any(x in descriptors for x in (4021, 4022, 4023, 4024, 4025, 4026)):
+        if (
+            map_to is None
+            and n_repeats > 1
+            and any(x in descriptors for x in (4021, 4022, 4023, 4024, 4025, 4026))
+        ):
             map_to = "TIME_SERIES"
             coord_name = (4021, 4022, 4023, 4024, 4025, 4026)
         if map_to is not None and coord_name is not None:
-            self._log.debug("Parsing replication node for child records of type %s, coordinates %s", map_to, coord_name)
-            self._iterate_into_children(node, ctx, map_to, coord_name, n_elements, n_repeats)
+            self._log.debug(
+                "Parsing replication node for child records of type %s, coordinates %s",
+                map_to,
+                coord_name,
+            )
+            self._iterate_into_children(
+                node, ctx, map_to, coord_name, n_elements, n_repeats
+            )
         else:
             if n_repeats > 1:
-                self.warn(f"No subrecord type found for repeated instruction [{node.descriptor.id}]", ctx)
+                self.warn(
+                    f"No subrecord type found for repeated instruction [{node.descriptor.id}]",
+                    ctx,
+                )
             self._iterate_on_nodes(node.members, ctx)
 
-    def _parse_repetition_info(self, node: t.Union[DelayedReplicationNode, FixedReplicationNode], ctx) -> tuple[int, int, int]:
+    def _parse_repetition_info(
+        self, node: DelayedReplicationNode | FixedReplicationNode, ctx
+    ) -> tuple[int, int, int]:
         n_total = len(node.members)
         if isinstance(node, DelayedReplicationNode):
             n_repeats = t.cast(int, self._get_node_value(None, node.factor, ctx))
@@ -749,25 +913,28 @@ class _Bufr4Decoder:
         n_elements = int(n_total / n_repeats)
         return n_total, n_elements, n_repeats
 
-    def _iterate_into_children(self,
-                               node: DelayedReplicationNode | FixedReplicationNode,
-                               context: OPSContext,
-                               recordset_type: str,
-                               coord_names: tuple[int, ...],
-                               n_elements: int,
-                               n_repeats: int):
+    def _iterate_into_children(
+        self,
+        node: DelayedReplicationNode | FixedReplicationNode,
+        context: OPSContext,
+        recordset_type: str,
+        coord_names: tuple[int, ...],
+        n_elements: int,
+        n_repeats: int,
+    ):
         with context.new_recordset(recordset_type):
-            for i in range(0, n_repeats):
+            for i in range(n_repeats):
                 with context.new_subrecord():
                     self._iterate_on_nodes(
-                        node.members[(i*n_elements):((i+1)*n_elements)],
-                        context
+                        node.members[(i * n_elements) : ((i + 1) * n_elements)], context
                     )
 
-    def _apply_instruction(self,
-                           instruction: Instruction,
-                           node: ValueDataNode | SequenceNode,
-                           context: OPSContext):
+    def _apply_instruction(
+        self,
+        instruction: Instruction,
+        node: ValueDataNode | SequenceNode,
+        context: OPSContext,
+    ):
         if isinstance(instruction, ContextInstruction):
             instruction = instruction.get_instruction(context.extras["hierarchy"])
         elif isinstance(instruction, EncodeDecodeGroup):
@@ -782,17 +949,26 @@ class _Bufr4Decoder:
         elif isinstance(instruction, NoopInstruction):
             ...
         elif isinstance(instruction, ScaleFactorInstruction):
-            context.extras["scale_factor"] = self._get_node_value(instruction, node, context)
+            context.extras["scale_factor"] = self._get_node_value(
+                instruction, node, context
+            )
         elif isinstance(instruction, SkipDecodeInstruction):
             instruction.raise_exception()
         else:
             raise ValueError("Unrecognized instruction")
 
-        if instruction.extras.get("iterate_after", False) and isinstance(node, SequenceNode):
+        if instruction.extras.get("iterate_after", False) and isinstance(
+            node, SequenceNode
+        ):
             if node.members:
                 self._iterate_on_nodes(node.members, context)
 
-    def _get_node_value(self, instruction: Instruction | None, node: ValueDataNode | SequenceNode, context: OPSContext) -> str | None | int | float:
+    def _get_node_value(
+        self,
+        instruction: Instruction | None,
+        node: ValueDataNode | SequenceNode,
+        context: OPSContext,
+    ) -> str | None | int | float:
         if instruction is not None and "override_get_node_value" in instruction.extras:
             override = instruction.extras["override_get_node_value"]
             if "." in override:
@@ -802,18 +978,24 @@ class _Bufr4Decoder:
         elif isinstance(node, SequenceNode):
             value = None
         else:
-            value = self.raw_data.decoded_values_all_subsets[context.extras["subset"]][node.index]
+            value = self.raw_data.decoded_values_all_subsets[context.extras["subset"]][
+                node.index
+            ]
         if isinstance(value, bytes):
-            value = bytes([x for x in value if 0 < x < 128]).decode('ascii', errors='replace').strip(' ')
-        elif "scale_factor" in context.extras and context.extras["scale_factor"]:
+            value = (
+                bytes([x for x in value if 0 < x < 128])
+                .decode("ascii", errors="replace")
+                .strip(" ")
+            )
+        elif context.extras.get("scale_factor"):
             value *= math.pow(10, context.extras["scale_factor"])
-        if value == '' or value == b'':
+        if value == "" or value == b"":
             value = None
         return value
 
     @staticmethod
     def peek(n: int, context: OPSContext) -> DataNode | None:
-        if 'nodes' in context.extras:
+        if "nodes" in context.extras:
             new_idx = context.extras["current_index"] + n
             if 0 <= new_idx < len(context.extras["nodes"]):
                 return context.extras["nodes"][new_idx]
@@ -826,7 +1008,9 @@ class _Bufr4Decoder:
         if nxt and nxt.descriptor.id == 33050:
             context.extras["skip"] += 1
             v = self._get_node_value(None, t.cast(ValueDataNode, nxt), context)
-            flag_value = ocproc2.SingleElement(v, TestProtocol="other") if v is not None else v
+            flag_value = (
+                ocproc2.SingleElement(v, TestProtocol="other") if v is not None else v
+            )
         if applies_to == 20:
             context.set_element("coordinates/Latitude/metadata/Quality", flag_value)
             context.set_element("coordinates/Longitude/metadata/Quality", flag_value)
@@ -837,22 +1021,30 @@ class _Bufr4Decoder:
         elif applies_to == 11:
             context.set_element("parameters/Temperature/metadata/Quality", flag_value)
         elif applies_to == 12:
-            context.set_element("parameters/PracticalSalinity/metadata/Quality", flag_value)
+            context.set_element(
+                "parameters/PracticalSalinity/metadata/Quality", flag_value
+            )
         elif applies_to == 13:
             context.set_element("coordinates/Depth/metadata/Quality", flag_value)
         elif applies_to == 14:
             context.set_element("parameters/CurrentSpeed/metadata/Quality", flag_value)
         elif applies_to == 15:
-            context.set_element("parameters/CurrentDirection/metadata/Quality", flag_value)
+            context.set_element(
+                "parameters/CurrentDirection/metadata/Quality", flag_value
+            )
         elif applies_to == 16:
-            context.set_element("parameters/DissolvedOxygen/metadata/Quality", flag_value)
+            context.set_element(
+                "parameters/DissolvedOxygen/metadata/Quality", flag_value
+            )
         elif applies_to == 25:
             context.set_element("parameters/Conductivity/metadata/Quality", flag_value)
         elif applies_to == 26:
-            context.set_element("parameters/PotentialDensity/metadata/Quality", flag_value)
+            context.set_element(
+                "parameters/PotentialDensity/metadata/Quality", flag_value
+            )
         elif applies_to is None:
             if flag_value is not None:
-                self.warn(f"Unhandled quality flag with no apply_to value", context)
+                self.warn("Unhandled quality flag with no apply_to value", context)
         else:
             self.warn(f"Unrecognized apply to value [{applies_to}]", context)
 
@@ -879,7 +1071,11 @@ class _Bufr4Decoder:
         raise NotImplementedError
 
     def _parse_time_period_node(self, node: ValueDataNode, ctx: OPSContext):
-        if ctx.recordset_type == "TIME_SERIES" and "Time" not in ctx.record.coordinates and "TimeOffset" not in ctx.record.coordinates:
+        if (
+            ctx.recordset_type == "TIME_SERIES"
+            and "Time" not in ctx.record.coordinates
+            and "TimeOffset" not in ctx.record.coordinates
+        ):
             kwargs = {
                 "element": "coordinates/TimeOffset",
             }
@@ -887,22 +1083,28 @@ class _Bufr4Decoder:
             kwargs = {
                 "element": "common/ObservationPeriod",
             }
-        kwargs.update(self.bufr_tables.get_table_group_arguments(node.descriptor.id, self.pybufr_tables))
-        kwargs.update({
-            "data_type": "duration"
-        })
+        kwargs.update(
+            self.bufr_tables.get_table_group_arguments(
+                node.descriptor.id, self.pybufr_tables
+            )
+        )
+        kwargs.update({"data_type": "duration"})
         self._apply_instruction(
             Instruction.parse_instruction(
                 kwargs,
-                functools.partial(self.bufr_tables.standardize_instruction, table_group=self.pybufr_tables)
+                functools.partial(
+                    self.bufr_tables.standardize_instruction,
+                    table_group=self.pybufr_tables,
+                ),
             ),
-            node, ctx
+            node,
+            ctx,
         )
 
     @staticmethod
-    def extract_expected_nodes(node_list: list[int | list[int]],
-                               context: OPSContext,
-                               offset: int = 0) -> list[DataNode]:
+    def extract_expected_nodes(
+        node_list: list[int | list[int]], context: OPSContext, offset: int = 0
+    ) -> list[DataNode]:
         result = []
         for idx, descriptor_id in enumerate(node_list):
             peek = _Bufr4Decoder.peek(idx + offset, context)
@@ -912,7 +1114,12 @@ class _Bufr4Decoder:
                 break
         return result
 
-    def parse_wmo_id(self, instruction: Instruction | None, node: ValueDataNode | SequenceNode, context: OPSContext):
+    def parse_wmo_id(
+        self,
+        instruction: Instruction | None,
+        node: ValueDataNode | SequenceNode,
+        context: OPSContext,
+    ):
         peek1 = self.peek(1, context)
         if not (peek1 and peek1.descriptor.id in (1002, 1020, 1004)):
             raise ValueError(f"Expecting 1002, 1020, or 1004, found {peek1}")
@@ -937,34 +1144,50 @@ class _Bufr4Decoder:
         if all(x is None or x == "" for x in elements):
             value = None
         else:
-            value = clean_wmo_id("".join((
-                str(elements[0]).zfill(2),
-                str(elements[1]).zfill(2),
-                str(elements[2]).zfill(3)
-            )))
+            value = clean_wmo_id(
+                "".join(
+                    (
+                        str(elements[0]).zfill(2),
+                        str(elements[1]).zfill(2),
+                        str(elements[2]).zfill(3),
+                    )
+                )
+            )
         return value
 
-    def parse_wigos_id(self, instruction: Instruction | None, node: ValueDataNode | SequenceNode, context: OPSContext):
-        nodes = self.extract_expected_nodes(
-            [1125, 1126, 1127, 1128],
-            context
-        )
+    def parse_wigos_id(
+        self,
+        instruction: Instruction | None,
+        node: ValueDataNode | SequenceNode,
+        context: OPSContext,
+    ):
+        nodes = self.extract_expected_nodes([1125, 1126, 1127, 1128], context)
         if len(nodes) != 4:
             raise ValueError("Expecting 4 nodes")
         context.extras["skip"] += 3
         values = [
             self._get_node_value(None, t.cast(ValueDataNode, n), context) for n in nodes
         ]
-        return None if all(v is None for v in values) else "-".join(
-            str(x)
-            if x is not None else ""
-            for x in values
+        return (
+            None
+            if all(v is None for v in values)
+            else "-".join(str(x) if x is not None else "" for x in values)
         )
 
-    def parse_datetime_sequence(self, instruction: Instruction | None, node: ValueDataNode | SequenceNode, context: OPSContext):
+    def parse_datetime_sequence(
+        self,
+        instruction: Instruction | None,
+        node: ValueDataNode | SequenceNode,
+        context: OPSContext,
+    ):
         return self._parse_dt_sequence(context, 0)
 
-    def parse_following_datetime_sequence(self, instruction: Instruction | None, node: ValueDataNode | SequenceNode, context: OPSContext):
+    def parse_following_datetime_sequence(
+        self,
+        instruction: Instruction | None,
+        node: ValueDataNode | SequenceNode,
+        context: OPSContext,
+    ):
         return self._parse_dt_sequence(context, 1)
 
     def _parse_dt_sequence(self, ctx: OPSContext, start_at: int = 0):
@@ -979,21 +1202,22 @@ class _Bufr4Decoder:
                 else:
                     return self._node_sequences_to_datetime(ctx, start)
             elif start.descriptor.id == 4001:
-                expected = self.extract_expected_nodes([
-                    4002, 4003, 4004, 4005, 4006
-                ], ctx, start_at + 1)
+                expected = self.extract_expected_nodes(
+                    [4002, 4003, 4004, 4005, 4006], ctx, start_at + 1
+                )
                 ctx.extras["skip"] += start_at + len(expected)
                 return self._node_list_to_datetime(ctx, start, *expected)
             elif start.descriptor.id == 26021:
-                expected = self.extract_expected_nodes([26022, 26023], ctx, start_at + 1)
+                expected = self.extract_expected_nodes(
+                    [26022, 26023], ctx, start_at + 1
+                )
                 ctx.extras["skip"] += start_at + len(expected)
                 return self._node_list_to_datetime(ctx, start, *expected)
         return None
 
-    def _node_sequences_to_datetime(self,
-                                    ctx: OPSContext,
-                                    ymd_node: DataNode,
-                                    hms_node: DataNode | None = None):
+    def _node_sequences_to_datetime(
+        self, ctx: OPSContext, ymd_node: DataNode, hms_node: DataNode | None = None
+    ):
         nodes = []
         if isinstance(ymd_node, SequenceNode):
             nodes.extend(ymd_node.members)
@@ -1005,9 +1229,7 @@ class _Bufr4Decoder:
             raise ValueError()
         return self._node_list_to_datetime(ctx, *nodes)
 
-    def _node_list_to_datetime(self,
-                               ctx: OPSContext,
-                               *nodes: DataNode):
+    def _node_list_to_datetime(self, ctx: OPSContext, *nodes: DataNode):
         node_values = [
             self._get_node_value(None, t.cast(ValueDataNode, n), ctx) for n in nodes
         ]
@@ -1016,20 +1238,26 @@ class _Bufr4Decoder:
 
         if node_values:
             dt_len = len(node_values)
-            date_str = "-".join([str(node_values[0]), str(node_values[1]).zfill(2), str(node_values[2]).zfill(2)])
+            date_str = "-".join(
+                [
+                    str(node_values[0]),
+                    str(node_values[1]).zfill(2),
+                    str(node_values[2]).zfill(2),
+                ]
+            )
             if dt_len > 3:
                 date_str += "T"
                 date_str += ":".join(str(x).zfill(2) for x in node_values[3:])
                 date_str += "+00:00"
             e = ocproc2.SingleElement(date_str)
             if dt_len == 3:
-                e.metadata['DatePrecision'] = 'day'
+                e.metadata["DatePrecision"] = "day"
             elif dt_len == 4:
-                e.metadata['DatePrecision'] = 'hour'
+                e.metadata["DatePrecision"] = "hour"
             elif dt_len == 5:
-                e.metadata['DatePrecision'] = 'minute'
+                e.metadata["DatePrecision"] = "minute"
             elif dt_len == 6:
-                e.metadata['DatePrecision'] = 'second'
+                e.metadata["DatePrecision"] = "second"
             return e
         else:
             return None

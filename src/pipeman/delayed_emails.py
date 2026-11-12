@@ -1,14 +1,13 @@
-import typing as t
 
 from autoinject import injector
+
 from medsutil.sendmail import EmailController
 from nodb.interface import NODB
 from nodb.queue import NODBQueueItem
-from pipeman.processing.queue_worker import QueueWorker, QueueItemResult
+from pipeman.processing.queue_worker import QueueItemResult, QueueWorker
 
 
 class DelayedEmailsQueuer:
-
     nodb: NODB = None
 
     @injector.construct
@@ -21,20 +20,14 @@ class DelayedEmailsQueuer:
 
 
 class DelayedEmailsWorker(QueueWorker):
-
     emails: EmailController = None
 
     @injector.construct
     def __init__(self, **kwargs):
         super().__init__(
-            process_name="delayed_email_send",
-            process_version="1_0",
-            **kwargs
+            process_name="delayed_email_send", process_version="1_0", **kwargs
         )
-        self.set_defaults({
-            'queue_name': 'emails'
-        })
+        self.set_defaults({"queue_name": "emails"})
 
-    def process_queue_item(self, item: NODBQueueItem) -> t.Optional[QueueItemResult]:
+    def process_queue_item(self, item: NODBQueueItem) -> QueueItemResult | None:
         self.emails.bare_direct_send_email(**item.data)
-

@@ -1,15 +1,16 @@
 import tkinter as tk
-import tkinter.ttk as ttk
 import typing as t
+from tkinter import ttk
 
 
 class ScrollableFrame(tk.Frame):
-
     def __init__(self, *args, height=None, width=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._canvas = tk.Canvas(self, height=height, width=width)
         self._canvas.grid(row=0, column=0, sticky="nsew")
-        self._scrollbar = tk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
+        self._scrollbar = tk.Scrollbar(
+            self, orient="vertical", command=self._canvas.yview
+        )
         self._canvas.configure(yscrollcommand=self._scrollbar.set)
         self._scrollbar.grid(row=0, column=1, sticky="nsew")
         self.content = tk.Frame(self)
@@ -20,20 +21,21 @@ class ScrollableFrame(tk.Frame):
         self._canvas.bind("<Configure>", self.on_configure)
 
     def on_configure(self, e):
-        self._canvas.configure(scrollregion=self._canvas.bbox('all'))
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
 
 class ScrollableTreeview(tk.Frame):
-
-    def __init__(self,
-                 parent,
-                 columns: list[str],
-                 padding=0,
-                 selectmode: t.Optional[str] = "browse",
-                 on_select: t.Optional[t.Callable] = None,
-                 on_click: t.Optional[t.Callable] = None,
-                 on_right_click: t.Optional[t.Callable] = None,
-                 show: t.Optional[str] = None):
+    def __init__(
+        self,
+        parent,
+        columns: list[str],
+        padding=0,
+        selectmode: str | None = "browse",
+        on_select: t.Callable | None = None,
+        on_click: t.Callable | None = None,
+        on_right_click: t.Callable | None = None,
+        show: str | None = None,
+    ):
         super().__init__(parent)
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
@@ -45,8 +47,8 @@ class ScrollableTreeview(tk.Frame):
             self.table.configure(show=show)
         self.table.configure(columns=columns, padding=padding)
         self.table.grid(row=0, column=0, sticky="nsew")
-        self.table.bind('<<TreeviewSelect>>', self._on_select)
-        self.table.bind('<Button-3>', self._on_button3)
+        self.table.bind("<<TreeviewSelect>>", self._on_select)
+        self.table.bind("<Button-3>", self._on_button3)
         self._scroll = ttk.Scrollbar(self, orient="vertical", command=self.table.yview)
         self.table.configure(yscrollcommand=self._scroll.set)
         self._scroll.grid(row=0, column=1, sticky="nsew")
@@ -71,8 +73,24 @@ class ScrollableTreeview(tk.Frame):
     def set_header_text(self, column_id: str, header: str):
         self.table.heading(column_id, text=header)
 
-    def append_item(self, iid: str, values: tuple, parent: str = '', text: str = '', tags: tuple | None = None, open: bool = False):
-        self.table.insert(parent, 'end', iid=iid, text=text, values=values, tags=tags or tuple(), open=open)
+    def append_item(
+        self,
+        iid: str,
+        values: tuple,
+        parent: str = "",
+        text: str = "",
+        tags: tuple | None = None,
+        open: bool = False,
+    ):
+        self.table.insert(
+            parent,
+            "end",
+            iid=iid,
+            text=text,
+            values=values,
+            tags=tags or (),
+            open=open,
+        )
 
     def open_item(self, iid: str):
         self.table.item(iid, open=True)
@@ -82,10 +100,7 @@ class ScrollableTreeview(tk.Frame):
             self.append_item(*args)
 
     def get_item(self, iid: str):
-        return {
-            **self.table.item(iid),
-            "iid": iid
-        }
+        return {**self.table.item(iid), "iid": iid}
 
     def _on_select(self, e: tk.Event):
         if self._ignoring_callback:
@@ -96,7 +111,7 @@ class ScrollableTreeview(tk.Frame):
                 item = self.get_item(iid[0])
                 is_new = self._current_selection != iid[0]
                 self._current_selection = iid[0]
-                item['iid'] = iid[0]
+                item["iid"] = iid[0]
                 if is_new and self._on_select_call is not None:
                     self._on_select_call(item, e)
                 if self._on_click_call is not None:
@@ -104,9 +119,7 @@ class ScrollableTreeview(tk.Frame):
 
     def _on_button3(self, e):
         if self._on_right_call is not None:
-            iid = self.table.identify('item', e.x, e.y)
+            iid = self.table.identify("item", e.x, e.y)
             if iid:
                 self.table.selection_set([iid])
                 self._on_right_call(self.get_item(iid), e)
-
-

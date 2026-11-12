@@ -1,40 +1,41 @@
-""" Support for a generic querying framework against a database. """
+"""Support for a generic querying framework against a database."""
+
 import typing as t
 
 
 class QueryManager[X](t.Protocol):
-    """ Represents a contextmanager that yields a Queryable context object. """
+    """Represents a contextmanager that yields a Queryable context object."""
 
-    def __enter__(self) -> Queryable[X]:
-        ...
+    def __enter__(self) -> Queryable[X]: ...
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        ...
+    def __exit__(self, exc_type, exc_val, exc_tb): ...
 
 
 class Queryable[X](t.Protocol):
-    """ An object that can stream and count results from a SQL query."""
+    """An object that can stream and count results from a SQL query."""
 
-    def stream_results(self,
-                       filters: SqlCondition | None = None,
-                       order_by: str | tuple[str, bool] | None = None,
-                       offset: int | None = None,
-                       limit: int | None = None,
-                       columns: list[str] | None = None) -> t.Iterable[X]:
-        ...
+    def stream_results(
+        self,
+        filters: SqlCondition | None = None,
+        order_by: str | tuple[str, bool] | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        columns: list[str] | None = None,
+    ) -> t.Iterable[X]: ...
 
-    def count_results(self, filters: SqlCondition | None = None) -> int:
-        ...
+    def count_results(self, filters: SqlCondition | None = None) -> int: ...
 
 
 class QuerySpecification:
-    """ Contains filters, orders, and limit information for a SQL query."""
+    """Contains filters, orders, and limit information for a SQL query."""
 
-    def __init__(self,
-                 page_index: int | None = None,
-                 page_size: int | None = None,
-                 order_by: list[tuple[str, bool] | str] | None = None,
-                 filters: SqlCondition | None = None):
+    def __init__(
+        self,
+        page_index: int | None = None,
+        page_size: int | None = None,
+        order_by: list[tuple[str, bool] | str] | None = None,
+        filters: SqlCondition | None = None,
+    ):
         """
         :param page_index: The index of the current page (default is None or 0)
         :param page_size: The size of the current page (default is None for all the results)
@@ -48,12 +49,12 @@ class QuerySpecification:
 
 
 class SqlCondition:
-    """ Represents a SQL condition that can be translated into SQL code. """
-    ...
+    """Represents a SQL condition that can be translated into SQL code."""
+
 
 
 class And(SqlCondition):
-    """ SQL "AND" statement - all given conditions must be true. """
+    """SQL "AND" statement - all given conditions must be true."""
 
     def __init__(self, *conditions: SqlCondition | t.Iterable[SqlCondition]):
         self.conditions = conditions
@@ -67,7 +68,7 @@ class And(SqlCondition):
 
 
 class Or(SqlCondition):
-    """ SQL "OR" statement - at least one of the given conditions must be true. """
+    """SQL "OR" statement - at least one of the given conditions must be true."""
 
     def __init__(self, *conditions: SqlCondition | t.Iterable[SqlCondition]):
         self.conditions = conditions
@@ -81,15 +82,21 @@ class Or(SqlCondition):
 
 
 class Equals(SqlCondition):
-    """ The value of a column must be equal to the given literal value. """
+    """The value of a column must be equal to the given literal value."""
 
-    def __init__(self, column_name: str, value: t.Any, or_null: bool = False, case_sensitive: bool = True):
+    def __init__(
+        self,
+        column_name: str,
+        value: t.Any,
+        or_null: bool = False,
+        case_sensitive: bool = True,
+    ):
         """
 
-            :param column_name: The name of the column
-            :param value: The literal value to check
-            :param or_null: Allow NULL matches as well (equivalent to Or(Equals, IsNull))
-            :param case_sensitive: If value is a string, setting this to False will perform a case-insensitive comparison.
+        :param column_name: The name of the column
+        :param value: The literal value to check
+        :param or_null: Allow NULL matches as well (equivalent to Or(Equals, IsNull))
+        :param case_sensitive: If value is a string, setting this to False will perform a case-insensitive comparison.
         """
         self.column_name = column_name
         self.value = value
@@ -98,27 +105,27 @@ class Equals(SqlCondition):
 
 
 class IsNull(SqlCondition):
-    """ The value of the column must be null. """
+    """The value of the column must be null."""
 
     def __init__(self, column_name: str):
         """
-            :param column_name: The name of the column that must be null.
+        :param column_name: The name of the column that must be null.
         """
         self.column_name = column_name
 
 
 class IsNotNull(SqlCondition):
-    """ The value of the column must not be null. """
+    """The value of the column must not be null."""
 
     def __init__(self, column_name: str):
         """
-            :param column_name: The name of the column that must not be null.
+        :param column_name: The name of the column that must not be null.
         """
         self.column_name = column_name
 
 
 class In(SqlCondition):
-    """ The value of the column must be in a given set of values. """
+    """The value of the column must be in a given set of values."""
 
     def __init__(self, column_name: str, values: t.Collection, or_null: bool = False):
         """
@@ -133,14 +140,20 @@ class In(SqlCondition):
 
 
 class Between(SqlCondition):
-    """ The value of the column must be between a given lower and upper bound. """
+    """The value of the column must be between a given lower and upper bound."""
 
-    def __init__(self, column_name: str, lower_bound: float, upper_bound: float, or_null: bool = False):
+    def __init__(
+        self,
+        column_name: str,
+        lower_bound: float,
+        upper_bound: float,
+        or_null: bool = False,
+    ):
         """
-            :param column_name: The column name to check
-            :param lower_bound: The lower bound
-            :param upper_bound: The upper bound
-            :param or_null: Allow NULL matches as well.
+        :param column_name: The column name to check
+        :param lower_bound: The lower bound
+        :param upper_bound: The upper bound
+        :param or_null: Allow NULL matches as well.
         """
         self.column_name = column_name
         self.lower_bound = lower_bound
@@ -149,9 +162,15 @@ class Between(SqlCondition):
 
 
 class InEnvelope(SqlCondition):
-    """ Where supported, a geodesy comparison to ensure the given column is within a polygon defined by the points. """
+    """Where supported, a geodesy comparison to ensure the given column is within a polygon defined by the points."""
 
-    def __init__(self, column_name: str, points: list[str], datum: int = 4326, or_null: bool = False):
+    def __init__(
+        self,
+        column_name: str,
+        points: list[str],
+        datum: int = 4326,
+        or_null: bool = False,
+    ):
         """
         :param column_name: The column name to check
         :param points: A list of points (WKT formatting)
@@ -165,9 +184,15 @@ class InEnvelope(SqlCondition):
 
 
 class Like(SqlCondition):
-    """ A SQL LIKE comparison """
+    """A SQL LIKE comparison"""
 
-    def __init__(self, column_name: str, pattern: str, or_null: bool = False, case_sensitive: bool = True):
+    def __init__(
+        self,
+        column_name: str,
+        pattern: str,
+        or_null: bool = False,
+        case_sensitive: bool = True,
+    ):
         """
         :param column_name: The column name to check
         :param pattern: The LIKE pattern to ma

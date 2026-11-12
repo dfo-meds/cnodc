@@ -4,25 +4,32 @@ import uuid
 
 from nodb.interface import QueueStatus
 from nodb.queue import NODBQueueItem
-from pipeman.processing.payload_worker import BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, ObservationWorkflowWorker, FileWorkflowWorker
+from pipeman.processing.payload_worker import (
+    BatchWorkflowWorker,
+    FileWorkflowWorker,
+    ObservationWorkflowWorker,
+    SourceWorkflowWorker,
+    WorkflowWorker,
+)
+from pipeman.processing.payloads import WorkflowPayload
 from pipeman.processing.queue_worker import QueueWorker
 from pipeman.processing.scheduled_task import ScheduledTask
-from pipeman.processing.payloads import WorkflowPayload
 
 
 class WorkerTestController:
-
     def __init__(self, db, nodb, halt):
         self._nodb = nodb
         self._db = db
         self._halt = halt
 
-    def payload_to_queue_item(self,
-                              payload: WorkflowPayload,
-                              queue_name: str = '',
-                              priority: int = 0,
-                              subqueue_name: t.Optional[str] = None,
-                              unique_item_name: t.Optional[str] = None,):
+    def payload_to_queue_item(
+        self,
+        payload: WorkflowPayload,
+        queue_name: str = "",
+        priority: int = 0,
+        subqueue_name: str | None = None,
+        unique_item_name: str | None = None,
+    ):
         return NODBQueueItem(
             is_new=False,
             queue_name=queue_name,
@@ -31,21 +38,24 @@ class WorkerTestController:
             data=payload.export(),
             priority=priority,
             queue_uuid=str(uuid.uuid4()),
-            created_date=datetime.datetime.now(datetime.timezone.utc),
-            modified_date=datetime.datetime.now(datetime.timezone.utc),
+            created_date=datetime.datetime.now(datetime.UTC),
+            modified_date=datetime.datetime.now(datetime.UTC),
             status=QueueStatus.LOCKED,
-            locked_since=datetime.datetime.now(datetime.timezone.utc),
-            locked_by='test',
-            escalation_level=0
+            locked_since=datetime.datetime.now(datetime.UTC),
+            locked_by="test",
+            escalation_level=0,
         )
 
-    def test_queue_worker(self, worker_cls: type, worker_config: dict, queue_item: NODBQueueItem):
+    def test_queue_worker(
+        self, worker_cls: type, worker_config: dict, queue_item: NODBQueueItem
+    ):
         worker: QueueWorker = self.build_test_worker(worker_cls, worker_config)
         return self._test_harness(worker, self._test_queue_worker, queue_item)
 
     def _test_queue_worker(self, worker, queue_item):
         def retrieve_item():
             return queue_item
+
         worker._fetch_next_queue_item = retrieve_item
         worker._process_next_queue_item()
 
@@ -54,7 +64,7 @@ class WorkerTestController:
         return self._test_harness(worker, self._test_scheduled_task)
 
     def _test_scheduled_task(self, worker):
-        worker._run_scheduled_task(datetime.datetime.now(datetime.timezone.utc))
+        worker._run_scheduled_task(datetime.datetime.now(datetime.UTC))
 
     def _test_harness(self, worker, action: t.Callable, *args, **kwargs):
         exc = None
@@ -64,28 +74,36 @@ class WorkerTestController:
             action(worker, *args, **kwargs)
         except Exception as ex:
             exc = ex
-            raise ex
+            raise
         finally:
             worker.after_cycle()
             worker.on_exit(exc)
             self._db.commit()
         return worker
 
-    def build_test_worker(self, worker_cls: type, worker_config: dict = None):
+    def build_test_worker(self, worker_cls: type, worker_config: dict | None = None):
         kwargs = {
-            '_halt_flag': self._halt,
-            '_end_flag': self._halt,
-            '_process_uuid': str(uuid.uuid4()),
-            '_config': worker_config or {},
-            '_server_name': 'tests',
+            "_halt_flag": self._halt,
+            "_end_flag": self._halt,
+            "_process_uuid": str(uuid.uuid4()),
+            "_config": worker_config or {},
+            "_server_name": "tests",
         }
-        if worker_cls in (BatchWorkflowWorker, WorkflowWorker, SourceWorkflowWorker, ObservationWorkflowWorker, FileWorkflowWorker, QueueWorker, ScheduledTask):
-            kwargs['process_name'] = 'test'
-            kwargs['process_version'] = '0.1'
+        if worker_cls in (
+            BatchWorkflowWorker,
+            WorkflowWorker,
+            SourceWorkflowWorker,
+            ObservationWorkflowWorker,
+            FileWorkflowWorker,
+            QueueWorker,
+            ScheduledTask,
+        ):
+            kwargs["process_name"] = "test"
+            kwargs["process_version"] = "0.1"
         cls = worker_cls(**kwargs)
-        if hasattr(cls, 'nodb'):
+        if hasattr(cls, "nodb"):
             cls.nodb = self._nodb
             cls.mock_nodb = self._nodb
-        if hasattr(cls, '_db'):
+        if hasattr(cls, "_db"):
             cls._db = self._db
         return cls

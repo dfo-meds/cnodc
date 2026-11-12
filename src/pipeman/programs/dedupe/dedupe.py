@@ -5,24 +5,36 @@ import typing as t
 from autoinject import injector
 
 import medsutil.math as amath
-from medsutil.ocproc2 import SingleElement, ElementMap, AbstractElement, OCProc2Ontology, BaseRecord, \
-    RecordMap, RecordSet, ParentRecord, ChildRecord
-from medsutil.ocproc2.operations import SetRelationships, SetQualityCheck
-from medsutil.ocproc2.util import pair_up_records, pair_up_recordsets, pair_up_single_elements
+from medsutil.ocproc2 import (
+    AbstractElement,
+    BaseRecord,
+    ChildRecord,
+    ElementMap,
+    OCProc2Ontology,
+    ParentRecord,
+    RecordMap,
+    RecordSet,
+    SingleElement,
+)
+from medsutil.ocproc2.operations import SetQualityCheck, SetRelationships
+from medsutil.ocproc2.util import (
+    pair_up_records,
+    pair_up_recordsets,
+    pair_up_single_elements,
+)
 from medsutil.units.structures import UnitError
-from nodb.observations import QualityCheckFlags, DataMode
+from nodb.observations import DataMode, QualityCheckFlags
 from pipeman.programs.qc.base import QualityController
 
 
 class CompareResult(enum.Enum):
-    A_BETTER = 'A'
-    B_BETTER = 'B'
-    IDENTICAL = 'C'
-    DIFFERENT = 'D'
+    A_BETTER = "A"
+    B_BETTER = "B"
+    IDENTICAL = "C"
+    DIFFERENT = "D"
 
 
 class RelationshipAction(enum.Enum):
-
     A_IS_BROADCAST = "A_IS_BROADCAST"
     B_IS_BROADCAST = "B_IS_BROADCAST"
     A_IS_DELAYED_MODE = "A_IS_DELAYED"
@@ -55,33 +67,40 @@ class RelationshipAction(enum.Enum):
         return self in {
             RelationshipAction.A_IS_DUPLICATE,
             RelationshipAction.B_IS_DUPLICATE,
-            RelationshipAction.MERGE
+            RelationshipAction.MERGE,
         }
 
     @staticmethod
-    def encode_actions(actions: list[tuple[str, datetime.date, RelationshipAction, bool]]) -> list[list[str | bool]]:
-        return [
-            [x[0], x[1].isoformat(), x[2].value, x[3]]
-            for x in actions
-        ]
+    def encode_actions(
+        actions: list[tuple[str, datetime.date, RelationshipAction, bool]],
+    ) -> list[list[str | bool]]:
+        return [[x[0], x[1].isoformat(), x[2].value, x[3]] for x in actions]
 
     @staticmethod
-    def decode_actions(actions: list[list[str | bool]]) -> list[tuple[str, datetime.date, RelationshipAction, bool]]:
+    def decode_actions(
+        actions: list[list[str | bool]],
+    ) -> list[tuple[str, datetime.date, RelationshipAction, bool]]:
         return [
-            (str(x[0]), datetime.date.fromisoformat(str(x[1])), RelationshipAction(x[2]), bool(x[3]))
+            (
+                str(x[0]),
+                datetime.date.fromisoformat(str(x[1])),
+                RelationshipAction(x[2]),
+                bool(x[3]),
+            )
             for x in actions
         ]
 
 
 class RelationshipCandidate:
-
-    def __init__(self,
-                 observation_uuid: str,
-                 received_date: datetime.date,
-                 source_file_uuid: str,
-                 record: ParentRecord,
-                 data_mode: DataMode,
-                 quality_checks: int):
+    def __init__(
+        self,
+        observation_uuid: str,
+        received_date: datetime.date,
+        source_file_uuid: str,
+        record: ParentRecord,
+        data_mode: DataMode,
+        quality_checks: int,
+    ):
         self.observation_uuid = observation_uuid
         self.received_date = received_date
         self.source_file_uuid = source_file_uuid
@@ -91,7 +110,6 @@ class RelationshipCandidate:
 
 
 class NODBDuplicateCheck(QualityController):
-
     ontology: OCProc2Ontology = None
 
     @injector.construct
@@ -100,7 +118,7 @@ class NODBDuplicateCheck(QualityController):
             test_name="duplicate_check",
             test_version="1.0",
             test_protocol="nodb",
-            **kwargs
+            **kwargs,
         )
 
     def run(self):
@@ -113,67 +131,107 @@ class NODBDuplicateCheck(QualityController):
             SetRelationships(
                 relationships=RelationshipAction.encode_actions(relationships)
             ),
-            reviewable
+            reviewable,
         )
         self.add_record_action(
-            SetQualityCheck(check_no=QualityCheckFlags.DEDUPLICATE),
-            reviewable
+            SetQualityCheck(check_no=QualityCheckFlags.DEDUPLICATE), reviewable
         )
 
-    def build_relationship_candidate_list(self) -> list[tuple[str, datetime.date, RelationshipAction, bool]]:
+    def build_relationship_candidate_list(
+        self,
+    ) -> list[tuple[str, datetime.date, RelationshipAction, bool]]:
         results: list[tuple[str, datetime.date, RelationshipAction, bool]] = []
         cached = {
             "latitude": self.current_record.record.coordinates.ideal("Latitude"),
             "longitude": self.current_record.record.coordinates.ideal("Longitude"),
             "time": self.current_record.record.coordinates.ideal("Time"),
-            "obs_id": self.current_record.record.metadata.best("CNODCObservationID", default=None, coerce=str),
-            "sub_id": self.current_record.record.metadata.best("CNODCObservationSubID", default=None, coerce=str),
-            "data_mode": self.current_record.record.metadata.best("CNODCDataMode", default=None, coerce=str),
-            "quality_checks": self.current_record.record.metadata.best("CNODCQualityFlags", default=None, coerce=int),
-            "is_broadcast": self.current_record.record.metadata.best("CNODCIsBroadcast", default=None, coerce=int),
-            "source_version": self.current_record.record.metadata.best("CNODCSourceFileVersion", default=None, coerce=int),
-            "source_file": self.current_record.record.metadata.best("CNODCSourceFile", default=None, coerce=str),
+            "obs_id": self.current_record.record.metadata.best(
+                "CNODCObservationID", default=None, coerce=str
+            ),
+            "sub_id": self.current_record.record.metadata.best(
+                "CNODCObservationSubID", default=None, coerce=str
+            ),
+            "data_mode": self.current_record.record.metadata.best(
+                "CNODCDataMode", default=None, coerce=str
+            ),
+            "quality_checks": self.current_record.record.metadata.best(
+                "CNODCQualityFlags", default=None, coerce=int
+            ),
+            "is_broadcast": self.current_record.record.metadata.best(
+                "CNODCIsBroadcast", default=None, coerce=int
+            ),
+            "source_version": self.current_record.record.metadata.best(
+                "CNODCSourceFileVersion", default=None, coerce=int
+            ),
+            "source_file": self.current_record.record.metadata.best(
+                "CNODCSourceFile", default=None, coerce=str
+            ),
         }
-        merged_from = self.current_record.record.metadata.best("CNODCMergedFrom", default=None)
+        merged_from = self.current_record.record.metadata.best(
+            "CNODCMergedFrom", default=None
+        )
         omit_records: set[tuple[str, datetime.date]] = set()
         if merged_from and isinstance(merged_from, list):
             for item in merged_from:
                 if isinstance(item, list) and len(item) >= 2:
-                    key: tuple[str, datetime.date] = str(item[0]), datetime.date.fromisoformat(str(item[1]))
+                    key: tuple[str, datetime.date] = (
+                        str(item[0]),
+                        datetime.date.fromisoformat(str(item[1])),
+                    )
                     if key in omit_records:
                         continue
                     omit_records.add(key)
-                    results.append((
-                        key[0],
-                        key[1],
-                        RelationshipAction.A_WAS_MERGED_FROM,
-                        False
-                    ))
+                    results.append(
+                        (key[0], key[1], RelationshipAction.A_WAS_MERGED_FROM, False)
+                    )
 
         for candidate in self.find_relationship_candidates(omit_records):
             if not self._candidate_position_compatible(candidate, cached):
                 continue
             obs_id_match: bool = False
             if cached["obs_id"] is not None:
-                candidate_obs_id = candidate.record.metadata.best("CNODCObservationID", default=None)
+                candidate_obs_id = candidate.record.metadata.best(
+                    "CNODCObservationID", default=None
+                )
                 if candidate_obs_id == cached["obs_id"]:
                     obs_id_match = True
             result = self._compare_candidate(candidate, cached)
-            results.append((candidate.observation_uuid, candidate.received_date, result, obs_id_match or result.is_reviewable()))
+            results.append(
+                (
+                    candidate.observation_uuid,
+                    candidate.received_date,
+                    result,
+                    obs_id_match or result.is_reviewable(),
+                )
+            )
         return results
 
-    def _candidate_position_compatible(self, candidate: RelationshipCandidate, cached: dict[str, t.Any]) -> bool:
+    def _candidate_position_compatible(
+        self, candidate: RelationshipCandidate, cached: dict[str, t.Any]
+    ) -> bool:
         other_lat: SingleElement | None = candidate.record.coordinates.ideal("Latitude")
         my_lat: SingleElement | None = cached["latitude"]
-        if my_lat is not None and other_lat is not None and my_lat.is_numeric() and other_lat.is_numeric():
+        if (
+            my_lat is not None
+            and other_lat is not None
+            and my_lat.is_numeric()
+            and other_lat.is_numeric()
+        ):
             other_lat_num = other_lat.to_scinum()
             my_lat_num = my_lat.to_scinum()
             if not other_lat_num.is_compatible(my_lat_num):
                 return False
-            
-        other_lon: SingleElement | None = candidate.record.coordinates.ideal("Longitude")
+
+        other_lon: SingleElement | None = candidate.record.coordinates.ideal(
+            "Longitude"
+        )
         my_lon: SingleElement | None = cached["longitude"]
-        if my_lon is not None and other_lon is not None and my_lon.is_numeric() and other_lon.is_numeric():
+        if (
+            my_lon is not None
+            and other_lon is not None
+            and my_lon.is_numeric()
+            and other_lon.is_numeric()
+        ):
             other_lon_num = other_lon.to_scinum()
             my_lon_num = my_lon.to_scinum()
             if not other_lon_num.is_compatible(my_lon_num):
@@ -181,7 +239,12 @@ class NODBDuplicateCheck(QualityController):
 
         other_time: SingleElement | None = candidate.record.coordinates.ideal("Time")
         my_time: SingleElement | None = cached["time"]
-        if my_time is not None and other_time is not None and my_time.is_iso_datetime() and other_time.is_iso_datetime():
+        if (
+            my_time is not None
+            and other_time is not None
+            and my_time.is_iso_datetime()
+            and other_time.is_iso_datetime()
+        ):
             other_time_dtr = other_time.to_scidate()
             my_time_dtr = my_time.to_scidate()
             if not my_time_dtr.is_compatible(other_time_dtr):
@@ -189,31 +252,49 @@ class NODBDuplicateCheck(QualityController):
 
         return True
 
-    def _compare_candidate(self, candidate: RelationshipCandidate, cached: dict[str, t.Any]) -> RelationshipAction:
+    def _compare_candidate(
+        self, candidate: RelationshipCandidate, cached: dict[str, t.Any]
+    ) -> RelationshipAction:
 
         # different sensor packages launched together (e.g. bottle vs CTD on a rosette)
-        sub_id = candidate.record.metadata.best("CNODCObservationSubID", default=None, coerce=str)
+        sub_id = candidate.record.metadata.best(
+            "CNODCObservationSubID", default=None, coerce=str
+        )
         if sub_id and cached["sub_id"] and sub_id != cached["sub_id"]:
             return RelationshipAction.SUPPLEMENTAL
 
         # different data modes
-        data_mode = candidate.record.metadata.best("CNODCDataMode", default=None, coerce=str)
+        data_mode = candidate.record.metadata.best(
+            "CNODCDataMode", default=None, coerce=str
+        )
         if data_mode == "DM" and cached["data_mode"] == "RT":
             return RelationshipAction.B_IS_DELAYED_MODE
         if data_mode == "RT" and cached["data_mode"] == "DM":
             return RelationshipAction.A_IS_DELAYED_MODE
 
         # one is a broadcast returning and the other is not
-        is_broadcast = candidate.record.metadata.best("CNODCIsBroadcast", default=None, coerce=int)
+        is_broadcast = candidate.record.metadata.best(
+            "CNODCIsBroadcast", default=None, coerce=int
+        )
         if is_broadcast and not cached["is_broadcast"]:
             return RelationshipAction.A_IS_BROADCAST
         if cached["is_broadcast"] and not is_broadcast:
             return RelationshipAction.B_IS_BROADCAST
 
         # a correction from the source file
-        source_file = candidate.record.metadata.best("CNODCSourceFileIdentifier", default=None, coerce=str)
-        source_version = candidate.record.metadata.best("CNODCSourceFileVersion", default=None, coerce=int)
-        if source_file and cached["source_file"] and source_file == cached["source_file"] and source_version is not None and cached["source_version"] is not None:
+        source_file = candidate.record.metadata.best(
+            "CNODCSourceFileIdentifier", default=None, coerce=str
+        )
+        source_version = candidate.record.metadata.best(
+            "CNODCSourceFileVersion", default=None, coerce=int
+        )
+        if (
+            source_file
+            and cached["source_file"]
+            and source_file == cached["source_file"]
+            and source_version is not None
+            and cached["source_version"] is not None
+        ):
             if source_version > cached["source_version"]:
                 return RelationshipAction.B_IS_CORRECTION
             elif source_version < cached["source_version"]:
@@ -233,7 +314,9 @@ class NODBDuplicateCheck(QualityController):
         else:
             return RelationshipAction.A_IS_DUPLICATE
 
-    def compare_results(self, a: ParentRecord, b: ParentRecord) -> dict[CompareResult, int]:
+    def compare_results(
+        self, a: ParentRecord, b: ParentRecord
+    ) -> dict[CompareResult, int]:
         results = {}
         for res in self.compare_record(a, b):
             if res not in results:
@@ -260,14 +343,14 @@ class NODBDuplicateCheck(QualityController):
         else:
             return CompareResult.DIFFERENT
 
-    def compare_str_float(self, a: str, b: float | int) -> CompareResult:
+    def compare_str_float(self, a: str, b: float) -> CompareResult:
         try:
             x = float(a)
             return self.compare_float_float(x, b)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return CompareResult.DIFFERENT
 
-    def compare_float_float(self, a : float | int, b: float | int) -> CompareResult:
+    def compare_float_float(self, a: float, b: float) -> CompareResult:
         if amath.is_close(a, b):
             return CompareResult.IDENTICAL
         else:
@@ -277,7 +360,11 @@ class NODBDuplicateCheck(QualityController):
         param_a = a.to_scinum()
         param_b = b.to_scinum()
         try:
-            if param_a.units is not None and param_b.units is not None and param_a.units != param_b.units:
+            if (
+                param_a.units is not None
+                and param_b.units is not None
+                and param_a.units != param_b.units
+            ):
                 param_b = param_b.convert(param_a.units)
             if not param_a.is_compatible(param_b):
                 return CompareResult.DIFFERENT
@@ -308,7 +395,9 @@ class NODBDuplicateCheck(QualityController):
             else:
                 return CompareResult.IDENTICAL
 
-    def compare_single_element(self, a: SingleElement | None, b: SingleElement | None) -> t.Iterable[CompareResult]:
+    def compare_single_element(
+        self, a: SingleElement | None, b: SingleElement | None
+    ) -> t.Iterable[CompareResult]:
         if a is None or a.is_empty():
             if b is None or b.is_empty():
                 yield CompareResult.IDENTICAL
@@ -325,14 +414,17 @@ class NODBDuplicateCheck(QualityController):
         if a is not None and b is not None:
             yield from self.compare_element_map(a.metadata, b.metadata)
 
-    def compare_multi_element(self, a: AbstractElement, b: AbstractElement) -> t.Iterable[CompareResult]:
+    def compare_multi_element(
+        self, a: AbstractElement, b: AbstractElement
+    ) -> t.Iterable[CompareResult]:
         for sub_a, sub_b in pair_up_single_elements(
-            [x for x in a.all_values()],
-            [x for x in b.all_values()]
+            [x for x in a.all_values()], [x for x in b.all_values()]
         ):
             yield from self.compare_single_element(sub_a[0], sub_b[0])
 
-    def compare_element(self, a: AbstractElement | None, b: AbstractElement | None) -> t.Iterable[CompareResult]:
+    def compare_element(
+        self, a: AbstractElement | None, b: AbstractElement | None
+    ) -> t.Iterable[CompareResult]:
         if a is None or a.is_empty():
             if b is None or b.is_empty():
                 yield CompareResult.IDENTICAL
@@ -345,7 +437,9 @@ class NODBDuplicateCheck(QualityController):
         else:
             yield from self.compare_multi_element(a, b)
 
-    def compare_element_map(self, a: ElementMap | None, b: ElementMap | None) -> t.Iterable[CompareResult]:
+    def compare_element_map(
+        self, a: ElementMap | None, b: ElementMap | None
+    ) -> t.Iterable[CompareResult]:
         if a is None and b is None:
             yield CompareResult.IDENTICAL
         elif a is None:
@@ -359,7 +453,9 @@ class NODBDuplicateCheck(QualityController):
                     continue
                 yield from self.compare_element(a.get(key, None), b.get(key, None))
 
-    def compare_recordset(self, a: RecordSet | None, b: RecordSet | None) -> t.Iterable[CompareResult]:
+    def compare_recordset(
+        self, a: RecordSet | None, b: RecordSet | None
+    ) -> t.Iterable[CompareResult]:
         if a is None:
             if b is None:
                 yield CompareResult.IDENTICAL
@@ -368,17 +464,22 @@ class NODBDuplicateCheck(QualityController):
         elif b is None:
             yield CompareResult.A_BETTER
         else:
-            yield from self.compare_records(list(a.records.iterate_with_load()), list(b.records.iterate_with_load()))
+            yield from self.compare_records(
+                list(a.records.iterate_with_load()), list(b.records.iterate_with_load())
+            )
             yield from self.compare_element_map(a.metadata, b.metadata)
 
-    def compare_multi_recordsets(self, a: dict[int, RecordSet], b: dict[int, RecordSet]) -> t.Iterable[CompareResult]:
+    def compare_multi_recordsets(
+        self, a: dict[int, RecordSet], b: dict[int, RecordSet]
+    ) -> t.Iterable[CompareResult]:
         rs_a_list = [*a.values()]
         rs_b_list = [*b.values()]
         for rs_a, rs_b in pair_up_recordsets(rs_a_list, rs_b_list):
             yield from self.compare_recordset(rs_a[0], rs_b[0])
 
-    def compare_record_sets(self, a: dict[int, RecordSet] | None, b: dict[int, RecordSet] | None) -> t.Iterable[
-        CompareResult]:
+    def compare_record_sets(
+        self, a: dict[int, RecordSet] | None, b: dict[int, RecordSet] | None
+    ) -> t.Iterable[CompareResult]:
         if a is None or len(a) == 0:
             if b is None or len(b) == 0:
                 yield CompareResult.IDENTICAL
@@ -389,7 +490,9 @@ class NODBDuplicateCheck(QualityController):
         else:
             yield from self.compare_multi_recordsets(a, b)
 
-    def compare_record_map(self, a: RecordMap | None, b: RecordMap | None) -> t.Iterable[CompareResult]:
+    def compare_record_map(
+        self, a: RecordMap | None, b: RecordMap | None
+    ) -> t.Iterable[CompareResult]:
         if a is None and b is None:
             yield CompareResult.IDENTICAL
         elif a is None:
@@ -398,9 +501,13 @@ class NODBDuplicateCheck(QualityController):
             yield CompareResult.A_BETTER
         else:
             for key in set(*a.record_sets.keys(), *b.record_sets.keys()):
-                yield from self.compare_record_sets(a.record_sets.get(key, None), b.record_sets.get(key, None))
+                yield from self.compare_record_sets(
+                    a.record_sets.get(key, None), b.record_sets.get(key, None)
+                )
 
-    def compare_record(self, a: BaseRecord | None, b: BaseRecord | None) -> t.Iterable[CompareResult]:
+    def compare_record(
+        self, a: BaseRecord | None, b: BaseRecord | None
+    ) -> t.Iterable[CompareResult]:
         if a is None:
             if b is None:
                 yield CompareResult.IDENTICAL
@@ -421,13 +528,15 @@ class NODBDuplicateCheck(QualityController):
             for rec_a, rec_b in self.pair_up_records(a, b):
                 yield from self.compare_record(rec_a, rec_b)
 
-    def pair_up_records(self, a: list[ChildRecord], b: list[ChildRecord]) -> t.Iterable[tuple[ChildRecord | None, ...]]:
+    def pair_up_records(
+        self, a: list[ChildRecord], b: list[ChildRecord]
+    ) -> t.Iterable[tuple[ChildRecord | None, ...]]:
         for paired_results in pair_up_records(a, b):
             yield tuple(*(x for x, _ in paired_results))
 
     def search_kwargs(self) -> dict[str, t.Any]:
         kwargs: dict[str, float | int | str | None] = {
-            'platform_uuid': self.get_current_platform_id(),
+            "platform_uuid": self.get_current_platform_id(),
         }
         if "Latitude" in self.current_record.record.coordinates:
             lat = self.current_record.record.coordinates["Latitude"].to_scinum()
@@ -440,16 +549,25 @@ class NODBDuplicateCheck(QualityController):
             kwargs["min_time"], kwargs["max_time"] = time.range()
         return kwargs
 
-    def find_relationship_candidates(self, handled: t.Iterable[tuple[str, datetime.date]] | None = None) -> t.Iterable[RelationshipCandidate]:
+    def find_relationship_candidates(
+        self, handled: t.Iterable[tuple[str, datetime.date]] | None = None
+    ) -> t.Iterable[RelationshipCandidate]:
         search_parameters = self.search_kwargs()
-        observation_identifier: str | None = self.current_record.record.metadata.best("CNODCObservationID", default=None, coerce=str)
+        observation_identifier: str | None = self.current_record.record.metadata.best(
+            "CNODCObservationID", default=None, coerce=str
+        )
 
         seen: set[tuple[str, datetime.date]] = set()
         if handled is not None:
             seen.update(handled)
         if observation_identifier:
-            for working in self.searcher.related_working_records(observation_identifier=observation_identifier):
-                key = str(working.working_uuid), t.cast(datetime.date, working.received_date)
+            for working in self.searcher.related_working_records(
+                observation_identifier=observation_identifier
+            ):
+                key = (
+                    str(working.working_uuid),
+                    t.cast(datetime.date, working.received_date),
+                )
                 if key in seen:
                     continue
                 yield RelationshipCandidate(
@@ -458,14 +576,16 @@ class NODBDuplicateCheck(QualityController):
                     str(working.source_file_uuid),
                     t.cast(ParentRecord, working.record),
                     working.data_mode,
-                    working.quality_checks
+                    working.quality_checks,
                 )
 
         for working in self.searcher.geosearch_working_records(
-                **search_parameters,
-                quality_checks=QualityCheckFlags.DEDUPLICATE
+            **search_parameters, quality_checks=QualityCheckFlags.DEDUPLICATE
         ):
-            key = str(working.working_uuid), t.cast(datetime.date, working.received_date)
+            key = (
+                str(working.working_uuid),
+                t.cast(datetime.date, working.received_date),
+            )
             if key in seen:
                 continue
             seen.add(key)
@@ -475,11 +595,13 @@ class NODBDuplicateCheck(QualityController):
                 str(working.source_file_uuid),
                 t.cast(ParentRecord, working.record),
                 working.data_mode,
-                working.quality_checks
+                working.quality_checks,
             )
 
         if observation_identifier:
-            for obs_data in self.searcher.related_observations(observation_identifier=observation_identifier):
+            for obs_data in self.searcher.related_observations(
+                observation_identifier=observation_identifier
+            ):
                 key = str(obs_data.obs_uuid), obs_data.received_date
                 if key in seen:
                     continue
@@ -490,7 +612,7 @@ class NODBDuplicateCheck(QualityController):
                     obs_data.source_file_uuid,
                     t.cast(ParentRecord, obs_data.record),
                     obs_data.data_mode,
-                    obs_data.quality_checks
+                    obs_data.quality_checks,
                 )
 
         for obs_data in self.searcher.geosearch_observations(**search_parameters):
@@ -504,5 +626,5 @@ class NODBDuplicateCheck(QualityController):
                 obs_data.source_file_uuid,
                 t.cast(ParentRecord, obs_data.record),
                 obs_data.data_mode,
-                obs_data.quality_checks
+                obs_data.quality_checks,
             )

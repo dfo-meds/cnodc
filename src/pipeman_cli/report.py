@@ -1,6 +1,3 @@
-import os
-import pathlib
-import traceback
 
 import click
 
@@ -59,29 +56,35 @@ BASE_SI_MAP = {
     "s-1": "Frequency",
 }
 
+
 def _write_units(writer):
     from medsutil.units import UnitConverter
+
     converter = UnitConverter()
     converter._load_tables()
-    unique_names = set(converter._loaded_tables['preferred_units'].values())
+    unique_names = set(converter._loaded_tables["preferred_units"].values())
     max_len = max(len(x) for x in unique_names)
     to_sort = []
     for x in unique_names:
         try:
             base_units = converter.get_equivalent_base_units(x)
-            to_sort.append((x, BASE_SI_MAP[base_units] if base_units in BASE_SI_MAP else base_units))
+            to_sort.append(
+                (
+                    x,
+                    BASE_SI_MAP.get(base_units, base_units)
+                )
+            )
         except UnitError as ex:
             to_sort.append((x, str(ex)))
     to_sort.sort(key=lambda x: (x[1], x[0]))
-    last = ''
+    last = ""
     for name, category in to_sort:
         if category != last:
             writer(f"\n### {category} ###")
             last = category
         values = [
-            x for x in converter._loaded_tables['preferred_units']
-            if converter._loaded_tables['preferred_units'][x] == name and x != name
+            x
+            for x in converter._loaded_tables["preferred_units"]
+            if converter._loaded_tables["preferred_units"][x] == name and x != name
         ]
-        writer(f"{name.ljust(max_len+5, " ")}{'  '.join(str(x) for x in values)}")
-
-
+        writer(f"{name.ljust(max_len + 5, ' ')}{'  '.join(str(x) for x in values)}")

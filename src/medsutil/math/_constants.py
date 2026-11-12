@@ -1,4 +1,5 @@
-""" Provides support for constants. """
+"""Provides support for constants."""
+
 import decimal
 import math as _math
 import sys
@@ -12,33 +13,33 @@ E_STR = "2.718281828459045235360287471352662497757247093699959574966967627724076
 
 
 def tau[T](type_: type[T] = None) -> T:
-    """ Returns pi * 2 in the given type. """
+    """Returns pi * 2 in the given type."""
     return pi(type_) * 2
 
 
 def inf[T](type_: type[T] = None) -> T:
-    """ Returns infinity in the given type. """
+    """Returns infinity in the given type."""
     if type_ is decimal.Decimal:
         return decimal.Decimal("Infinity")
     return _math.inf
 
 
 def e[T](type_: type[T] = None) -> T:
-    """ Returns e in the given type. """
+    """Returns e in the given type."""
     if type_ is decimal.Decimal:
         return decimal.Decimal(E_STR)
     return float(E_STR)
 
 
 def pi[T](type_: type[T] = None) -> T:
-    """ Returns pi in the given type. """
+    """Returns pi in the given type."""
     if type_ is decimal.Decimal:
         return decimal.Decimal(PI_STR)
     return float(PI_STR)
 
 
 def epsilon_sqrt[T](type_: type[T] = None) -> T:
-    """ Returns the square root of epsilon. """
+    """Returns the square root of epsilon."""
     if type_ is decimal.Decimal:
         return decimal.Decimal(f"1e-{decimal.getcontext().prec}").sqrt()
     else:
@@ -46,7 +47,7 @@ def epsilon_sqrt[T](type_: type[T] = None) -> T:
 
 
 def epsilon[T](type_: type[T] = None) -> T:
-    """ Returns epsilon (the smallest difference between two numbers of the given type). """
+    """Returns epsilon (the smallest difference between two numbers of the given type)."""
     if type_ is decimal.Decimal:
         return decimal.Decimal(f"1e-{decimal.getcontext().prec}")
     else:
@@ -54,7 +55,7 @@ def epsilon[T](type_: type[T] = None) -> T:
 
 
 def float_error() -> float:
-    """ Calculates the error on a floating-point number. """
+    """Calculates the error on a floating-point number."""
     fe = sys.float_info.epsilon
     if sys.float_info.rounds:
         fe /= 2

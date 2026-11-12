@@ -4,13 +4,14 @@ from gcapp.i18n.base import MLString
 
 
 class Keyword:
-
-    def __init__(self,
-                 identifier: str,
-                 machine_key: str | None = None,
-                 translated_values: str | None = None,
-                 thesaurus: dict | None = None,
-                 mode: str = "value"):
+    def __init__(
+        self,
+        identifier: str,
+        machine_key: str | None = None,
+        translated_values: str | None = None,
+        thesaurus: dict | None = None,
+        mode: str = "value",
+    ):
         self._identifier = identifier
         self._machine_key = machine_key
         self._translations = translated_values or {}
@@ -19,11 +20,19 @@ class Keyword:
 
     @property
     def use_machine_key(self) -> bool:
-        return self._machine_key is not None and self._machine_key != "" and self._mode == "both"
+        return (
+            self._machine_key is not None
+            and self._machine_key != ""
+            and self._mode == "both"
+        )
 
     @property
     def use_value_only(self) -> bool:
-        return self._machine_key is not None and self._machine_key != "" and self._mode == "value"
+        return (
+            self._machine_key is not None
+            and self._machine_key != ""
+            and self._mode == "value"
+        )
 
     def __str__(self):
         if self._machine_key:
@@ -31,14 +40,27 @@ class Keyword:
         else:
             return str(MLString(self._translations))
 
-    def to_display(self, primary_locale, use_prefixes: bool = False, prefix_separator: str = ":", force_translations: bool = False) -> dict[str, t.Any]:
+    def to_display(
+        self,
+        primary_locale,
+        use_prefixes: bool = False,
+        prefix_separator: str = ":",
+        force_translations: bool = False,
+    ) -> dict[str, t.Any]:
         # Only use translations
         display_dict: dict[str, t.Any] = {
             "primary": None,
             "secondary": {},
-            'vocab': None
+            "vocab": None,
         }
-        prefix = self._thesaurus['prefix'] if use_prefixes and self._thesaurus and 'prefix' in self._thesaurus and self._thesaurus['prefix'] else ''
+        prefix = (
+            self._thesaurus["prefix"]
+            if use_prefixes
+            and self._thesaurus
+            and "prefix" in self._thesaurus
+            and self._thesaurus["prefix"]
+            else ""
+        )
         if prefix:
             prefix = f"{prefix}{prefix_separator}"
         if self._thesaurus:
@@ -50,13 +72,17 @@ class Keyword:
                 display_dict["primary"] = f"{prefix}{self._translations}"
             else:
                 if primary_locale in self._translations:
-                    display_dict["primary"] = f"{prefix}{self._translations[primary_locale]}"
+                    display_dict["primary"] = (
+                        f"{prefix}{self._translations[primary_locale]}"
+                    )
                 elif "und" in self._translations:
                     display_dict["primary"] = f"{prefix}{self._translations['und']}"
                 display_dict["secondary"] = {
                     key: f"{prefix}{self._translations[key]}"
                     for key in self._translations
-                    if key != "und" and key != primary_locale and self._translations[key]
+                    if key != "und"
+                    and key != primary_locale
+                    and self._translations[key]
                 }
 
         # Only use the machine key
@@ -83,30 +109,32 @@ class Keyword:
     def thesaurus_title(self) -> str | None:
         if not self._thesaurus:
             return None
-        if not ('citation' in self._thesaurus and self._thesaurus['citation']):
+        if not (self._thesaurus.get("citation")):
             return None
-        if not ('title' in self._thesaurus['citation'] and self._thesaurus['citation']['title']):
+        if not (
+            "title" in self._thesaurus["citation"]
+            and self._thesaurus["citation"]["title"]
+        ):
             return None
-        title = self._thesaurus['citation']['title']
+        title = self._thesaurus["citation"]["title"]
         if isinstance(title, str):
             return title
-        keys = ['und', 'en']
+        keys = ["und", "en"]
         keys.extend(title.keys())
         for key in keys:
-            if key in title and title[key]:
+            if title.get(key):
                 return title[key]
         return None
 
     def thesaurus_group(self):
         if not self._thesaurus:
-            return ''
-        if 'prefix' in self._thesaurus:
-            return self._thesaurus['prefix']
-        return self.thesaurus_title() or ''
+            return ""
+        if "prefix" in self._thesaurus:
+            return self._thesaurus["prefix"]
+        return self.thesaurus_title() or ""
 
 
 class KeywordGroup:
-
     def __init__(self, thesaurus: dict[str, t.Any]):
         self.thesaurus = thesaurus
         self._keywords = {}

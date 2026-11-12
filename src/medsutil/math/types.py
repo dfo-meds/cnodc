@@ -1,63 +1,72 @@
-import typing as t
 import decimal as _decimal
+import typing as t
 
-
-T = t.TypeVar('T')
+T = t.TypeVar("T")
 
 
 class NotSupportedMathOperation(ValueError):
-    """ An error for when there is a math error"""
-    ...
+    """An error for when there is a math error"""
+
 
 
 class MathTypeError(TypeError):
-    """ A math-based type error. """
-    ...
+    """A math-based type error."""
+
 
 
 class Placeholder:
-    """ A placeholder class for default values. """
+    """A placeholder class for default values."""
+
     def __new__(cls):
         return cls
 
 
 class NumberString(str):
-    """ A string that can be represented as a number. """
+    """A string that can be represented as a number."""
 
     def __add__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import add
+
         return add(self, other)
 
     def __radd__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import add
+
         return add(self, other)
 
     def __sub__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import sub
+
         return sub(self, other)
 
     def __rsub__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import sub
+
         return sub(other, self)
 
     def __mul__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import mul
+
         return mul(self, other)
 
     def __rmul__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import mul
+
         return mul(self, other)
 
     def __truediv__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import div
+
         return div(self, other)
 
     def __rtruediv__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import div
+
         return div(other, self)
 
     def __pow__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import pow_
+
         return pow_(self, other)
 
     def __trunc__(self) -> int:
@@ -68,10 +77,12 @@ class NumberString(str):
 
     def __mod__(self, other) -> ScienceNumberProtocol | BasicNumber:
         from medsutil.math import modulo
+
         return modulo(self, other)
 
     def __rmod__(self, other) -> ScienceNumberProtocol | BasicNumber:
         from medsutil.math import modulo
+
         return modulo(other, self)
 
     def __deepcopy__(self, _: t.Mapping) -> NumberString:
@@ -81,10 +92,12 @@ class NumberString(str):
         if n is None or n == 0:
             return int(self)
         from medsutil.math import nominal_value
+
         return round(nominal_value(self), n)
 
     def __rpow__(self, other) -> BasicNumber | ScienceNumberProtocol:
         from medsutil.math import pow_
+
         return pow_(other, self)
 
     def __neg__(self) -> NumberString:
@@ -103,15 +116,18 @@ class NumberString(str):
 
     def __lt__(self, other) -> bool:
         from medsutil.math import gte
+
         return not gte(self, other)
 
     def __gt__(self, other) -> bool:
         from medsutil.math import lte
+
         return not lte(self, other)
 
     def to_actual_number(self, as_float: bool = True, as_science_number: bool = False):
         if as_science_number:
             from medsutil.math import ScienceNumber
+
             if as_float:
                 return ScienceNumber.from_float(float(self))
             else:
@@ -122,7 +138,7 @@ class NumberString(str):
 
 @t.runtime_checkable
 class ScienceNumberProtocol(t.Protocol):
-    """ A protocol for a scientific number. """
+    """A protocol for a scientific number."""
 
     @property
     def std_dev(self) -> NonScienceNumber | None: ...
@@ -152,25 +168,29 @@ class ScienceNumberProtocol(t.Protocol):
     def range(self, sigma: BasicNumber = 2) -> tuple[BasicNumber, BasicNumber]: ...
     def convert(self, units: str | None) -> t.Self: ...
     def set_units(self, units: str | None): ...
-    def set_min_error_if_worse(self, std_dev: NonScienceNumber, is_relative: bool = False): ...
+    def set_min_error_if_worse(
+        self, std_dev: NonScienceNumber, is_relative: bool = False
+    ): ...
 
 
 class LinearCombinationProtocol(t.Protocol):
-    """ A protocol for linear combinations. """
+    """A protocol for linear combinations."""
 
     @property
-    def linear_combo(self) -> ExpandedLinearCombination | UnexpandedLinearCombination: ...
+    def linear_combo(
+        self,
+    ) -> ExpandedLinearCombination | UnexpandedLinearCombination: ...
 
     def expanded(self) -> ExpandedLinearCombination: ...
 
 
 def is_science_number(x: t.Any) -> t.TypeGuard[ScienceNumberProtocol]:
-    """ Checks if x is a scientific number. """
-    return hasattr(x, 'units') and hasattr(x, 'nominal_value') and hasattr(x, 'std_dev')
+    """Checks if x is a scientific number."""
+    return hasattr(x, "units") and hasattr(x, "nominal_value") and hasattr(x, "std_dev")
 
 
 def is_supported(x: t.Any) -> t.TypeGuard[float | int | _decimal.Decimal]:
-    """ Checks if x is a supported number type. """
+    """Checks if x is a supported number type."""
     return isinstance(x, (float, int, _decimal.Decimal))
 
 

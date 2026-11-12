@@ -3,11 +3,8 @@ import typing as t
 from autoinject import injector
 
 from dmd.containers.base import ContainerLoader
-from gcapp.queries import Queryable, QueryManager
+from gcapp.queries import QueryManager
 from medsutil.awaretime import AwareDateTime
-
-if t.TYPE_CHECKING:
-    from dmd.metadata.datasets import Dataset
 
 
 class DatasetKeywords(t.TypedDict):
@@ -23,7 +20,6 @@ class DatasetKeywords(t.TypedDict):
 
 @injector.injectable
 class DataManagementDatabase:
-
     def __enter__(self) -> DataManagementInterface:
         raise NotImplementedError
 
@@ -35,12 +31,9 @@ class DataManagementDatabase:
 
 
 class DataManagementInterface(ContainerLoader):
-
-    def workflow_item_exists(self,
-                             category: str,
-                             workflow_name: str,
-                             object_id: int,
-                             object_type: str) -> bool:
+    def workflow_item_exists(
+        self, category: str, workflow_name: str, object_id: int, object_type: str
+    ) -> bool:
         raise NotImplementedError
 
     def last_setup_run(self) -> AwareDateTime | None:
@@ -52,22 +45,28 @@ class DataManagementInterface(ContainerLoader):
     def delete_registry_map(self, registry_name: str):
         raise NotImplementedError
 
-    def upsert_registry_entry(self,
-                              registry_name: str,
-                              entry_name: str,
-                              entry_value: dict):
+    def upsert_registry_entry(
+        self, registry_name: str, entry_name: str, entry_value: dict
+    ):
         raise NotImplementedError
 
     def bulk_update_registry_map(self, registry_name: str, entry_map: dict[str, dict]):
         raise NotImplementedError
 
-    def update_vocabulary_terms(self, vocabulary_name: str, terms: dict[str, dict], replace_existing: bool = True):
+    def update_vocabulary_terms(
+        self,
+        vocabulary_name: str,
+        terms: dict[str, dict],
+        replace_existing: bool = True,
+    ):
         raise NotImplementedError
 
     def load_vocabulary_terms(self, vocabulary_name: str) -> dict[str, dict]:
         raise NotImplementedError
 
-    def load_vocabulary_term(self, vocabulary_name: str, short_name: str) -> dict | None:
+    def load_vocabulary_term(
+        self, vocabulary_name: str, short_name: str
+    ) -> dict | None:
         raise NotImplementedError
 
     def create_dataset(self, data: DatasetKeywords) -> int:
@@ -79,10 +78,14 @@ class DataManagementInterface(ContainerLoader):
     def save_metadata(self, container_id: int, metadata: dict[str, t.Any]):
         raise NotImplementedError
 
-    def find_dataset_by_id(self, container_id: int, revision: int | None = None) -> tuple[DatasetKeywords, dict[str, t.Any]] | None:
+    def find_dataset_by_id(
+        self, container_id: int, revision: int | None = None
+    ) -> tuple[DatasetKeywords, dict[str, t.Any]] | None:
         raise NotImplementedError
 
-    def find_dataset_by_guid(self, guid: str, authority: str | None = None) -> tuple[DatasetKeywords, dict[str, t.Any]] | None:
+    def find_dataset_by_guid(
+        self, guid: str, authority: str | None = None
+    ) -> tuple[DatasetKeywords, dict[str, t.Any]] | None:
         raise NotImplementedError
 
     def user_organization_ids(self, user_id: int) -> list[int]:

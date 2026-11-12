@@ -1,9 +1,9 @@
-import math
-import typing as t
-import struct
-import enum
 import datetime
+import enum
 import logging
+import math
+import struct
+import typing as t
 
 from medsutil.byteseq import ByteSequenceReader
 
@@ -24,10 +24,12 @@ class _MedsEncodable:
 
     DEFAULT_RECORD: list
 
-    def __init__(self, unpacked_record: t.Union[list, tuple, None] = None):
+    def __init__(self, unpacked_record: list | tuple | None = None):
         self.raw_values: list[t.Any] = []
         if unpacked_record is not None:
-            self.raw_values = self.unpack_values([self._pre_unpack(x) for x in unpacked_record])
+            self.raw_values = self.unpack_values(
+                [self._pre_unpack(x) for x in unpacked_record]
+            )
         else:
             self.raw_values = self.__class__.DEFAULT_RECORD.copy()
 
@@ -36,8 +38,12 @@ class _MedsEncodable:
         if len(list_) <= max_size:
             yield from list_
         else:
-            logging.getLogger("osdt.meds").warning(f"Truncating objects of type {obj_type} for {record_id}")
-            for idx, rec in enumerate(sorted(list_, key=lambda x: x.priority, reverse=True)):
+            logging.getLogger("osdt.meds").warning(
+                f"Truncating objects of type {obj_type} for {record_id}"
+            )
+            for idx, rec in enumerate(
+                sorted(list_, key=lambda x: x.priority, reverse=True)
+            ):
                 if idx > max_size:
                     break
                 yield rec
@@ -47,22 +53,28 @@ class _MedsEncodable:
 
     def _pre_unpack(self, v):
         if isinstance(v, bytes):
-            return v.decode('ascii').strip(' ')
+            return v.decode("ascii").strip(" ")
         return v
 
     def pack_values(self, enc: MedsEncoding) -> tuple:
-        pad_ref = self.__class__.MEDSASC_PAD if enc == MedsEncoding.MEDS_ASCII else self.__class__.OCPROC_PAD
-        return tuple([
-            self._pack(val, pad_ref[idx] if idx < len(pad_ref) else None)
-            for idx, val in enumerate(self.raw_values)
-        ])
+        pad_ref = (
+            self.__class__.MEDSASC_PAD
+            if enc == MedsEncoding.MEDS_ASCII
+            else self.__class__.OCPROC_PAD
+        )
+        return tuple(
+            [
+                self._pack(val, pad_ref[idx] if idx < len(pad_ref) else None)
+                for idx, val in enumerate(self.raw_values)
+            ]
+        )
 
-    def _pack(self, val, pad_ref: t.Optional[list[t.Any]]):
+    def _pack(self, val, pad_ref: list[t.Any] | None):
         if val is None:
-            val = ''
+            val = ""
         if pad_ref is None:
             if isinstance(val, str):
-                return val.encode('ascii')
+                return val.encode("ascii")
             return val
         if isinstance(pad_ref, int):
             pad_ref = [pad_ref]
@@ -70,13 +82,13 @@ class _MedsEncodable:
         if pad_ref[0] is not None:
             val = str(val)
             if len(val) >= pad_ref[0]:
-                val = val[:pad_ref[0]]
+                val = val[: pad_ref[0]]
             else:
-                spacer = pad_ref[1] if l >= 2 else ' '
-                side = pad_ref[2] if l >= 3 else 'L'
+                spacer = pad_ref[1] if l >= 2 else " "
+                side = pad_ref[2] if l >= 3 else "L"
                 while len(val) < pad_ref[0]:
-                    val = f"{spacer}{val}" if side == 'L' else f"{val}{spacer}"
-        return val.encode('ascii')
+                    val = f"{spacer}{val}" if side == "L" else f"{val}{spacer}"
+        return val.encode("ascii")
 
     def encode(self, enc: MedsEncoding) -> t.Iterable[bytes]:
         if enc == MedsEncoding.MEDS_ASCII:
@@ -87,14 +99,18 @@ class _MedsEncodable:
     @classmethod
     def decode(cls, data: ByteSequenceReader, enc: MedsEncoding) -> t.Self:
         if enc == MedsEncoding.MEDS_ASCII:
-            obj = cls(unpacked_record=cls.MEDSASC_STRUCT.unpack(data.consume(cls.MEDSASC_LEN)))
+            obj = cls(
+                unpacked_record=cls.MEDSASC_STRUCT.unpack(data.consume(cls.MEDSASC_LEN))
+            )
         else:
-            obj = cls(unpacked_record=cls.OCPROC_STRUCT.unpack(data.consume(cls.OCPROC_LEN)))
+            obj = cls(
+                unpacked_record=cls.OCPROC_STRUCT.unpack(data.consume(cls.OCPROC_LEN))
+            )
         obj._decode(data, enc)
         return obj
 
-    def _decode(self , data: ByteSequenceReader, enc: MedsEncoding):
-        ...
+    def _decode(self, data: ByteSequenceReader, enc: MedsEncoding): ...
+
 
 class ProfileLevelGroup(_MedsEncodable):
     OCPROC_LEN = 10
@@ -112,7 +128,7 @@ class ProfileLevelGroup(_MedsEncodable):
         return self.raw_values[0]
 
     @depth_pressure.setter
-    def depth_pressure(self, val: t.Union[float, str]):
+    def depth_pressure(self, val: float | str):
         self.raw_values[0] = float(val)
 
     @property
@@ -128,7 +144,7 @@ class ProfileLevelGroup(_MedsEncodable):
         return self.raw_values[2]
 
     @parameter_value.setter
-    def parameter_value(self, val: t.Union[float, str]):
+    def parameter_value(self, val: float | str):
         self.raw_values[2] = float(val)
 
     @property
@@ -144,20 +160,61 @@ class ProfileLevelGroup(_MedsEncodable):
             float(values[0].strip(" ")),
             values[1],
             float(values[2].strip(" ")),
-            values[3]
+            values[3],
         ]
 
 
 class ProfileRecord(_MedsEncodable):
     OCPROC_LEN = 53
     OCPROC_STRUCT = struct.Struct("<8si10s4s2s2s4s2si4s2sic")
-    OCPROC_PAD = [(8, "0"), None, 10, None, None, None, None, None, None, None, (2, '0'), None]
+    OCPROC_PAD = [
+        (8, "0"),
+        None,
+        10,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        (2, "0"),
+        None,
+    ]
 
     MEDSASC_LEN = 63
     MEDSASC_STRUCT = struct.Struct("<8s8s10s4s2s2s4s2s12s4s2s4sc")
-    MEDSASC_PAD = [(8, "0"), 8, 10, None, None, None, None, None, 12, None, (2, '0'), 4, None]
+    MEDSASC_PAD = [
+        (8, "0"),
+        8,
+        10,
+        None,
+        None,
+        None,
+        None,
+        None,
+        12,
+        None,
+        (2, "0"),
+        4,
+        None,
+    ]
 
-    DEFAULT_RECORD = [None, None, None, None, None, None, None, None, None, None, None, 0, None]
+    DEFAULT_RECORD = [
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        0,
+        None,
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -194,11 +251,11 @@ class ProfileRecord(_MedsEncodable):
             int(self.raw_values[4]),
             int(self.raw_values[5]),
             int(self.raw_values[6][0:2]),
-            int(self.raw_values[6][2:4])
+            int(self.raw_values[6][2:4]),
         )
 
     @_observation_time.setter
-    def _observation_time(self, dt: t.Union[datetime.datetime, str]):
+    def _observation_time(self, dt: datetime.datetime | str):
         if isinstance(dt, str):
             dt = datetime.datetime.fromisoformat(dt)
         self.raw_values[3] = str(dt.year).zfill(4)
@@ -240,11 +297,11 @@ class ProfileRecord(_MedsEncodable):
 
     @property
     def uses_pressure_levels(self) -> bool:
-        return self.raw_values[12] == 'P'
+        return self.raw_values[12] == "P"
 
     @uses_pressure_levels.setter
     def uses_pressure_levels(self, val: bool):
-        self.raw_values[12] = 'P' if val else 'D'
+        self.raw_values[12] = "P" if val else "D"
 
     @property
     def _no_depths(self) -> int:
@@ -262,7 +319,7 @@ class ProfileRecord(_MedsEncodable):
             int(values[8]),
             *values[9:11],
             int(values[11]),
-            values[12]
+            values[12],
         ]
 
     def encode(self, enc: MedsEncoding) -> t.Iterable[bytes]:
@@ -274,7 +331,7 @@ class ProfileRecord(_MedsEncodable):
             yield "\n".encode("ascii")
 
     def _decode(self, data: ByteSequenceReader, enc: MedsEncoding):
-        for _ in range(0, self._no_depths):
+        for _ in range(self._no_depths):
             self.level_groups.append(ProfileLevelGroup.decode(data, enc))
 
 
@@ -287,25 +344,31 @@ class ProfileInfoGroup(_MedsEncodable):
     MEDSASC_LEN = 14
     MEDSASC_STRUCT = struct.Struct("<2s4s3c5s")
     MEDSASC_MAX = [99, 1500]
-    MEDSASC_PAD = [(2, '0'), None, None, None, None, 5]
+    MEDSASC_PAD = [(2, "0"), None, None, None, None, 5]
 
-    DEFAULT_RECORD = [None, None, 'N', None, None, None]
+    DEFAULT_RECORD = [None, None, "N", None, None, None]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.profiles: list[ProfileRecord] = []
         self.priority = 0
 
-    def normalize_group(self, record_no, current_idx, worst_quality, station, fmt: MedsEncoding):
-        mx = ProfileInfoGroup.OCPROC_MAX if fmt == MedsEncoding.OCPROC else ProfileInfoGroup.MEDSASC_MAX
+    def normalize_group(
+        self, record_no, current_idx, worst_quality, station, fmt: MedsEncoding
+    ):
+        mx = (
+            ProfileInfoGroup.OCPROC_MAX
+            if fmt == MedsEncoding.OCPROC
+            else ProfileInfoGroup.MEDSASC_MAX
+        )
         _prof = []
         for p in self.profiles:
             if len(p.level_groups) <= mx[1]:
                 _prof.append(p)
             else:
-                for i in range(0, math.ceil(len(p.level_groups) / mx[1])):
+                for i in range(math.ceil(len(p.level_groups) / mx[1])):
                     new_p = ProfileRecord(p.raw_values)
-                    new_p.level_groups = p.level_groups[(i*mx[1]):((i+1)*mx[1])]
+                    new_p.level_groups = p.level_groups[(i * mx[1]) : ((i + 1) * mx[1])]
                     _prof.append(new_p)
         self.profiles = _prof
         self._no_seg = min(mx[0], len(self.profiles))
@@ -322,8 +385,7 @@ class ProfileInfoGroup(_MedsEncodable):
             prof._profile_segment = seg_no
             prof._no_depths = len(prof.level_groups)
             for obs in prof.level_groups:
-                if obs.depth_pressure > max_depth:
-                    max_depth = obs.depth_pressure
+                max_depth = max(max_depth, obs.depth_pressure)
                 for qual in [int(obs.depth_quality), int(obs.parameter_quality)]:
                     if 4 >= qual > worst_quality:
                         worst_quality = qual
@@ -331,8 +393,14 @@ class ProfileInfoGroup(_MedsEncodable):
         return current_idx, worst_quality
 
     def encode_all_profile_records(self, fmt: MedsEncoding):
-        mx = ProfileInfoGroup.OCPROC_MAX if fmt == MedsEncoding.OCPROC else ProfileInfoGroup.MEDSASC_MAX
-        for prof in _MedsEncodable.sort_and_cap(self.profiles, mx[1], 'profile_records', self.profile_type):
+        mx = (
+            ProfileInfoGroup.OCPROC_MAX
+            if fmt == MedsEncoding.OCPROC
+            else ProfileInfoGroup.MEDSASC_MAX
+        )
+        for prof in _MedsEncodable.sort_and_cap(
+            self.profiles, mx[1], "profile_records", self.profile_type
+        ):
             yield from prof._encode(fmt)
 
     @property
@@ -353,11 +421,11 @@ class ProfileInfoGroup(_MedsEncodable):
 
     @property
     def is_duplicate(self) -> bool:
-        return self.raw_values[2] == 'Y'
+        return self.raw_values[2] == "Y"
 
     @is_duplicate.setter
     def is_duplicate(self, val: bool):
-        self.raw_values[2] = 'N' if val in (False, 'N') else 'Y'
+        self.raw_values[2] = "N" if val in (False, "N") else "Y"
 
     @property
     def digitization_code(self) -> str:
@@ -384,11 +452,7 @@ class ProfileInfoGroup(_MedsEncodable):
         self.raw_values[5] = float(val)
 
     def unpack_values(self, values: tuple):
-        return [
-            int(values[0]),
-            *values[1:5],
-            float(values[5])
-        ]
+        return [int(values[0]), *values[1:5], float(values[5])]
 
 
 class SurfaceParameterGroup(_MedsEncodable):
@@ -431,9 +495,7 @@ class SurfaceParameterGroup(_MedsEncodable):
         self.raw_values[2] = qual
 
     def unpack_values(self, values: tuple):
-        return [
-            values[0], float(values[1]), values[2]
-        ]
+        return [values[0], float(values[1]), values[2]]
 
 
 class SurfaceCodeGroup(_MedsEncodable):
@@ -520,11 +582,11 @@ class HistoryGroup(_MedsEncodable):
         return datetime.date(
             int(self.raw_values[3][0:4]),
             int(self.raw_values[3][4:6]),
-            int(self.raw_values[3][6:8])
+            int(self.raw_values[3][6:8]),
         )
 
     @action_date.setter
-    def action_date(self, dt: t.Union[datetime.date, datetime.datetime, str]):
+    def action_date(self, dt: datetime.date | datetime.datetime | str):
         if isinstance(dt, str):
             self.raw_values[3] = dt
         else:
@@ -568,7 +630,7 @@ class HistoryGroup(_MedsEncodable):
             str(values[3]),
             *values[4:6],
             float(values[6]),
-            float(values[7])
+            float(values[7]),
         ]
 
 
@@ -576,21 +638,104 @@ class StationRecord(_MedsEncodable):
     OCPROC_LEN = 102
     OCPROC_STRUCT = struct.Struct("<8si10s4s2s2s4s2si2ch2fsss8s12s6s4s4s4sc4h")
     OCPROC_MAX_SIZES = [32767, 32767, 32767, 32767]
-    OCPROC_PAD = [(8, "0"), None, 10, None, None, None, None, None, None, None, None, None, None, None, None,  # long
-                  None, None, None, None, None, None, None, None, 4, None,  # avail
-                  None, None, None, None
-                  ]
+    OCPROC_PAD = [
+        (8, "0"),
+        None,
+        10,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,  # long
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        4,
+        None,  # avail
+        None,
+        None,
+        None,
+        None,
+    ]
 
     MEDSASC_LEN = 130
-    MEDSASC_STRUCT = struct.Struct("<8s8s10s4s2s2s4s2s12s2c8s8s9s3c8s12s6s4s4s4sc2s2s2s3s")
+    MEDSASC_STRUCT = struct.Struct(
+        "<8s8s10s4s2s2s4s2s12s2c8s8s9s3c8s12s6s4s4s4sc2s2s2s3s"
+    )
     MEDSASC_MAX_SIZES = [30, 30, 30, 100]
-    MEDSASC_PAD = [(8, "0"), 8, 10, (4, "0"), (2, "0"), (2, "0"), (4, "0"), None, 12, None, None, 8, 8, 9,  # long
-                   None, None, None, None, None, None, None, None, 4, None,  # avail
-                   (2, ' '), (2, ' '), (2, ' '), (3, ' ')
-                   ]
+    MEDSASC_PAD = [
+        (8, "0"),
+        8,
+        10,
+        (4, "0"),
+        (2, "0"),
+        (2, "0"),
+        (4, "0"),
+        None,
+        12,
+        None,
+        None,
+        8,
+        8,
+        9,  # long
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        4,
+        None,  # avail
+        (2, " "),
+        (2, " "),
+        (2, " "),
+        (3, " "),
+    ]
 
-    DEFAULT_RECORD = [None, None, None, None, None, None, None, None, None, None, None, None, None, None, "0",
-                      "0", None, None, None, None, None, None, None, None, 0, 0, 0, 0]
+    DEFAULT_RECORD = [
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        "0",
+        "0",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        0,
+        0,
+        0,
+        0,
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -631,11 +776,11 @@ class StationRecord(_MedsEncodable):
             int(self.raw_values[4]),
             int(self.raw_values[5]),
             int(self.raw_values[6][0:2]),
-            int(self.raw_values[6][2:4])
+            int(self.raw_values[6][2:4]),
         )
 
     @observation_time.setter
-    def observation_time(self, dt: t.Union[datetime.datetime, str]):
+    def observation_time(self, dt: datetime.datetime | str):
         if not isinstance(dt, datetime.datetime):
             dt = datetime.datetime.fromisoformat(dt)
         self.raw_values[3] = str(dt.year)
@@ -741,11 +886,11 @@ class StationRecord(_MedsEncodable):
         return datetime.date(
             int(self.raw_values[17][0:4]),
             int(self.raw_values[17][4:6]),
-            int(self.raw_values[17][6:8])
+            int(self.raw_values[17][6:8]),
         )
 
     @update_date.setter
-    def update_date(self, val: t.Union[str, datetime.datetime, datetime.date]):
+    def update_date(self, val: str | datetime.datetime | datetime.date):
         if isinstance(val, str):
             val = datetime.datetime.fromisoformat(val)
         self.raw_values[17] = val.strftime("%Y%m%d")
@@ -757,11 +902,11 @@ class StationRecord(_MedsEncodable):
             int(self.raw_values[18][4:6]),
             int(self.raw_values[18][6:8]),
             int(self.raw_values[18][8:10]),
-            int(self.raw_values[18][10:12])
+            int(self.raw_values[18][10:12]),
         )
 
     @gts_bulletin_time.setter
-    def gts_bulletin_time(self, val: t.Union[str, datetime.datetime]):
+    def gts_bulletin_time(self, val: str | datetime.datetime):
         if isinstance(val, str):
             val = datetime.datetime.fromisoformat(val)
         self.raw_values[18] = val.strftime("%Y%m%d%H%M")
@@ -850,17 +995,23 @@ class StationRecord(_MedsEncodable):
             float(values[12]),
             float(values[13]),
             *values[14:24],
-            *[int(x) for x in values[24:28]]
+            *[int(x) for x in values[24:28]],
         ]
 
     def validate_record(self, record_no, fmt: MedsEncoding):
         if record_no >= 1000000:
-            raise ValueError("Can only encode 999,999 station records in a single MEDS ASCII/OCPROC file")
+            raise ValueError(
+                "Can only encode 999,999 station records in a single MEDS ASCII/OCPROC file"
+            )
 
     def encode(self, fmt: MedsEncoding, record_no: int = 1) -> t.Iterable[bytes]:
         self.validate_record(record_no, fmt)
         self._meds_1d_sqr = f"{int(math.ceil(self.longitude + 180))}{str(int(math.ceil(self.latitude + 90))).zfill(3)}"
-        max_sizes = StationRecord.OCPROC_MAX_SIZES if fmt == MedsEncoding.OCPROC else StationRecord.MEDSASC_MAX_SIZES
+        max_sizes = (
+            StationRecord.OCPROC_MAX_SIZES
+            if fmt == MedsEncoding.OCPROC
+            else StationRecord.MEDSASC_MAX_SIZES
+        )
         self._no_prof = min(max_sizes[0], len(self.profile_info_groups))
         self._nparms = min(max_sizes[1], len(self.surface_parameter_groups))
         self._sparms = min(max_sizes[2], len(self.surface_code_groups))
@@ -877,18 +1028,28 @@ class StationRecord(_MedsEncodable):
                 worst_record = qual
         idx = 0
         for pg in self.profile_info_groups:
-            idx, worst_record = pg.normalize_group(record_no, idx, worst_record, self, fmt)
+            idx, worst_record = pg.normalize_group(
+                record_no, idx, worst_record, self, fmt
+            )
         self._quality_worst_record = worst_record
         yield from super().encode(fmt)
         report_profiles = []
-        for pg in _MedsEncodable.sort_and_cap(self.profile_info_groups, max_sizes[0], "profile_info", self._mkey):
+        for pg in _MedsEncodable.sort_and_cap(
+            self.profile_info_groups, max_sizes[0], "profile_info", self._mkey
+        ):
             yield from pg._encode(fmt)
             report_profiles.append(pg)
-        for spg in _MedsEncodable.sort_and_cap(self.surface_parameter_groups, max_sizes[1], "surface_params", self._mkey):
+        for spg in _MedsEncodable.sort_and_cap(
+            self.surface_parameter_groups, max_sizes[1], "surface_params", self._mkey
+        ):
             yield from spg._encode(fmt)
-        for scg in _MedsEncodable.sort_and_cap(self.surface_code_groups, max_sizes[2], "surface_codes", self._mkey):
+        for scg in _MedsEncodable.sort_and_cap(
+            self.surface_code_groups, max_sizes[2], "surface_codes", self._mkey
+        ):
             yield from scg._encode(fmt)
-        for hg in _MedsEncodable.sort_and_cap(self.history_groups, max_sizes[3], "history_groups", self._mkey):
+        for hg in _MedsEncodable.sort_and_cap(
+            self.history_groups, max_sizes[3], "history_groups", self._mkey
+        ):
             yield from hg._encode(fmt)
         if fmt == MedsEncoding.MEDS_ASCII:
             yield "\n".encode("ascii")
@@ -896,16 +1057,18 @@ class StationRecord(_MedsEncodable):
             yield from pg.encode_all_profile_records(fmt)
 
     def _decode(self, data: ByteSequenceReader, fmt: MedsEncoding):
-        for _ in range(0, self._no_prof):
+        for _ in range(self._no_prof):
             self.profile_info_groups.append(ProfileInfoGroup.decode(data, fmt))
-        for _ in range(0, self._nparms):
-            self.surface_parameter_groups.append(SurfaceParameterGroup.decode(data, fmt))
-        for _ in range(0, self._sparms):
+        for _ in range(self._nparms):
+            self.surface_parameter_groups.append(
+                SurfaceParameterGroup.decode(data, fmt)
+            )
+        for _ in range(self._sparms):
             self.surface_code_groups.append(SurfaceCodeGroup.decode(data, fmt))
-        for _ in range(0, self._num_hists):
+        for _ in range(self._num_hists):
             self.history_groups.append(HistoryGroup.decode(data, fmt))
         for profile_info in self.profile_info_groups:
-            for _ in range(0, profile_info._no_seg):
+            for _ in range(profile_info._no_seg):
                 if fmt is MedsEncoding.MEDS_ASCII:
                     data.lstrip(b"\r\n")
                 profile_info.profiles.append(ProfileRecord.decode(data, fmt))
@@ -921,6 +1084,8 @@ def unpack(data: ByteSequenceReader, enc: MedsEncoding) -> t.Iterable[StationRec
             data.lstrip(b"\r\n")
 
 
-def pack(station_records: t.Iterable[StationRecord], enc: MedsEncoding, start_idx: int = 1) -> t.Iterable[bytes]:
+def pack(
+    station_records: t.Iterable[StationRecord], enc: MedsEncoding, start_idx: int = 1
+) -> t.Iterable[bytes]:
     for idx, station_record in enumerate(station_records, start=start_idx):
         yield from station_record.encode(enc, idx)
