@@ -1,5 +1,4 @@
 -r ./req.pipeman.web.txt
--r ./helpers/req.dev.txt
 
 # For testing with an FTP server
 pyftpdlib ~= 2.2.0

@@ -1,15 +1,30 @@
 -r req.base.txt
 
+# pre-commit for such
+pre-commit ~= 4.7.0
+identify ~= 2.6.20
+virtualenv ~= 21.15.6
+# can't install 1 or greater
+distlib ~= 0.4.4
+# can't install 5 or greater
+filelock ~= 3.29.0
+packaging ~= 26.3
+platformdirs ~= 4.13.5
+python-discovery ~= 1.9.5
+
 # Code coverage tools
-coverage ~= 7.17.0
+coverage ~= 7.17.3
+
+# Ruff for formatting
+ruff ~= 0.17.5
 
 # Bandit is for static code analysis
 bandit ~= 1.9.4
 rich ~= 15.0.0
-markdown-it-py ~= 4.2.0
+markdown-it-py ~= 4.3.0
 mdurl ~= 0.1.2
 Pygments ~= 2.21.0
-stevedore ~= 5.9.1
+stevedore ~= 5.10.0
 
 # Auditing pip packages
 pip-audit ~= 2.10.1

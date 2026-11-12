@@ -1,0 +1,6 @@
+-r ./helpers/req.dev.txt
+-r ./req.medsid.txt
+-r ./req.pipeman.desktop.txt
+-r ./req.pipeman.tests.txt
+-r ./req.pipeman.txt
+-r ./req.pipeman.web.txt

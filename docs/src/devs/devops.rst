@@ -2,6 +2,34 @@ Developer Guide
 ===============
 Developers working on this project should follow this guide for best practices.
 
+Setup
+-----
+You can use the code editor of your choice. To get your project setup:
+
+ ::
+
+    git clone github.com:dfo-meds/cnodc cnodc
+
+    # create your project and virtual environment
+
+    cd cnodc
+    pip install -r requirements/.req.devs.txt
+
+    pre-commit install
+
+The pre-commit hooks installed take care of the following for you:
+
+- Validation of YAML and TOML files
+- Python validation
+- Ensuring merge conflicts are resolved before commit
+- Ensuring file send in a single new line
+- Ensuring linux-style new lines
+- Prevent you from committing to the main branch
+- Remove trailing whitespace
+- Run the bandit code report when you commit
+- Run the ruff linter and formatter on commit
+- Run the mypy type checker on commit
+
 
 Coding
 ------
@@ -107,10 +135,7 @@ Pre-Pull Request Checklist
 
 1. ``git rebase main`` to ensure you have merged any changes to main since you started
 2. Run the tests with code coverage, then ensure all tests pass and that code coverage is stable or improved
-3. Run bandit to check for any new security issues and fix them
-4. Run mypy to check for typing issues and fix them
-5. Run ``ruff format`` to format your code
-6. Open your pull request
+3. Open your pull request
 
 Commit Message Template
 ```````````````````````
