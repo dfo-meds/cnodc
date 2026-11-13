@@ -219,8 +219,8 @@ class QCMessage:
         return QCMessage(
             map_["_code"],
             map_["_path"],
-            map_["_ref"] if "_ref" in map_ else None,
-            map_["_review"] if "_review" in map_ else None,
+            map_.get("_ref", None),
+            map_.get("_review", None),
         )
 
 
@@ -248,8 +248,8 @@ class QCTestRunInfo:
         test_version: str,
         test_date: datetime.datetime | str,
         result: QCResult,
-        messages: list[QCMessage] = None,
-        notes: str = None,
+        messages: list[QCMessage] | None = None,
+        notes: str | None = None,
         is_stale: bool = False,
         test_tags: list[str] | None = None,
         proposed_actions: list[OCProc2Action] | None = None,
@@ -325,15 +325,15 @@ class QCTestRunInfo:
         from medsutil.ocproc2.operations import OCProc2Action
 
         return QCTestRunInfo(
-            map_["_protocol"] if "_protocol" in map_ else "unknown",
+            map_.get("_protocol", "unknown"),
             map_["_name"],
             map_["_version"],
             map_["_date"],
             QCResult(map_["_result"]),
             [QCMessage.from_mapping(x) for x in map_["_messages"]],
             map_["_notes"],
-            map_["_stale"] if "_stale" in map_ else False,
-            map_["_tags"] if "_tags" in map_ else None,
+            map_.get("_stale", False),
+            map_.get("_tags", None),
             proposed_actions=[
                 OCProc2Action.import_from_ocproc2(x)
                 for x in t.cast(list[dict], map_["_proposed"])

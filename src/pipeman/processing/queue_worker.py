@@ -188,7 +188,7 @@ class QueueWorker(BaseWorker):
         self,
         queue_item: NODBQueueItem | None,
         result: QueueItemResult | None,
-        ex: Exception = None,
+        ex: Exception | None = None,
     ):
         """Handle the result of calling the queue processing function."""
         self._log.trace(

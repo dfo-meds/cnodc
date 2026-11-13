@@ -35,7 +35,7 @@ if t.TYPE_CHECKING:
     )
 
 
-def total_memory_size(__obj) -> int:
+def total_memory_size(__obj, /) -> int:
     import sys
 
     seen = set()
@@ -137,7 +137,7 @@ class BlobWalker:
                 if "/" not in actual_subdir:
                     sub_dirs.add(actual_subdir)
                 sub_dir_row = sub_dir_cur.fetchone()
-            files = list()
+            files = []
             file_cur = self._sql_handle.execute(
                 "SELECT DISTINCT blob_name FROM blob_paths WHERE parent_name = ?",
                 [row[0]],
@@ -262,7 +262,7 @@ class AzureBlobHandle(_AzureBaseHandle):
             return StatResult(exists=False)
 
     @wrap_azure_errors
-    def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
+    def _streaming_read(self, buffer_size: int | None = None) -> t.Iterable[bytes]:
         with self.client() as client:
             stream = client.download_blob()
             yield from self._halt_flag.iterate(stream.chunks())
@@ -421,7 +421,7 @@ class AzureBlobHandle(_AzureBaseHandle):
 
     @staticmethod
     def supports(file_path: str) -> bool:
-        if not (file_path.startswith("http://") or file_path.startswith("https://")):
+        if not file_path.startswith(("http://", "https://")):
             return False
         from urllib.parse import urlparse
 

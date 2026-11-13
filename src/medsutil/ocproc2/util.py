@@ -2,7 +2,7 @@ import enum
 import typing as t
 
 from medsutil import math as amath
-from medsutil import ocproc2 as ocproc2
+from medsutil import ocproc2
 from medsutil.awaretime import AwareDateTime
 from medsutil.math import ScienceNumber
 from medsutil.ocproc2.refs import ChildRecordRef, RecordRef, RecordSetRef
@@ -228,7 +228,7 @@ def high_quality_duration(v: ocproc2.AbstractElement | None) -> ISODuration | No
 
 def high_quality_numeric(
     v: ocproc2.AbstractElement | None,
-    units: str = None,
+    units: str | None = None,
     required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC,
 ) -> amath.AnyNumber | None:
     if units is not None:
@@ -240,7 +240,7 @@ def high_quality_numeric(
 
 def high_quality_int(
     v: ocproc2.AbstractElement | None,
-    units: str = None,
+    units: str | None = None,
     required_quality: RequiredQuality = RequiredQuality.GOOD_INTEGER,
 ) -> int | None:
     if units is not None:
@@ -252,7 +252,7 @@ def high_quality_int(
 
 def high_quality_float(
     v: ocproc2.AbstractElement | None,
-    units: str = None,
+    units: str | None = None,
     required_quality: RequiredQuality = RequiredQuality.GOOD_NUMERIC,
 ) -> float | None:
     if units is not None:
@@ -491,9 +491,7 @@ def dates_overlap(
 ) -> bool:
     if min_a > max_b or min_b > max_a:
         return False
-    if max_a < min_b or max_b < min_a:
-        return False
-    return True
+    return not (max_a < min_b or max_b < min_a)
 
 
 def pair_up_single_elements(

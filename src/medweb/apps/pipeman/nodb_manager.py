@@ -1,6 +1,7 @@
 import datetime
 import pathlib
 import tempfile
+import typing as t
 
 import flask
 from autoinject import injector
@@ -78,7 +79,7 @@ class NODBController:
                         )
                     )
             elif isinstance(payload, BatchPayload):
-                sf_ids: set[tuple[str, datetime.date]]
+                sf_ids: set[tuple[str, datetime.date]] = set()
                 for record in payload.load_batch(db).stream_working_records(
                     db, limit_fields=("source_file_uuid", "received_date")
                 ):
@@ -320,7 +321,7 @@ class NODBController:
                 item.release(db)
             return {"success": True, "message": "Success"}
 
-    SEND_WORKING_KEYS = {
+    SEND_WORKING_KEYS: t.ClassVar[set[str]] = {
         "working_uuid",
         "received_date",
         "source_file_uuid",
@@ -331,7 +332,7 @@ class NODBController:
         "quality_checks",
     }
 
-    SEND_OBSERVATION_KEYS = {
+    SEND_OBSERVATION_KEYS: t.ClassVar[set[str]] = {
         "obs_uuid",
         "received_date",
         "data_mode",

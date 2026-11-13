@@ -64,7 +64,7 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         _process_uuid: str,
         _halt_flag: HaltFlag,
         _end_flag: HaltFlag,
-        _config: dict = None,
+        _config: dict | None = None,
     ):
         super().__init__(
             log_name=f"cnodc.worker.{process_name.lower()}",
@@ -275,7 +275,7 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
         )
         self.run_hook("on_start")
 
-    def on_exit(self, exception: Exception = None):
+    def on_exit(self, exception: Exception | None = None):
         """Override this method for clean-up after _run() is called."""
         if self._save_data is not None:
             self._save_data.save_file()

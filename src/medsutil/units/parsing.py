@@ -188,7 +188,7 @@ def _parse_logs(pieces: list[str]) -> list[str]:
         if skip_next:
             skip_next = False
             continue
-        for log_str in UDUNITS_LOG:
+        for log_str, info in UDUNITS_LOG.items():
             # Check for the log flag
             if pieces[idx].endswith(log_str):
                 # Check if there was preceding text in the same line
@@ -202,7 +202,7 @@ def _parse_logs(pieces: list[str]) -> list[str]:
                     log_argument = log_argument[2:].strip()
                 skip_next = True
                 new_pieces.append(
-                    Log(parse_unit_string(log_argument), UDUNITS_LOG[log_str])
+                    Log(parse_unit_string(log_argument), info)
                 )
                 break
         else:
@@ -361,8 +361,8 @@ def _build_exponent(unit_name, exponent=None):
     """Creates an appropriate exponent object"""
     unit_name = unit_name.strip()
     exponent = (exponent or "").strip()
-    for x in UNICODE_EXPONENTS:
-        exponent = exponent.replace(x, UNICODE_EXPONENTS[x])
+    for x, y in UNICODE_EXPONENTS.items():
+        exponent = exponent.replace(x, y)
     if exponent == "1":
         return SimpleUnit(unit_name)
     if not _is_integer_number(exponent):
@@ -410,7 +410,7 @@ def _is_decimal_number(s: str) -> bool:
     """Check if s is a decimal number string"""
     if s == "":
         return False
-    if s.startswith("+") or s.startswith("-"):
+    if s.startswith(("+", "-")):
         s = s[1:]
     if "." in s:
         pieces = s.split(".", maxsplit=1)
@@ -423,7 +423,7 @@ def _is_integer_number(s: str) -> bool:
     """Check if s is an integer number string"""
     if s == "":
         return False
-    if s.startswith("+") or s.startswith("-"):
+    if s.startswith(("+", "-")):
         if len(s) == 1:
             return False
         return s[1:].isdigit()

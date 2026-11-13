@@ -171,7 +171,7 @@ class MockNODB:
     def get_queue_item(
         self, queue_name: str, subqueue_name: str | None, escalation_level: int = 0
     ) -> dict:
-        for item_uuid, item in self._queue_items.items():
+        for item in self._queue_items.values():
             if item["queue_name"] != queue_name:
                 continue
             if subqueue_name is not None and subqueue_name != item["subqueue_name"]:

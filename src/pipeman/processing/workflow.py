@@ -407,8 +407,8 @@ class WorkflowController:
         if _now is not None:
             metadata["now"] = _now.strftime("%Y%m%d%H%M%S")
             metadata["today"] = _now.strftime("%Y%m%d")
-        for h in metadata:
-            s = s.replace("%{" + h.lower() + "}", str(metadata[h]))
+        for h, v in metadata.items():
+            s = s.replace("%{" + h.lower() + "}", str(v))
         return s
 
     @staticmethod

@@ -74,13 +74,13 @@ class AzureFileHandle(_AzureBaseHandle):
             ...
 
     @wrap_azure_errors
-    def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
+    def _streaming_read(self, buffer_size: int | None = None) -> t.Iterable[bytes]:
         with self.file_client() as client:
             stream = client.download_file()
             yield from self._halt_flag.iterate(stream.chunks())
 
     def _upload_from_seekable_file(
-        self, readable: ct.SupportsBinarySeek, chunk_size: int = None, **kwargs
+        self, readable: ct.SupportsBinarySeek, chunk_size: int | None = None, **kwargs
     ):
         from azure.core.exceptions import ResourceExistsError
 
@@ -117,7 +117,7 @@ class AzureFileHandle(_AzureBaseHandle):
             )
 
     @wrap_azure_errors
-    def _streaming_write(self, chunks: t.Iterable[t.ByteString], **kwargs):
+    def _streaming_write(self, chunks: t.Iterable[bytes | bytearray], **kwargs):
         import tempfile
 
         with tempfile.SpooledTemporaryFile(mode="w+b") as stf:
@@ -240,7 +240,7 @@ class AzureFileHandle(_AzureBaseHandle):
 
     @staticmethod
     def supports(file_path: str) -> bool:
-        if not (file_path.startswith("http://") or file_path.startswith("https://")):
+        if not (file_path.startswith(("http://", "https://"))):
             return False
         from urllib.parse import urlparse
 

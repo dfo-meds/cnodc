@@ -184,21 +184,16 @@ class InstructionGroup(Instruction):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if (
-                "instructions" in instruction
-                and "recordset_type" not in instruction
-                and "repeats" not in instruction
-            ):
-                return cls.build(
-                    {
-                        "instructions": Instruction.parse_instructions(
-                            instruction["instructions"], helper
-                        ),
-                    },
-                    instruction,
-                    extras,
-                )
+        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" not in instruction and "repeats" not in instruction:
+            return cls.build(
+                {
+                    "instructions": Instruction.parse_instructions(
+                        instruction["instructions"], helper
+                    ),
+                },
+                instruction,
+                extras,
+            )
         return None
 
 
@@ -238,21 +233,16 @@ class RecordSetInstructionGroup(InstructionGroup):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if (
-                "instructions" in instruction
-                and "recordset_type" in instruction
-                and "repeats" not in instruction
-            ):
-                return cls.build(
-                    {
-                        "instructions": Instruction.parse_instructions(
-                            instruction["instructions"], helper
-                        ),
-                    },
-                    instruction,
-                    extras,
-                )
+        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" in instruction and "repeats" not in instruction:
+            return cls.build(
+                {
+                    "instructions": Instruction.parse_instructions(
+                        instruction["instructions"], helper
+                    ),
+                },
+                instruction,
+                extras,
+            )
         return None
 
 
@@ -287,21 +277,16 @@ class RecordRepeatInstructionGroup(RepeatGroup):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if (
-                "instructions" in instruction
-                and "recordset_type" not in instruction
-                and "repeats" in instruction
-            ):
-                return cls.build(
-                    {
-                        "instructions": Instruction.parse_instructions(
-                            instruction["instructions"], helper
-                        ),
-                    },
-                    instruction,
-                    extras,
-                )
+        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" not in instruction and "repeats" in instruction:
+            return cls.build(
+                {
+                    "instructions": Instruction.parse_instructions(
+                        instruction["instructions"], helper
+                    ),
+                },
+                instruction,
+                extras,
+            )
         return None
 
 
@@ -339,21 +324,16 @@ class RecordSetRepeatInstructionGroup(RepeatGroup):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if (
-                "instructions" in instruction
-                and "recordset_type" in instruction
-                and "repeats" in instruction
-            ):
-                return cls.build(
-                    {
-                        "instructions": Instruction.parse_instructions(
-                            instruction["instructions"], helper
-                        ),
-                    },
-                    instruction,
-                    extras,
-                )
+        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" in instruction and "repeats" in instruction:
+            return cls.build(
+                {
+                    "instructions": Instruction.parse_instructions(
+                        instruction["instructions"], helper
+                    ),
+                },
+                instruction,
+                extras,
+            )
         return None
 
 
@@ -414,9 +394,8 @@ class StaticInstruction(SingleValueInstruction):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if "value" in instruction:
-                return cls.build(instruction, extras)
+        if isinstance(instruction, dict) and "value" in instruction:
+            return cls.build(instruction, extras)
         return None
 
 
@@ -476,17 +455,16 @@ class ContextInstruction(Instruction):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if instruction.get("context"):
-                kwargs = {k: d for k, d in instruction.items() if k != "context"}
-                return cls.build(
-                    {
-                        "context": {
-                            k: Instruction.parse_instruction(d, helper, kwargs)
-                            for k, d in instruction["context"].items()
-                        }
+        if isinstance(instruction, dict) and instruction.get("context"):
+            kwargs = {k: d for k, d in instruction.items() if k != "context"}
+            return cls.build(
+                {
+                    "context": {
+                        k: Instruction.parse_instruction(d, helper, kwargs)
+                        for k, d in instruction["context"].items()
                     }
-                )
+                }
+            )
         return None
 
 
@@ -566,22 +544,21 @@ class ValueMappedInstruction(Instruction):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if instruction.get("instruction_map"):
-                kwargs = {}
-                if extras:
-                    kwargs.update(extras)
-                kwargs.update(
-                    {k: d for k, d in instruction.items() if k != "instruction_map"}
-                )
-                return cls.build(
-                    {
-                        "instruction_map": {
-                            k: Instruction.parse_instruction(d, helper, kwargs)
-                            for k, d in instruction["instruction_map"].items()
-                        }
+        if isinstance(instruction, dict) and instruction.get("instruction_map"):
+            kwargs = {}
+            if extras:
+                kwargs.update(extras)
+            kwargs.update(
+                {k: d for k, d in instruction.items() if k != "instruction_map"}
+            )
+            return cls.build(
+                {
+                    "instruction_map": {
+                        k: Instruction.parse_instruction(d, helper, kwargs)
+                        for k, d in instruction["instruction_map"].items()
                     }
-                )
+                }
+            )
         return None
 
 
@@ -848,7 +825,7 @@ class ElementInstruction(SingleValueInstruction):
         if n_values == 0:
             return None, None, None, None
         elif n_values == 1:
-            return values[list(values.keys())[0]]
+            return values[next(iter(values))]
         else:
             raise OceanProcessingSchemaError(
                 f"Multiple common elements detected: {';'.join(str(x) for x in values)}",
@@ -987,13 +964,12 @@ class ElementInstruction(SingleValueInstruction):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict):
-            if "element" in instruction:
-                return cls.build(
-                    Instruction.parse_element_for_tags(instruction["element"]),
-                    instruction,
-                    extras,
-                )
+        if isinstance(instruction, dict) and "element" in instruction:
+            return cls.build(
+                Instruction.parse_element_for_tags(instruction["element"]),
+                instruction,
+                extras,
+            )
         return None
 
     @staticmethod
@@ -1132,7 +1108,7 @@ class OPSContext:
         rs = self.record.subrecords.new_recordset(rs_type)
         self._log.debug("Creating new recordset of type %s", rs_type)
         with self.recordset_context(rs, rs_type):
-            for _, values in self._future_rs_metadata.items():
+            for values in self._future_rs_metadata.values():
                 for key, future in values.items():
                     if future.rs_types is not None and rs_type not in future.rs_types:
                         continue
@@ -1229,7 +1205,7 @@ class OPSContext:
 
     def get_forward_metadata(self, property_name: str) -> dict[str, t.Any]:
         md = {}
-        for _, d in self._future_metadata.items():
+        for d in self._future_metadata.values():
             for key, future in d.items():
                 if future.names is not None and property_name not in future.names:
                     continue
@@ -1370,7 +1346,7 @@ class OPSContext:
     ) -> t.Iterable[AbstractElement]:
         for rs_type in record.subrecords:
             if restrict_recordsets is None or rs_type in restrict_recordsets:
-                for _, rs in record.subrecords.record_sets[rs_type].items():
+                for rs in record.subrecords.record_sets[rs_type].values():
                     yield from OPSContext._iterate_recordset_elements(
                         rs, restrict_recordsets, restrict_names
                     )

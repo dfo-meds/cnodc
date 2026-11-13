@@ -24,21 +24,21 @@ class SpikeReference:
     def spike_parameters(self) -> t.Iterable[str]:
         yield from (
             x
-            for x in self.spike_levels.keys()
+            for x in self.spike_levels
             if "spike" in self.spike_levels[x] or "gradient" in self.spike_levels[x]
         )
 
     def spike_top_parameters(self) -> t.Iterable[str]:
         yield from (
             x
-            for x in self.spike_levels.keys()
+            for x in self.spike_levels
             if "top_vdown" in self.spike_levels[x] and "top_vup" in self.spike_levels[x]
         )
 
     def spike_bottom_parameters(self) -> t.Iterable[str]:
         yield from (
             x
-            for x in self.spike_levels.keys()
+            for x in self.spike_levels
             if "bottom_vdown" in self.spike_levels[x]
             and "bottom_vup" in self.spike_levels[x]
         )

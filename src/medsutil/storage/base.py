@@ -127,7 +127,7 @@ class _BaseStorageIO:
 
 
 class _StorageBinaryReader(_BaseStorageIO):
-    def __init__(self, handle: BaseStorageHandle, buffering: int = None):
+    def __init__(self, handle: BaseStorageHandle, buffering: int | None = None):
         super().__init__(handle)
         self._reader = None
         self._buffer_size = buffering
@@ -208,12 +208,12 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
     def __init__(
         self,
         path: str,
-        force_is_dir: bool = None,
+        force_is_dir: bool | None = None,
         *,
         log_name: str = "unknown",
         supports: FeatureFlag = FeatureFlag.DEFAULT,
-        halt_flag: HaltFlag = None,
-        max_chunk_size: int = None,
+        halt_flag: HaltFlag | None = None,
+        max_chunk_size: int | None = None,
     ):
         super().__init__()
         self._path: str = path
@@ -306,12 +306,12 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         self._log.trace("completed download")
 
     def _download(
-        self, local_path: ct.SupportsByteStreamWriting, buffer_size: int = None
+        self, local_path: ct.SupportsByteStreamWriting, buffer_size: int | None = None
     ):
         self._halt_flag.write_all(local_path, self._streaming_read(buffer_size))
         self._complete_download(local_path)
 
-    def streaming_read(self, buffer_size: int = None):
+    def streaming_read(self, buffer_size: int | None = None):
         yield from self._streaming_read(buffer_size)
 
     def _complete_download(self, local_path: ct.SupportsByteStreamWriting): ...
@@ -320,8 +320,8 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         self,
         source: pathlib.Path
         | ct.SupportsBinaryRead
-        | t.Iterable[t.ByteString]
-        | t.ByteString,
+        | t.Iterable[bytes | bytearray]
+        | bytes | bytearray,
         allow_overwrite: bool = False,
         buffer_size: int | None = None,
         metadata: dict[str, str] | None = None,
@@ -384,7 +384,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         elif ct.is_local_path(readable):
             self._log.trace("Source is a local file path")
             self._upload_from_file_path(readable, **kwargs)
-        elif isinstance(readable, (bytes, bytearray, memoryview)):
+        elif isinstance(readable, (bytes, bytearray)):
             self._log.trace("Source is a bytes object")
             self._upload_from_bytes(readable, **kwargs)
         elif isinstance(readable, t.Iterable):
@@ -393,10 +393,10 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         else:
             raise TypeError(f"Invalid object for reading: {type(readable)}")
 
-    def _upload_from_bytes(self, readable: t.ByteString, **kwargs):
+    def _upload_from_bytes(self, readable: bytes | bytearray, **kwargs):
         self._upload_from_byte_stream([readable], **kwargs)
 
-    def _upload_from_byte_stream(self, stream: t.Iterable[t.ByteString], **kwargs):
+    def _upload_from_byte_stream(self, stream: t.Iterable[bytes | bytearray], **kwargs):
         self.streaming_write(stream, **kwargs)
 
     def _upload_from_file_path(self, file_name: os.PathLike | str, **kwargs):
@@ -412,22 +412,22 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
             self._upload_from_non_seekable_file(readable, **kwargs)
 
     def _upload_from_seekable_file(
-        self, readable: ct.SupportsBinarySeek, chunk_size: int = None, **kwargs
+        self, readable: ct.SupportsBinarySeek, chunk_size: int | None = None, **kwargs
     ):
         self.streaming_write(self._halt_flag.read_all(readable, chunk_size), **kwargs)
 
     def _upload_from_non_seekable_file(
-        self, readable: ct.SupportsBinaryRead, chunk_size: int = None, **kwargs
+        self, readable: ct.SupportsBinaryRead, chunk_size: int | None = None, **kwargs
     ):
         self.streaming_write(self._halt_flag.read_all(readable, chunk_size), **kwargs)
 
-    def streaming_write(self, chunks: t.Iterable[t.ByteString], **kwargs):
+    def streaming_write(self, chunks: t.Iterable[bytes | bytearray], **kwargs):
         self._log.trace("writing chunks to %s...", self._path)
         self._streaming_write(chunks, **kwargs)
         self._log.trace("done")
 
     @abc.abstractmethod
-    def _streaming_write(self, chunks: t.Iterable[t.ByteString], **kwargs):
+    def _streaming_write(self, chunks: t.Iterable[bytes | bytearray], **kwargs):
         raise NotImplementedError
 
     def _complete_upload(self, local_path: ct.SupportsByteStreaming): ...
@@ -444,7 +444,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         else:
             raise StorageError("Invalid open mode, must be rb or wb", 1102)
 
-    def write_bytes(self, b: t.ByteString):
+    def write_bytes(self, b: bytes | bytearray):
         self.upload([b])
 
     def touch(self, mode: int = 0o666):
@@ -519,9 +519,9 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         # Don't build the cache if we don't need to.
         s = self._from_cache_only("stat")
         if s is not None:
-            for kw in kwargs:
-                if kwargs[kw] is not None and hasattr(s, kw):
-                    setattr(s, kw, kwargs[kw])
+            for kw, kw_value in kwargs.items():
+                if kw_value is not None and hasattr(s, kw):
+                    setattr(s, kw, kw_value)
 
     def walk(self) -> t.Iterable[tuple[str, list[str], list[str]]]:
         if self.supports_feature(FeatureFlag.WALK):
@@ -709,7 +709,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
             self.remove()
         return destination
 
-    def _build_descriptor(self, path: str, as_dir: bool = None, **kwargs):
+    def _build_descriptor(self, path: str, as_dir: bool | None = None, **kwargs):
         return self.__class__(path, as_dir, **self._new_child_args, **kwargs)
 
     @property
@@ -746,7 +746,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
     def parent(self) -> t.Self:
         return self._with_cache("parent", self._parent)
 
-    def joinpath(self, *args, last_as_dir: bool = None) -> t.Self:
+    def joinpath(self, *args, last_as_dir: bool | None = None) -> t.Self:
         x = self
         for y in args[0:-1]:
             x = x.child(y, True)
@@ -764,7 +764,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
 
     @classmethod
     def build(
-        cls, file_path: str, force_is_dir: bool = None, halt_flag: HaltFlag = None
+        cls, file_path: str, force_is_dir: bool | None = None, halt_flag: HaltFlag = None
     ) -> t.Self:
         """Construct a handle from the given file path."""
         return cls(file_path, force_is_dir, halt_flag=halt_flag)
@@ -809,7 +809,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _streaming_read(self, buffer_size: int = None) -> t.Iterable[t.ByteString]:
+    def _streaming_read(self, buffer_size: int | None = None) -> t.Iterable[bytes | bytearray]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -832,12 +832,11 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
 class UrlBaseHandle(BaseStorageHandle, ABC):
     """General implementation of url-based file handles."""
 
-    def __init__(self, path: str, force_is_dir: bool = None, **kwargs):
+    def __init__(self, path: str, force_is_dir: bool | None = None, **kwargs):
         p = urllib.parse.urlsplit(path)
         _path = p.path
-        if force_is_dir is None:
-            if (not _path) or _path.endswith("/"):
-                force_is_dir = True
+        if force_is_dir is None and ((not _path) or _path.endswith("/")):
+            force_is_dir = True
         path = self._replace_path_in_url(path, _path, force_is_dir)
         super().__init__(path, force_is_dir, **kwargs)
 

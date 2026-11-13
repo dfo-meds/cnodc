@@ -574,7 +574,7 @@ class _Bufr4Encoder:
                 )
             # note: ValueMappedInstruction and ContextInstruction not supported
             elif not isinstance(instruction, NoopInstruction):
-                raise ValueError("Invalid instruction")
+                raise TypeError("Invalid instruction")
 
         except Exception as e:
             if "descriptor" in instruction.extras:
@@ -622,7 +622,7 @@ class _Bufr4Encoder:
                         ],
                     )
                 else:
-                    raise ValueError("Invalid descriptor")
+                    raise TypeError("Invalid descriptor")
 
             except Exception as ex:
                 ex.add_note(f"Error while building descriptor [{descriptor_id}]")
@@ -746,7 +746,7 @@ class _Bufr4Decoder:
                 )
         except IndexError:
             pass
-        descriptors = list(x for x in self.message.unexpanded_descriptors.value)
+        descriptors = [x for x in self.message.unexpanded_descriptors.value]
         common_metadata = {
             "GTSHeader": self.header,
             "GTSHeaderFullDate": full_date,
@@ -855,14 +855,14 @@ class _Bufr4Decoder:
     def _parse_replication_node(
         self, node: DelayedReplicationNode | FixedReplicationNode, ctx: OPSContext
     ):
-        n_total, n_elements, n_repeats = self._parse_repetition_info(node, ctx)
+        _, n_elements, n_repeats = self._parse_repetition_info(node, ctx)
         self._log.debug(
             "Parsing replication node %s [%s repeats of %s elements]",
             node.descriptor.id,
             n_repeats,
             n_elements,
         )
-        descriptors = set(n.descriptor.id for n in node.members)
+        descriptors = {n.descriptor.id for n in node.members}
         map_to = None
         coord_name = None
         for x in descriptors:
@@ -955,13 +955,12 @@ class _Bufr4Decoder:
         elif isinstance(instruction, SkipDecodeInstruction):
             instruction.raise_exception()
         else:
-            raise ValueError("Unrecognized instruction")
+            raise TypeError("Unrecognized instruction")
 
         if instruction.extras.get("iterate_after", False) and isinstance(
             node, SequenceNode
-        ):
-            if node.members:
-                self._iterate_on_nodes(node.members, context)
+        ) and node.members:
+            self._iterate_on_nodes(node.members, context)
 
     def _get_node_value(
         self,
@@ -1127,7 +1126,6 @@ class _Bufr4Decoder:
             peek2 = self.peek(2, context)
             if not (peek2 and peek2.descriptor.id == 1005):
                 raise ValueError(f"Expecting 1005, found {peek2}")
-            pads = []
             elements = [
                 self._get_node_value(None, node, context),
                 self._get_node_value(None, t.cast(ValueDataNode, peek1), context),
@@ -1222,11 +1220,11 @@ class _Bufr4Decoder:
         if isinstance(ymd_node, SequenceNode):
             nodes.extend(ymd_node.members)
         else:
-            raise ValueError()
+            raise TypeError("Invalid type of following node")
         if isinstance(hms_node, SequenceNode):
             nodes.extend(hms_node.members)
         elif hms_node is not None:
-            raise ValueError()
+            raise TypeError("Invalid type of following node")
         return self._node_list_to_datetime(ctx, *nodes)
 
     def _node_list_to_datetime(self, ctx: OPSContext, *nodes: DataNode):

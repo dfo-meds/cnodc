@@ -8,7 +8,7 @@ import typing as t
 import unicodedata
 from decimal import Decimal
 
-from medsutil import json as json
+from medsutil import json
 from medsutil.awaretime import AwareDateTime
 from medsutil.math import is_science_number
 
@@ -56,7 +56,7 @@ def clean_wigos_id(wigos_id: str) -> str | None:
     return "-".join(pieces)
 
 
-def netcdf_bytes_to_string(byte_sequence: str | t.ByteString, encoding="utf-8") -> str:
+def netcdf_bytes_to_string(byte_sequence: str | bytes | bytearray, encoding="utf-8") -> str:
     """Converts NetCDF characters to a Python string object, if necessary."""
     return DataCoercer.nc_bytes_as_string(byte_sequence, encoding)
 
@@ -102,7 +102,7 @@ class DataCoercer:
             return float(f)
 
     @staticmethod
-    def nc_bytes_as_string(byte_sequence: str | t.ByteString, encoding="utf-8") -> str:
+    def nc_bytes_as_string(byte_sequence: str | bytes | bytearray, encoding="utf-8") -> str:
         """Converts a NetCDF byte sequence to a string."""
         if isinstance(byte_sequence, str):
             return DataCoercer.as_normalized_string(byte_sequence)
@@ -114,7 +114,7 @@ class DataCoercer:
 
     @staticmethod
     def string_as_nc_bytes(
-        s: t.Sequence[str] | str, fixed_len: int = None
+        s: t.Sequence[str] | str, fixed_len: int | None = None
     ) -> npt.NDArray:
         """Converts a string (or a sequence of strings) into a fixed- or variable-length NetCDF-compatible array."""
         import numpy as np
@@ -280,8 +280,8 @@ class DataCoercer:
     @staticmethod
     def as_list[AcceptType, StoreType](
         obj: t.Iterable[AcceptType],
-        value_coerce: t.Callable[[AcceptType], StoreType] = None,
-        str_coerce: t.Callable[[str], t.Iterable[AcceptType]] = None,
+        value_coerce: t.Callable[[AcceptType], StoreType] | None = None,
+        str_coerce: t.Callable[[str], t.Iterable[AcceptType]] | None = None,
     ) -> list[StoreType]:
         """Converts an object to a list, applying str and value coercion as well.
         :raises ValueError: If the value cannot be converted to a list.
@@ -294,14 +294,14 @@ class DataCoercer:
         if value_coerce is None:
             if isinstance(obj, list):
                 return obj
-            return list(x for x in obj)
-        return list(value_coerce(x) for x in obj)
+            return [x for x in obj]
+        return [value_coerce(x) for x in obj]
 
     @staticmethod
     def as_set[AcceptType, StoreType](
         obj: t.Iterable[AcceptType],
-        value_coerce: t.Callable[[AcceptType], StoreType] = None,
-        str_coerce: t.Callable[[str], t.Iterable[AcceptType]] = None,
+        value_coerce: t.Callable[[AcceptType], StoreType] | None = None,
+        str_coerce: t.Callable[[str], t.Iterable[AcceptType]]| None = None,
     ) -> set[StoreType]:
         if isinstance(obj, str):
             if str_coerce is not None:
@@ -311,15 +311,15 @@ class DataCoercer:
         if value_coerce is None:
             if isinstance(obj, set):
                 return obj
-            return set(x for x in obj)
-        return set(value_coerce(x) for x in obj)
+            return {x for x in obj}
+        return {value_coerce(x) for x in obj}
 
     @staticmethod
     def as_dict[AcceptKeyType, AcceptType, StoreKeyType, StoreType](
         obj: t.Mapping[AcceptKeyType | StoreKeyType, AcceptType | StoreType] | str,
-        key_coerce: t.Callable[[AcceptKeyType | StoreKeyType], StoreKeyType] = None,
-        value_coerce: t.Callable[[AcceptType | StoreType], StoreType] = None,
-        str_coerce: t.Callable[[str], dict[AcceptKeyType, AcceptType]] = None,
+        key_coerce: t.Callable[[AcceptKeyType | StoreKeyType], StoreKeyType] | None = None,
+        value_coerce: t.Callable[[AcceptType | StoreType], StoreType] | None = None,
+        str_coerce: t.Callable[[str], dict[AcceptKeyType, AcceptType]] | None = None,
     ) -> dict[StoreKeyType, StoreType]:
         if str_coerce is not None and isinstance(obj, str):
             obj = str_coerce(obj)
@@ -394,15 +394,15 @@ class DataCoercer:
         return v
 
     @staticmethod
-    def as_memoryview(b: t.ByteString) -> memoryview:
+    def as_memoryview(b: bytes | bytearray) -> memoryview:
         return memoryview(b)
 
     @staticmethod
-    def as_bytes(b: t.ByteString) -> bytes:
+    def as_bytes(b: bytes | bytearray) -> bytes:
         return bytes(b)
 
     @staticmethod
-    def as_bytes_from_base64(b: t.ByteString | str) -> bytes:
+    def as_bytes_from_base64(b: bytes | bytearray | str) -> bytes:
         if isinstance(b, str):
             return base64.b64decode(b.encode("ascii"))
         return bytes(b)
@@ -412,19 +412,19 @@ class DataCoercer:
         return base64.b64encode(b).decode("ascii")
 
     @staticmethod
-    def as_bytearray(b: t.ByteString) -> bytearray:
+    def as_bytearray(b: bytes | bytearray) -> bytearray:
         return bytearray(b)
 
     @staticmethod
-    def iterable_as_memoryview(b: t.Iterable[t.ByteString]) -> memoryview:
+    def iterable_as_memoryview(b: t.Iterable[bytes | bytearray]) -> memoryview:
         return memoryview(DataCoercer.iterable_as_bytearray(b))
 
     @staticmethod
-    def iterable_as_bytes(b: t.Iterable[t.ByteString]) -> bytes:
+    def iterable_as_bytes(b: t.Iterable[bytes | bytearray]) -> bytes:
         return b"".join(b)
 
     @staticmethod
-    def iterable_as_bytearray(b: t.Iterable[t.ByteString]) -> bytearray:
+    def iterable_as_bytearray(b: t.Iterable[bytes | bytearray]) -> bytearray:
         ba = bytearray()
         for byte_ in b:
             ba.extend(byte_)
@@ -440,10 +440,8 @@ class DataCoercer:
         for c in UNICODE_DASHES:
             value = value.replace(c, "-")
         value = "".join(
-            c for c in value if (not unicodedata.category(c) == "Cc") or c == "\n"
-        )
-        value = value.replace("\x00", "")
-        value = value.strip(" ")
+            c for c in value if unicodedata.category(c) != "Cc" or c == "\n"
+        ).replace("\x00", "").strip(" ")
         while "  " in value:
             value = value.replace("  ", " ")
         return value
@@ -452,7 +450,7 @@ class DataCoercer:
 class DataValidator:
     @staticmethod
     def type_is[T](
-        __obj: t.Any, required_type: type[T] | tuple[type[T], ...] = None
+        __obj: t.Any, /, required_type: type[T] | tuple[type[T], ...] | None = None
     ) -> t.TypeGuard[T]:
         if required_type is not None and not isinstance(__obj, required_type):
             raise ValueError("Invalid object type")
@@ -460,7 +458,7 @@ class DataValidator:
 
     @staticmethod
     def iterable_meets_all[T](
-        __obj: t.Iterable[T], validators: list[t.Callable[[T], t.NoReturn]]
+        __obj: t.Iterable[T], /, validators: list[t.Callable[[T], t.NoReturn]]
     ):
         for item in __obj:
             for v in validators:
@@ -469,16 +467,16 @@ class DataValidator:
 
     @staticmethod
     def mapping_meets_all[X, Y](
-        __obj: t.Mapping[X, Y],
-        key_validators: list[t.Callable[[X], t.NoReturn]] = None,
-        value_validators: list[t.Callable[[Y], t.NoReturn]] = None,
+        __obj: t.Mapping[X, Y], /,
+        key_validators: list[t.Callable[[X], t.NoReturn]] | None = None,
+        value_validators: list[t.Callable[[Y], t.NoReturn]] | None = None,
     ):
-        key_validators = key_validators or []
-        value_validators = value_validators or []
+        key_vs= key_validators or []
+        value_vs = value_validators or []
         for key, value in __obj.items():
-            for key_v in key_validators:
+            for key_v in key_vs:
                 key_v(key)
-            for value_v in value_validators:
+            for value_v in value_vs:
                 value_v(value)
         return True
 

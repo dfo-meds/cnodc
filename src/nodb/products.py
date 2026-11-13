@@ -70,8 +70,8 @@ class ProfileParameterRule(ProductRule):
         if "PROFILE" not in record.subrecords:
             return False
         for rs in record.subrecords.record_sets["PROFILE"].values():
-            for record in rs.records:
-                if self.parameter in record.parameters:
+            for rec in rs.records:
+                if self.parameter in rec.parameters:
                     return True
         return False
 

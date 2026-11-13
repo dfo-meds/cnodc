@@ -68,8 +68,8 @@ class PayloadWorker[T: Payload](QueueWorker):
             res = self.process_payload(payload)
             return res
         except Exception as ex:
-            exc = exc
-            raise ex
+            exc = ex
+            raise
         finally:
             self.after_payload(res, exc)
 

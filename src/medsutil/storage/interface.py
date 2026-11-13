@@ -128,7 +128,7 @@ class FilePath(t.Protocol):
 
     def upload(
         self,
-        source: pathlib.Path | ct.SupportsBinaryRead | t.Iterable[t.ByteString],
+        source: pathlib.Path | ct.SupportsBinaryRead | t.Iterable[bytes | bytearray],
         allow_overwrite: bool = False,
         buffer_size: int | None = None,
         metadata: dict[str, str] | None = None,

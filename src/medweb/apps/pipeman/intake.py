@@ -162,7 +162,7 @@ class RequestResult(enum.Enum):
 
 
 class RequestHandler:
-    NO_SAVE_HEADERS = {
+    NO_SAVE_HEADERS: t.ClassVar[set[str]] = {
         "x-cnodc-token",
         "x-cnodc-checksum",
         "x-cnodc-more-data",

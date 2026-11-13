@@ -160,7 +160,7 @@ class InstrumentedObject:
             self._metrics[key] = mum.Gauge(
                 name=name,
                 documentation=description,
-                labelnames=labels or tuple(),
+                labelnames=labels or (),
                 multiprocess_mode=multiprocess_mode,
                 **kwargs,
             )
@@ -170,7 +170,7 @@ class InstrumentedObject:
         self,
         name: str,
         description: str = "",
-        labels: list[str] | tuple = None,
+        labels: list[str] | tuple[str, ...] | None = None,
         **kwargs,
     ) -> mum.Histogram:
         key = f"histogram_{name}"
@@ -179,7 +179,7 @@ class InstrumentedObject:
             self._metrics[key] = mum.Histogram(
                 name=name,
                 documentation=description,
-                labelnames=labels or tuple(),
+                labelnames=labels or (),
                 **kwargs,
             )
         return self._metrics[key]
@@ -197,7 +197,7 @@ class InstrumentedObject:
             self._metrics[key] = mum.Counter(
                 name=name,
                 documentation=description,
-                labelnames=labels or tuple(),
+                labelnames=labels or (),
                 **kwargs,
             )
         return self._metrics[key]

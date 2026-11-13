@@ -73,7 +73,7 @@ class OCProc2JsonCodec(BaseCodec):
             self.log.warning("More data detected")
 
     def _decode_single_message(
-        self, stream: t.ByteString, options: dict
+        self, stream: bytes | bytearray, options: dict
     ) -> t.Iterable[ocproc2.ParentRecord]:
         if isinstance(stream, memoryview):
             yield ParentRecord.build_from_mapping(

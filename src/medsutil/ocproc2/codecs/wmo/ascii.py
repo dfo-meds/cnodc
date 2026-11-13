@@ -1002,15 +1002,10 @@ class BuoyZZYY(AsciiDecoder):
                     self.parse_quality_location(ascii_message[o][2])
                 )
                 second_class = self.parse_quality_location_class(ascii_message[o][3])
-                if second_class is not None:
-                    if (
-                        record.metadata.has_value("WMOQualityLocationClass")
-                        and record.metadata["WMOQualityLocationClass"].to_string()
-                        != second_class
-                    ):
-                        raise AsciiDecodeError(
-                            "WMOQualityLocationClass disagreement", 2004
-                        )
+                if second_class is not None and record.metadata.has_value("WMOQualityLocationClass") and record.metadata["WMOQualityLocationClass"].to_string() != second_class:
+                    raise AsciiDecodeError(
+                        "WMOQualityLocationClass disagreement", 2004
+                    )
                 qz = self.parse_hsp_correction(ascii_message[o][4])
                 if qz is not None and "PROFILE" in record.subrecords.record_sets:
                     for profile in record.subrecords.record_sets["PROFILE"].values():

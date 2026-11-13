@@ -205,9 +205,9 @@ class _FTPWrapper:
 
     def list_dir(self, dir_path="", facts: list[str] | None = None):
         if self.supports_rfc3659_features():
-            for name, facts in self.server.mlsd(dir_path, facts or []):
+            for name, real_facts in self.server.mlsd(dir_path, facts or []):
                 if name not in (".", ".."):
-                    yield name, self.extend_info(facts)
+                    yield name, self.extend_info(real_facts)
         else:
             if dir_path and not dir_path.endswith("/"):  # pragma: no coverage
                 dir_path += "/"
@@ -247,7 +247,7 @@ class _FTPWrapper:
             except ftplib.error_perm as ex:
                 if ex.args[0][0:2] == "55":
                     return None
-                raise ex  # pragma: no coverage (difficult to test)
+                raise  # pragma: no coverage (difficult to test)
         else:
             parts = file_path.split("/")
             for file, info in self.list_dir(
@@ -330,7 +330,7 @@ class FTPHandle(UrlBaseHandle):
             yield x
 
     @ftplib_error_wrap_generator
-    def _streaming_read(self, buffer_size: int = None) -> t.Iterable[bytes]:
+    def _streaming_read(self, buffer_size: int | None = None) -> t.Iterable[bytes]:
         with self._connection() as ftp:
             yield from self._halt_flag.iterate(ftp.streaming_read(self.name))
 

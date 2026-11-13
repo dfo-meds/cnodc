@@ -34,7 +34,7 @@ class NetCDFBaseDecoder(BaseCodec):
         super().__init__(*args, is_decoder=True, force_single_mode=True, **kwargs)
 
     def _decode_single_message(
-        self, data: t.ByteString, context: dict
+        self, data: bytes | bytearray, context: dict
     ) -> t.Iterable[ParentRecord]:
         with nc.Dataset("inmemory.nc", "r", memory=data) as netcdf:
             yield from self._build_from_netcdf(netcdf, context)
@@ -49,7 +49,7 @@ class NetCDFCommonDecoder(NetCDFBaseDecoder):
     """Generalized decoder that uses a mapping file."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(log_name="cnodc.netcdf_common_decoder", *args, **kwargs)
+        super().__init__(*args, log_name="cnodc.netcdf_common_decoder", **kwargs)
 
     def _build_from_netcdf(
         self, dataset: nc.Dataset, options: dict
@@ -167,11 +167,10 @@ class NetCDFCommonMapper:
                 "key_var": None,
                 "data_vars": [],
             }
-            for k in self._data["ocproc2_map"].keys():
+            for k, info in self._data["ocproc2_map"].items():
                 mapping_type, source_name = "var", k
                 if ":" in k:
                     mapping_type, _, source_name = k.partition(":")
-                info = self._data["ocproc2_map"][k]
                 if isinstance(info, dict):
                     if info.get("source"):
                         source_name = info["source"]
@@ -274,13 +273,12 @@ class NetCDFCommonMapper:
                                 source_name,
                             )
                             del info["data_map"]
-                    if "data_map_key" in info:
-                        if not ("data_map" in info):
-                            self._log.warning(
-                                "Removing [data_map_key] from %s, no data map provided",
-                                source_name,
-                            )
-                            del info["data_map_key"]
+                    if "data_map_key" in info and not ("data_map" in info):
+                        self._log.warning(
+                            "Removing [data_map_key] from %s, no data map provided",
+                            source_name,
+                        )
+                        del info["data_map_key"]
                     if "allow_multiple" not in info:
                         info["allow_multiple"] = False
                     if "no_units" not in info:
@@ -377,7 +375,7 @@ class NetCDFCommonMapper:
             var = self._dataset.variables[var_name]
             var_data = var[:]
             # we only want the numeric data that comes in arrays
-            if var.dtype != "|S1" and not var_data.ndim == 0:
+            if var.dtype != "|S1" and var_data.ndim != 0:
                 var_data = unnumpy(var_data)
                 if any(d is not None for d in var_data):
                     data[var_name] = var_data

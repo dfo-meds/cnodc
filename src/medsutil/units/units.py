@@ -101,7 +101,7 @@ PREFERRED_PREFIX_OVERRIDES = {"µ": "u"}
 
 @injector.injectable_global
 class UnitConverter:
-    def __init__(self, table_directory: pathlib.Path | str = None):
+    def __init__(self, table_directory: pathlib.Path | str | None = None):
         self._table_dir = (
             table_directory or pathlib.Path(__file__).resolve().parent / "udunits"
         )
@@ -127,12 +127,10 @@ class UnitConverter:
                     self._load_units_table("udunits2-derived.xml")
                     self._load_units_table("udunits2-common.xml")
                     self._load_units_table("udunits2-accepted.xml")
-                    for x in ADDITIONAL_UNITS:
+                    for x, y in ADDITIONAL_UNITS.items():
                         if x not in self._loaded_tables["units"]:
-                            self._loaded_tables["units"][x] = ADDITIONAL_UNITS[x]
-                            self._loaded_tables["preferred_units"][x] = (
-                                ADDITIONAL_UNITS[x]
-                            )
+                            self._loaded_tables["units"][x] = y
+                            self._loaded_tables["preferred_units"][x] = y
                     self._fix_preferred_units()
 
     def _conversion_info(
@@ -170,12 +168,12 @@ class UnitConverter:
     ) -> bool:
         dims_a = {x: dims_a[x] for x in dims_a if dims_a[x] != 0}
         dims_b = {x: dims_b[x] for x in dims_b if dims_b[x] != 0}
-        if not len(dims_a) == len(dims_b):
+        if len(dims_a) != len(dims_b):
             return False
-        for x in dims_a.keys():
+        for x, y in dims_a.items():
             if x not in dims_b:
                 return False
-            if dims_a[x] != dims_b[x]:
+            if y != dims_b[x]:
                 return False
         return True
 
@@ -196,10 +194,10 @@ class UnitConverter:
         self, quantity: T, original_units: str, output_units: str
     ) -> T:
         self._load_tables()
-        factor_original, dims_original, expr_original = self._conversion_info(
+        factor_original, dims_original, _ = self._conversion_info(
             original_units
         )
-        factor_output, dims_output, expr_output = self._conversion_info(output_units)
+        factor_output, dims_output, _ = self._conversion_info(output_units)
         if not self._check_compatibility(dims_original, dims_output):
             raise UnitError(
                 f"Incompatible dimensions [{self._format_dims(dims_original)}] vs [{self._format_dims(dims_output)}]",
@@ -357,11 +355,7 @@ class UnitConverter:
                     self._log.warning(f"Prefix [{n}] already defined")
                 else:
                     self._loaded_tables["prefixes"][n] = val
-                    self._loaded_tables["preferred_prefixes"][n] = (
-                        preferred
-                        if preferred not in PREFERRED_PREFIX_OVERRIDES
-                        else PREFERRED_PREFIX_OVERRIDES[preferred]
-                    )
+                    self._loaded_tables["preferred_prefixes"][n] = PREFERRED_PREFIX_OVERRIDES.get(preferred, preferred)
 
     def _find_entry(self, simple_unit: str) -> tuple[amath.NumberString, str, str]:
         self._load_tables()

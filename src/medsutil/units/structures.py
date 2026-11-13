@@ -234,11 +234,11 @@ class Product(UnitExpression):
         expr = None
         for k in others:  # pragma: no cover (this just handles fallback)
             expr = k if expr is None else Product(k, expr)
-        for k in reversed(sorted(raw_products.keys())):
+        for k in sorted(raw_products.keys(), reverse=True):
             if raw_products[k] < 0:
                 right = Exponent(SimpleUnit(k), Integer(str(raw_products[k])))
                 expr = right if expr is None else Product(right, expr)
-        for k in reversed(sorted(raw_products.keys())):
+        for k in sorted(raw_products.keys()), reverse=True):
             if raw_products[k] > 0:
                 right = (
                     SimpleUnit(k)

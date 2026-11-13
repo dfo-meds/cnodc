@@ -247,8 +247,8 @@ class NODBCursor(t.Protocol):
         | None = None,
     ): ...
     def fetchone(self) -> dict: ...
-    def fetchmany(self, size: int = None) -> t.Iterable[dict]: ...
-    def fetch_stream(self, size: int = None) -> t.Iterable[dict]: ...
+    def fetchmany(self, size: int | None = None) -> t.Iterable[dict]: ...
+    def fetch_stream(self, size: int | None = None) -> t.Iterable[dict]: ...
     def commit(self): ...
     def rollback(self): ...
     def create_savepoint(self, name: str) -> str: ...
@@ -373,7 +373,7 @@ class NODBInstance(t.Protocol):
         filters: FilterDict,
         join_str: JoinString = None,
         lock_type: LockType = None,
-        limit_fields: list[str] = None,
+        limit_fields: list[str] | None = None,
         key_only: bool = False,
     ) -> ConcreteNODBObject | None: ...
     def stream_objects(
@@ -382,9 +382,9 @@ class NODBInstance(t.Protocol):
         filters: FilterDict = None,
         join_str: JoinString = None,
         lock_type: LockType = LockType.NONE,
-        limit_fields: list[str] = None,
+        limit_fields: list[str] | None = None,
         key_only: bool = False,
-        order_by: list[str | tuple[str, bool]] = None,
+        order_by: list[str | tuple[str, bool]] | None = None,
         offset: int | None = None,
         limit: int | None = None,
     ) -> t.Iterable[ConcreteNODBObject]: ...
@@ -394,9 +394,9 @@ class NODBInstance(t.Protocol):
         filters: FilterDict = None,
         join_str: JoinString = None,
         lock_type: LockType = LockType.NONE,
-        limit_fields: list[str] = None,
+        limit_fields: list[str] | None = None,
         key_only: bool = False,
-        order_by: list[str] = None,
+        order_by: list[str] | None = None,
         offset: int | None = None,
         limit: int | None = None,
     ) -> t.Iterable[dict[str, SupportsPostgres]]: ...
@@ -535,7 +535,7 @@ class NODB[X: NODBInstance]:
         self._inner_count += 1
         return t.cast(NODBInstance, self._instance)
 
-    def __exit__(self, exc_type, exc_val: Exception, exc_tb):
+    def __exit__(self, exc_type, exc_val: BaseException | None, exc_tb):
         self._inner_count -= 1
         if self._inner_count == 0 and self._instance is not None:
             if exc_type is not None:

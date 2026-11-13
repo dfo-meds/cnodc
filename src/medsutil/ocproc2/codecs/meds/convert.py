@@ -609,14 +609,12 @@ class MedsConverter:
                         continue
                     # TODO: maybe should consider best_uniform here too? IDK. To revisit later.
                     # it should work for GTS reports at least.
-                    if min_val is not None:
-                        if worst_uniform < min_val:
-                            continue
-                    if max_val is not None:
-                        if worst_uniform > max_val and not math.isclose(
-                            worst_uniform, max_val
-                        ):
-                            continue
+                    if min_val is not None and worst_uniform < min_val:
+                        continue
+                    if max_val is not None and worst_uniform > max_val and not math.isclose(
+                        worst_uniform, max_val
+                    ):
+                        continue
                     return code
         return "4"
 
@@ -788,7 +786,7 @@ class MedsConverter:
 
         return pr
 
-    SPLIT_CODES: dict[str, list[tuple[int, int, str]]] = {
+    SPLIT_CODES: t.ClassVar[dict[str, list[tuple[int, int, str]]]] = {
         # TESAC 66...
         "GGC$": [
             (2, 3, "GGK6"),

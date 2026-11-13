@@ -39,7 +39,7 @@ class NODBFinalizeWorker(WorkflowWorker):
                 f"{payload.source_uuid}__{payload.received_date}",
             )
         else:
-            raise ValueError("Invalid payload type")
+            raise TypeError("Invalid payload type")
 
     def finalize_records(
         self,

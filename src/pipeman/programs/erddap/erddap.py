@@ -97,7 +97,7 @@ class ErddapController:
         self,
         dataset_id: str,
         flag: ReloadFlag = ReloadFlag.SOFT,
-        cluster_name: str = None,
+        cluster_name: str | None = None,
     ) -> bool:
         """Reload a given dataset."""
         try:
@@ -109,7 +109,7 @@ class ErddapController:
             )
             if not resp["success"]:
                 raise CNODCError(
-                    f"Remote error while requesting ERDDAP dataset reload: {resp['message'] if 'message' in resp else 'unknown'}",
+                    f"Remote error while requesting ERDDAP dataset reload: {resp.get('message', 'unknown')}",
                     "ERDDAPUTIL",
                     1001,
                 )
@@ -120,7 +120,7 @@ class ErddapController:
             raise
 
     def _make_authenticated_request(
-        self, endpoint: str, method: str, json_data: dict, cluster_name: str = None
+        self, endpoint: str, method: str, json_data: dict, cluster_name: str | None = None
     ):
         """Make an HTTP call to the endpoint with appropriate authentication."""
         config = self._get_config(cluster_name)

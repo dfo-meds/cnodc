@@ -853,7 +853,7 @@ class StationRecord(_MedsEncodable):
     @coordinates.setter
     def coordinates(self, long_lat: tuple):
         long, lat = long_lat
-        self._meds_1d_sqr = f"{int(math.ceil(long))}{str(int(math.ceil(lat))).zfill(3)}"
+        self._meds_1d_sqr = f"{math.ceil(long)}{str(math.ceil(lat)).zfill(3)}"
         self.latitude = lat
         self.longitude = long
 
@@ -1006,7 +1006,7 @@ class StationRecord(_MedsEncodable):
 
     def encode(self, fmt: MedsEncoding, record_no: int = 1) -> t.Iterable[bytes]:
         self.validate_record(record_no, fmt)
-        self._meds_1d_sqr = f"{int(math.ceil(self.longitude + 180))}{str(int(math.ceil(self.latitude + 90))).zfill(3)}"
+        self._meds_1d_sqr = f"{math.ceil(self.longitude + 180)}{str(math.ceil(self.latitude + 90)).zfill(3)}"
         max_sizes = (
             StationRecord.OCPROC_MAX_SIZES
             if fmt == MedsEncoding.OCPROC

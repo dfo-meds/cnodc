@@ -118,7 +118,7 @@ class OCProc2BinCodec(BaseCodec):
         return header_str.split(",", maxsplit=2)
 
     def _decode_single_message(
-        self, data: t.ByteString, options: dict
+        self, data: bytes | bytearray, options: dict
     ) -> t.Iterable[ParentRecord]:
         yield from options["_codec"]._decode_single_message(data, options)
 

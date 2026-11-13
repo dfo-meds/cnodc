@@ -113,7 +113,7 @@ class AccessController:
             db.commit()
 
     def create_temporary_access_token(
-        self, username: str, password: str, lifetime_seconds: int = None
+        self, username: str, password: str, lifetime_seconds: int | None = None
     ) -> tuple[str, AwareDateTime]:
         with self.nodb as db:
             user = self._require_user(db, username)
@@ -141,7 +141,7 @@ class AccessController:
             db.commit()
 
     def renew_temporary_access_token(
-        self, access_token: str, lifetime_seconds: int = None
+        self, access_token: str, lifetime_seconds: int | None = None
     ) -> tuple[str, AwareDateTime]:
         user_id, key_identifier = self._verify_access_token(access_token)
         with self.nodb as db:

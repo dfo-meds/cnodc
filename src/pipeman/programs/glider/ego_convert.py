@@ -200,14 +200,13 @@ class OpenGliderConverter:
             self._halt.breakpoint()
 
     def convert(self, ego_file, og_file, file_name: str | None = None, **kwargs):
-        with nc.Dataset(ego_file, "r") as original_nc:
-            with nc.Dataset(og_file, "w", format="NETCDF4") as open_nc:
-                return self._convert(
-                    open_nc,
-                    original_nc,
-                    file_name or pathlib.Path(ego_file).name,
-                    **kwargs,
-                )
+        with nc.Dataset(ego_file, "r") as original_nc, nc.Dataset(og_file, "w", format="NETCDF4") as open_nc:
+            return self._convert(
+                open_nc,
+                original_nc,
+                file_name or pathlib.Path(ego_file).name,
+                **kwargs,
+            )
 
     def _parse_file_name(self, file_name: str):
         try:
@@ -296,11 +295,8 @@ class OpenGliderConverter:
         for var in dmd.variables:
             if var.source_name in ("LATITUDE", "LONGITUDE", "DEPTH", "TIME"):
                 var.destination_name = var.source_name.lower()
-        metadata_config = (
-            self._mapping_data["dmd_metadata"]
-            if "dmd_metadata" in self._mapping_data
-            else {}
-        )
+        metadata_config = self._mapping_data.get("dmd_metadata", {})
+
         if metadata_config.get("users"):
             dmd.users.update(metadata_config["users"])
 
@@ -448,8 +444,7 @@ class OpenGliderConverter:
     def _create_openglider_sensor_vars(
         self, open_nc: nc.Dataset, sensors: dict[str, dict[str, str]]
     ):
-        for key in sensors:
-            info = sensors[key]
+        for info in sensors.values():
             var = open_nc.createVariable(
                 f"SENSOR_{info['type']}_{info['serial']}", "f4", ()
             )
@@ -711,8 +706,8 @@ class OpenGliderConverter:
                 result["en"].append(info["und"])
                 result["fr"].append(info["und"])
             else:
-                result["en"].append(info["en"] if "en" in info else "")
-                result["fr"].append(info["fr"] if "fr" in info else "")
+                result["en"].append(info.get("en", ""))
+                result["fr"].append(info.get("fr", ""))
         return result
 
     def _compress_join(
@@ -1010,7 +1005,7 @@ class OpenGliderConverter:
                     raise GliderError(f"Unknown transmission system: {sys_name}", 2017)
                 trans_systems.add(trans_system_map[sys_name.lower()])
             open_nc.variables["TELECOM_TYPE"][:] = netcdf_string_to_vlen_bytes(
-                ",".join(sorted(list(trans_systems)))
+                ",".join(sorted(trans_systems))
             )
         else:
             self._log.warning("Missing variable TRANS_SYSTEM")
@@ -1025,7 +1020,7 @@ class OpenGliderConverter:
                     raise GliderError(f"Unknown positioning system: {sys_name}", 2018)
                 track_systems.add(pos_system_map[sys_name.lower()])
             open_nc.variables["TRACKING_SYSTEM"][:] = netcdf_string_to_vlen_bytes(
-                ",".join(sorted(list(track_systems)))
+                ",".join(sorted(track_systems))
             )
         else:
             self._log.warning("Missing variable POSITIONING_SYSTEM")

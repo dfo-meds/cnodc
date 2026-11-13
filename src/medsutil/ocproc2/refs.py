@@ -2,7 +2,7 @@ import enum
 import typing as t
 
 if t.TYPE_CHECKING:
-    from medsutil import ocproc2 as ocproc2
+    from medsutil import ocproc2
     from medsutil.ocproc2.util import ObjectWithMetadata
 
 

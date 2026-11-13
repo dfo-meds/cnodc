@@ -102,7 +102,7 @@ class ObservationRelationshipType(enum.Enum):
 
 
 class SubrecordInfo:
-    POSITION_COMMON_UNITS = {
+    POSITION_COMMON_UNITS: t.ClassVar[dict[str, str]] = {
         "Latitude": "degrees_north",
         "Longitude": "degrees_east",
         "Depth": "m",
@@ -263,9 +263,9 @@ class SubrecordInfo:
             is_surface = not position["Pressure"] > 0
 
         if is_surface:
-            self.surface_parameters.update(x for x in record.parameters.keys())
+            self.surface_parameters.update(x for x in record.parameters)
         else:
-            self.profile_parameters.update(x for x in record.parameters.keys())
+            self.profile_parameters.update(x for x in record.parameters)
 
         for subrecord in record.iter_subrecords():
             self._extract_subrecord_info(subrecord, position)
@@ -386,9 +386,9 @@ def update_common_from_data_record(obj, data_record: ocproc2.ParentRecord):
 
     # Quality Control Test Results
     if hasattr(obj, "qc_tests"):
-        qc_test_names = set(
+        qc_test_names = {
             (x.test_protocol, x.test_name) for x in data_record.qc_tests
-        )
+        }
         qc_test_info = {}
         for protocol, name in qc_test_names:
             best_result = data_record.latest_test_result(protocol, name, True)

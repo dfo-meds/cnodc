@@ -46,7 +46,7 @@ def check_expired_password(
     salt: bytes,
     password_hash: bytes,
     expired_date: AwareDateTime,
-    username: str = None,
+    username: str | None = None,
 ) -> bool:
     """
     Checks an expired password if it is still valid.

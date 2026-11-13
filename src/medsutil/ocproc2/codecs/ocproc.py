@@ -18,7 +18,7 @@ class _MedsCodec(BaseCodec):
         raise NotImplementedError
 
     def _decode_single_message(
-        self, data: t.ByteString, options: dict
+        self, data: bytes | bytearray, options: dict
     ) -> t.Iterable[ParentRecord]:
         for station in unpack(self._as_byte_sequence([data]), self.encoding()):
             yield self.converter.station_to_ocproc2(station, self.encoding())
@@ -37,7 +37,7 @@ class _MedsCodec(BaseCodec):
 
 class OCPROCCodec(_MedsCodec):
     def __init__(self, *args, **kwargs):
-        super().__init__(log_name="cnodc.codecs.ocproc1", *args, **kwargs)
+        super().__init__(*args, log_name="cnodc.codecs.ocproc1", **kwargs)
 
     def encoding(self) -> MedsEncoding:
         return MedsEncoding.OCPROC
@@ -45,7 +45,7 @@ class OCPROCCodec(_MedsCodec):
 
 class MEDSASCIICodec(_MedsCodec):
     def __init__(self, *args, **kwargs):
-        super().__init__(log_name="cnodc.codecs.medsascii", *args, **kwargs)
+        super().__init__(*args, log_name="cnodc.codecs.medsascii", **kwargs)
 
     def encoding(self) -> MedsEncoding:
         return MedsEncoding.MEDS_ASCII

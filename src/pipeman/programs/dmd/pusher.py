@@ -3,7 +3,7 @@ from autoinject import injector
 
 from nodb.queue import NODBQueueItem
 from pipeman.processing.queue_worker import QueueItemResult, QueueWorker
-from pipeman.programs.dmd import dmd as dmd
+from pipeman.programs.dmd import dmd
 
 
 class DMDMetadataPushWorker(QueueWorker):

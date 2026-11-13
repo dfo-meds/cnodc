@@ -226,9 +226,8 @@ class CastawayIntakeWorker(FileWorkflowWorker):
 
         # Gzip the NetCDF file
         gzip_netcdf_file = temp_dir / "castaway.nc.gz"
-        with gzip.open(gzip_netcdf_file, "wb") as dest:
-            with open(netcdf_file, "rb") as src:
-                shutil.copyfileobj(src, dest)
+        with gzip.open(gzip_netcdf_file, "wb") as dest, open(netcdf_file, "rb") as src:
+            shutil.copyfileobj(src, dest)
         self._halt_flag.breakpoint()
 
         # Do the upload and rollback if there is an issue
@@ -266,12 +265,12 @@ class CastawayIntakeWorker(FileWorkflowWorker):
                 )
             self._current_item.mark_complete(self.db)
             self.db.commit()
-        except Exception as ex:
+        except Exception:
             if stage >= 1:
                 upload_file.remove()
             if stage >= 2:
                 archive_file.remove()
-            raise ex
+            raise
         return QueueItemResult.HANDLED
 
 
@@ -291,6 +290,7 @@ class CastawayData:
             check_against = []
             with open(self._source_file, "r", encoding="utf-8") as h:
                 reader = csv.reader(h)
+                state = "metadata"
                 for line_no, line in enumerate(reader):
                     if state == "metadata":
                         if line[0].strip() == "%":
@@ -561,9 +561,9 @@ class CastawayData:
                     ncf, "sound_velocity__vitesse_son", "f8", ("obs",), {}
                 )
                 self._create_variable(ncf, "density__densite", "f8", ("obs",), {})
-        except Exception as ex:
+        except Exception:
             ncf.close()
-            raise ex
+            raise
         return ncf
 
     def _create_variable(
@@ -572,8 +572,9 @@ class CastawayData:
         var_name: str,
         data_type,
         dimensions: tuple,
-        attributes: dict = None,
+        attributes: dict | None = None,
     ):
+        attributes = attributes or {}
         if "_FillValue" in attributes:
             attributes["missing_value"] = attributes["_FillValue"]
             var = ncf.createVariable(
@@ -602,10 +603,10 @@ class CastawayData:
                 if halt_flag:
                     halt_flag.check_continue(True)
         lookup = RAW_VARIABLES if self.is_raw() else PROCESSED_VARIABLES
-        for key in raw_data:
+        for key, data in raw_data.items():
             variable_info = lookup[key]
             ncf.variables[variable_info[0]][:] = self._convert_data(
-                raw_data[key], *variable_info[1:]
+                data, *variable_info[1:]
             )
             if halt_flag:
                 halt_flag.check_continue(True)
@@ -635,7 +636,7 @@ class CastawayData:
             return fill_value
         dt = AwareDateTime.utcstrptime(val, "%m/%d/%Y %H:%M")
         # Minutes since REF_TIME (reduce towards 0 if seconds present)
-        return int(math.floor((dt - REF_TIME).total_seconds() / 60.0))
+        return math.floor((dt - REF_TIME).total_seconds() / 60.0)
 
     def _date_to_str(self, val: str | None, fill_value=None):
         if val is None or val == "":
@@ -648,5 +649,5 @@ class CastawayData:
 
 
 def validate_castaway_ctd_file(data_file: pathlib.Path, headers: dict):
-    file = CastawayData(data_file, headers["gzip"] if "gzip" in headers else False)
+    file = CastawayData(data_file, headers.get("gzip", False))
     return file.validate_file()

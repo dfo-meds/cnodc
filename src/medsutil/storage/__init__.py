@@ -36,3 +36,4 @@ call to determine if something is a directory or a file.
 
 from .core import StorageController
 from .interface import FilePath, StorageError, StorageTier
+__all__ = ['StorageController', 'FilePath', 'StorageError', 'StorageTier']

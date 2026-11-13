@@ -568,7 +568,7 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
 
     def __init__(
         self,
-        values: t.Iterable[AbstractElement | ocut.SupportedValue] = None,
+        values: t.Iterable[AbstractElement | ocut.SupportedValue] | None = None,
         _skip_normalization: bool = False,
         **kwargs,
     ):
@@ -605,9 +605,7 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
                 return False
             if not all(any(x == y for y in other.values()) for x in self.values()):
                 return False
-            if not all(any(x == y for y in self.values()) for x in other.values()):
-                return False
-            return True
+            return all(any(x == y for y in self.values()) for x in other.values())
         else:
             return False
 
@@ -844,25 +842,25 @@ class ElementMap(
 
     def update(
         self,
-        map_: dict[str, SupportedValueOrElement] = None,
+        map_: dict[str, SupportedValueOrElement] | None = None,
         **kwargs: SupportedValueOrElement,
     ):
         if map_ is not None:
-            for key in map_:
-                self.set(key, map_[key])
+            for key, value in map_.items():
+                self.set(key, value)
         if kwargs:
-            for key in kwargs:
-                self.set(key, kwargs[key])
+            for key, value in kwargs.items():
+                self.set(key, value)
 
     def update_elements(
-        self, map_: dict[str, AbstractElement] = None, **kwargs: AbstractElement
+        self, map_: dict[str, AbstractElement] | None = None, **kwargs: AbstractElement
     ):
         if map_ is not None:
-            for key in map_:
-                self.set_element(key, map_[key])
+            for key, value in map_.items():
+                self.set_element(key, value)
         if kwargs:
-            for key in kwargs:
-                self.set_element(key, kwargs[key])
+            for key, value in kwargs.items():
+                self.set_element(key, value)
 
     @staticmethod
     def ensure_element(

@@ -48,9 +48,8 @@ def get_density(
     output_units: str | None = "kg m-3",
 ) -> amath.AnyNumber | None:
     """Calculate the density of seawater from the relevant OCPROC2 elements. See density_at_depth() for more details."""
-    if pressure is None:
-        if depth is not None and latitude is not None:
-            pressure = seawater.eos80_pressure(depth, latitude)
+    if pressure is None and depth is not None and latitude is not None:
+        pressure = seawater.eos80_pressure(depth, latitude)
     t68 = get_temperature(
         temperature, obs_date=obs_date, temperature_scale=TemperatureScale.TS_1968
     )

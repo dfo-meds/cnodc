@@ -30,8 +30,8 @@ SKOS_DOCUMENTATION = "http://www.w3.org/2004/02/skos/core#documentation"
 if t.TYPE_CHECKING:
     import rdflib.term
 
-    LiteralValue = t.Union[set[rdflib.term.Literal], rdflib.term.Literal]
-    ReferenceValue = t.Union[str, set[str]]
+    LiteralValue = set[rdflib.term.Literal] | rdflib.term.Literal
+    ReferenceValue = str | set[str]
 
 
 class _BaseInfo:
@@ -94,7 +94,7 @@ class _BaseInfo:
     def build_one_from_ref(ref_value: ReferenceValue) -> str:
         if isinstance(ref_value, set):
             return _BaseInfo._remove_prefix(
-                list(ref_value)[0]
+                next(iter(ref_value))
             )  # pragma: no coverage (this is unused usually unless there's a major issue)
         else:
             return _BaseInfo._remove_prefix(ref_value)
@@ -111,7 +111,7 @@ class _BaseInfo:
     def build_one_from_literal(ref_value: LiteralValue) -> str | int | float:
         if isinstance(ref_value, set):
             return _BaseInfo.unquote(
-                list(ref_value)[0].value
+                next(iter((ref_value))).value
             )  # pragma: no coverage (this is unused usually unless there's a major issue)
         else:
             return _BaseInfo.unquote(ref_value.value)
@@ -286,79 +286,79 @@ class OCProc2Ontology:
                             graph_dict[a][b].add(c)
                         else:
                             graph_dict[a][b] = c
-                    for key in graph_dict:
-                        if SKOS_IN_SCHEME not in graph_dict[key]:
+                    for key, value in graph_dict.items():
+                        if SKOS_IN_SCHEME not in value:
                             continue
-                        if str(graph_dict[key][SKOS_IN_SCHEME]) == CNODC_ELEMENTS:
+                        if str(value[SKOS_IN_SCHEME]) == CNODC_ELEMENTS:
                             e_name = key[key.rfind("#") + 1 :]
                             self._parameters[e_name] = OCProc2ElementInfo(e_name)
-                            if SKOS_LABEL in graph_dict[key]:
+                            if SKOS_LABEL in value:
                                 self._parameters[e_name].set_label(
-                                    graph_dict[key][SKOS_LABEL]
+                                    value[SKOS_LABEL]
                                 )
-                            if SKOS_DOCUMENTATION in graph_dict[key]:
+                            if SKOS_DOCUMENTATION in value:
                                 self._parameters[e_name].set_documentation(
-                                    graph_dict[key][SKOS_DOCUMENTATION]
+                                    value[SKOS_DOCUMENTATION]
                                 )
-                            if CNODC_PREF_UNIT in graph_dict[key]:
+                            if CNODC_PREF_UNIT in value:
                                 self._parameters[e_name].set_preferred_unit(
-                                    graph_dict[key][CNODC_PREF_UNIT]
+                                    value[CNODC_PREF_UNIT]
                                 )
-                            if CNODC_DATA_TYPE in graph_dict[key]:
+                            if CNODC_DATA_TYPE in value:
                                 self._parameters[e_name].set_data_type(
-                                    graph_dict[key][CNODC_DATA_TYPE]
+                                    value[CNODC_DATA_TYPE]
                                 )
-                            if CNODC_GROUP in graph_dict[key]:
+                            if CNODC_GROUP in value:
                                 self._parameters[e_name].set_allowed_group(
-                                    graph_dict[key][CNODC_GROUP]
+                                    value[CNODC_GROUP]
                                 )
-                            if CNODC_ALLOW_MULTI in graph_dict[key]:
+                            if CNODC_ALLOW_MULTI in value:
                                 self._parameters[e_name].set_allow_multi(
-                                    graph_dict[key][CNODC_ALLOW_MULTI]
+                                    value[CNODC_ALLOW_MULTI]
                                 )
-                            if CNODC_MIN in graph_dict[key]:
+                            if CNODC_MIN in value:
                                 self._parameters[e_name].set_min_value(
-                                    graph_dict[key][CNODC_MIN]
+                                    value[CNODC_MIN]
                                 )
-                            if CNODC_MAX in graph_dict[key]:
+                            if CNODC_MAX in value:
                                 self._parameters[e_name].set_max_value(
-                                    graph_dict[key][CNODC_MAX]
+                                    value[CNODC_MAX]
                                 )
-                            if CNODC_ALLOW in graph_dict[key]:
+                            if CNODC_ALLOW in value:
                                 self._parameters[e_name].update_allowed_values(
-                                    graph_dict[key][CNODC_ALLOW]
+                                    value[CNODC_ALLOW]
                                 )
-                            if CNODC_EOV in graph_dict[key]:
+                            if CNODC_EOV in value:
                                 self._parameters[e_name].update_essential_ocean_vars(
-                                    graph_dict[key][CNODC_EOV]
+                                    value[CNODC_EOV]
                                 )
-                            if CNODC_IOOS_CATEGORY in graph_dict[key]:
+                            if CNODC_IOOS_CATEGORY in value:
                                 self._parameters[e_name].set_ioos_category(
-                                    graph_dict[key][CNODC_IOOS_CATEGORY]
+                                    value[CNODC_IOOS_CATEGORY]
                                 )
-                            if CNODC_IGNORE_IN_DUPES in graph_dict[key]:
+                            if CNODC_IGNORE_IN_DUPES in value:
                                 self._parameters[e_name].set_ignore_for_dedupe(
-                                    graph_dict[key][CNODC_IGNORE_IN_DUPES]
+                                    value[CNODC_IGNORE_IN_DUPES]
                                 )
                         elif (
-                            str(graph_dict[key][SKOS_IN_SCHEME])
+                            str(value[SKOS_IN_SCHEME])
                             == CNODC_RECORDSET_TYPES
                         ):
                             e_name = key[key.rfind("#") + 1 :]
                             self._recordset_types[e_name] = OCProc2ChildRecordTypeInfo(
                                 key
                             )
-                            if SKOS_LABEL in graph_dict[key]:
+                            if SKOS_LABEL in value:
                                 self._recordset_types[e_name].set_label(
-                                    graph_dict[key][SKOS_LABEL]
+                                    value[SKOS_LABEL]
                                 )
-                            if SKOS_DOCUMENTATION in graph_dict[key]:
+                            if SKOS_DOCUMENTATION in value:
                                 self._recordset_types[e_name].set_documentation(
-                                    graph_dict[key][SKOS_DOCUMENTATION]
+                                    value[SKOS_DOCUMENTATION]
                                 )
-                            if CNODC_COORDINATE in graph_dict[key]:
+                            if CNODC_COORDINATE in value:
                                 self._recordset_types[e_name].update_coordinates(
-                                    graph_dict[key][CNODC_COORDINATE]
+                                    value[CNODC_COORDINATE]
                                 )
 
     def recordset_info(

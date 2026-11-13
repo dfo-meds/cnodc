@@ -145,11 +145,11 @@ if _t.TYPE_CHECKING:
         def update(self, b: bytes): ...
 
     SupportsByteStreaming = (
-        _t.ByteString
+        bytes | bytearray
         | str
         | _os.PathLike
         | SupportsBinaryRead
-        | _t.Iterable[_t.ByteString]
+        | _t.Iterable[bytes | bytearray]
     )
     SupportsByteStreamWriting = str | _os.PathLike | SupportsBinaryWrite | bytearray
 

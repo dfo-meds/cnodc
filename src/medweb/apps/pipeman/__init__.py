@@ -2,7 +2,6 @@ import pathlib
 import typing as t
 
 from gcflask.flasksystem import APIOperation
-from gcflask.user import PermissionType
 
 if t.TYPE_CHECKING:
     from gcapp.system import System

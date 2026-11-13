@@ -48,7 +48,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self._memory = None
 
     def on_start(self):
-        e = self.error_directory
+        _ = self.error_directory
         self.counter(
             "files_processed_total",
             description="Total number of new files processed",
@@ -275,7 +275,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
             except CNODCError as ex:
                 if ex.is_transient:
                     self.count("messages_processed_total", outcome="error")
-                    raise ex
+                    raise
                 else:
                     self._handle_decode_failure(source_file, result, ex)
                     self._log.exception(
@@ -351,7 +351,7 @@ class NODBDecodeLoadWorker(WorkflowWorker):
         self,
         source_file: NODBSourceFile,
         result: DecodeResult,
-        additional_exception: Exception = None,
+        additional_exception: Exception | None = None,
     ):
         self.db.rollback()
         mode = self.db.update_object

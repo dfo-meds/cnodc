@@ -538,7 +538,7 @@ def stream_payload_working_records(
     elif isinstance(payload, WorkingRecordPayload):
         yield payload.load_working_record(db)
     else:
-        raise ValueError("invalid payload type for streamer")
+        raise TypeError("invalid payload type for streamer")
 
 
 def stream_payload_observations(
@@ -550,4 +550,4 @@ def stream_payload_observations(
             if obs is not None:
                 yield obs
     else:
-        raise ValueError("invalid payload type for streamer")
+        raise TypeError("invalid payload type for streamer")

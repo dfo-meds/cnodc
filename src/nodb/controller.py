@@ -320,7 +320,7 @@ class PostgresController:
         filters: FilterDict,
         join_str: JoinString = None,
         lock_type: LockType = None,
-        limit_fields: list[str] = None,
+        limit_fields: list[str] | None = None,
         key_only: bool = False,
     ) -> T | None:
         """Load an object."""
@@ -339,7 +339,7 @@ class PostgresController:
             if first_row:
                 try:
                     fields = {
-                        x: first_row[x] for x in first_row.keys() if isinstance(x, str)
+                        x: y for x, y in first_row.items() if isinstance(x, str)
                     }
                     return obj_cls(is_new=False, **fields)
                 except TypeError as ex:
@@ -426,8 +426,7 @@ class PostgresController:
         )
         with self.cursor() as cur:
             cur.execute(query)
-            for row in cur.fetch_stream():
-                yield row
+            yield from cur.fetch_stream()
 
     @wrap_nodb_exceptions
     def stream_relation_objects(
@@ -458,7 +457,7 @@ class PostgresController:
             offset=offset,
         ):
             yield obj_cls(
-                is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)}
+                is_new=False, **{x: y for x, y in row.items() if isinstance(x, str)}
             )
 
     def _build_join_clause(self, right_table_name: str, join_keys: dict[str, str]):
@@ -502,8 +501,7 @@ class PostgresController:
         )
         with self.cursor() as cur:
             cur.execute(query)
-            for row in cur.fetch_stream():
-                yield row
+            yield from cur.fetch_stream()
 
     @wrap_nodb_exceptions
     def stream_objects(
@@ -530,7 +528,7 @@ class PostgresController:
             limit=limit,
         ):
             yield obj_cls(
-                is_new=False, **{x: row[x] for x in row.keys() if isinstance(x, str)}
+                is_new=False, **{x: y for x, y in row.items() if isinstance(x, str)}
             )
 
     def upsert_object(self, obj: NODBObject) -> bool:
@@ -952,11 +950,11 @@ class PostgresController:
             if ex.is_retryable_error:
                 return None
             else:
-                raise ex
-        except Exception as ex:
+                raise
+        except Exception:
             if sp:
                 cur.rollback_to_savepoint("fetch_queue_item")
-            raise ex
+            raise
 
     @wrap_nodb_exceptions
     def grant_permission(self, role_name: str, permission_name: str):
@@ -1177,7 +1175,7 @@ class PostgresController:
     def build_update_clause(
         table_name: str, set_values: dict[str, t.Any], stable_sort: bool = False
     ) -> t.Iterable[pgs.Composable]:
-        keys = list(set(x for x in set_values))
+        keys: list[str] = [x for x in {x for x in set_values}]
         if stable_sort:
             keys.sort()
         yield pgs.SQL("UPDATE")
@@ -1193,8 +1191,8 @@ class PostgresController:
     @staticmethod
     def build_insert_statement(
         table: str,
-        insert_values: dict[str, t.Any] = None,
-        primary_keys: list[str] = None,
+        insert_values: dict[str, t.Any] | None = None,
+        primary_keys: list[str]| None = None,
         stable_sort: bool = False,
     ) -> t.Iterable[pgs.Composable]:
         yield pgs.SQL("INSERT INTO")

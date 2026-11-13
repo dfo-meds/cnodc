@@ -63,14 +63,12 @@ class GliderEGOMapper(NetCDFCommonMapper):
                     "SensorType": info["type"].lower(),
                     "SensorMake": info["make"],
                     "SensorModel": info["model"],
-                    "SensorSerial": info["serial"].lstrip("0")
-                    if info["serial"]
-                    else None,
-                    "SensorLocation": info["location"] if "location" in info else None,
+                    "SensorSerial": info.get("serial", "").lstrip("0") or None,
+                    "SensorLocation": info.get("location", None),
                 }
             )
-        for key in extra_metadata:
-            element.metadata.set(key, extra_metadata[key])
+        for key, value in extra_metadata.items():
+            element.metadata.set(key, value)
 
     def _isoformat_ego_date(self, value, minfo: MappingInfo):
         if not value:

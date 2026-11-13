@@ -83,22 +83,20 @@ class NODBAccessToken(s.NODBBaseObject):
 
     def check_key(self, key: str | bytes) -> bool:
         if self.is_active == "Y":
-            if self.key_salt is not None and self.key_hash is not None:
-                if secure.check_password(key, self.key_salt, self.key_hash):
-                    return True
+            if self.key_salt is not None and self.key_hash is not None and secure.check_password(key, self.key_salt, self.key_hash):
+                return True
             if (
                 self.old_key_hash is not None
                 and self.old_key_salt is not None
                 and self.old_expiry is not None
             ):
-                if secure.check_expired_password(
+                return secure.check_expired_password(
                     key,
                     self.old_key_salt,
                     self.old_key_hash,
                     self.old_expiry,
                     f"access_token__{self.username}__{self.identifier}",
-                ):
-                    return True
+                )
         return False
 
     def load_user(self, db: interface.NODBInstance, **kwargs) -> NODBUser | None:
@@ -245,7 +243,7 @@ class NODBSession(s.NODBBaseObject):
 
     def get_session_value(self, key: str, default: t.Any = None) -> t.Any:
         """Get a session value"""
-        return self.session_data[key] if key in self.session_data else default
+        return self.session_data.get(key, default)
 
     def is_expired(self) -> bool:
         """Check if the session is expired."""

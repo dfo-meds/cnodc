@@ -21,7 +21,7 @@ class LocalHandle(BaseStorageHandle):
     caching layers.
     """
 
-    def __init__(self, path: str | pathlib.Path, force_is_dir: bool = None, **kwargs):
+    def __init__(self, path: str | pathlib.Path, force_is_dir: bool | None = None, **kwargs):
         path: str = str(path)
         path = path.removeprefix("file://")
         path = str(pathlib.Path(path).expanduser().absolute().resolve()).replace(
@@ -82,7 +82,7 @@ class LocalHandle(BaseStorageHandle):
         super()._complete_upload(local_path)
 
     @local_file_generator_error_wrap
-    def _streaming_read(self, buffer_size: int = None):
+    def _streaming_read(self, buffer_size: int | None = None):
         with open(self._path, "rb") as h:
             yield from self._halt_flag.read_all(h, buffer_size)
 

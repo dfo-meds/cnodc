@@ -8,7 +8,7 @@ from collections import defaultdict
 
 from autoinject import injector
 
-from medsutil import ocproc2 as ocproc2
+from medsutil import ocproc2
 from medsutil.ocproc2 import OCProc2Ontology, SingleElement
 from medsutil.ocproc2.util import Quality
 from medsutil.units import UnitConverter
@@ -161,7 +161,7 @@ class NODBRecordManager:
         received_date: datetime.date,
         message_idx: int,
         record_idx: int,
-        original_uuid: str = None,
+        original_uuid: str | None = None,
     ) -> NODBCreationResult:
         data_mode = DataMode(
             record.metadata.best("CNODCDataMode", default="??", coerce=str)
@@ -199,7 +199,7 @@ class NODBRecordManager:
                     self.insert_relationship(obs, obs_uuid, obs_date, key)
         return result
 
-    LEFT_STATE_MAPS = {
+    LEFT_STATE_MAPS: t.ClassVar[dict[RelationshipAction, ObservationRelationshipType]] = {
         RelationshipAction.A_IS_DUPLICATE: ObservationRelationshipType.IS_DUPLICATE,
         RelationshipAction.A_IS_DELAYED_MODE: ObservationRelationshipType.IS_BETTER,
         RelationshipAction.A_IS_BROADCAST: ObservationRelationshipType.IS_BROADCAST,
@@ -208,7 +208,7 @@ class NODBRecordManager:
         RelationshipAction.A_WAS_MERGED_FROM: ObservationRelationshipType.IS_MERGE,
     }
 
-    RIGHT_STATE_MAPS = {
+    RIGHT_STATE_MAPS: t.ClassVar[dict[RelationshipAction, ObservationRelationshipType]] = {
         RelationshipAction.B_IS_DUPLICATE: ObservationRelationshipType.IS_DUPLICATE,
         RelationshipAction.B_IS_DELAYED_MODE: ObservationRelationshipType.IS_BETTER,
         RelationshipAction.B_IS_CORRECTION: ObservationRelationshipType.IS_CORRECTION,
@@ -249,7 +249,7 @@ class NODBRecordManager:
         received_date: datetime.date,
         message_idx: int,
         record_idx: int,
-        original_uuid: str = None,
+        original_uuid: str | None = None,
     ) -> tuple[NODBObservation, NODBObservationData, NODBCreationResult]:
         self.finalize(record, True)
         obs_data = NODBObservationData()
@@ -303,8 +303,8 @@ class NODBRecordManager:
             self._finalize_value(record.parameters[key])
         for key in record.coordinates:
             self._finalize_value(record.coordinates[key])
-        for record in record.iter_subrecords():
-            self.finalize(record, False)
+        for rec in record.iter_subrecords():
+            self.finalize(rec, False)
 
     def _finalize_value(self, value: ocproc2.AbstractElement):
         if "WorkingQuality" in value.metadata:
@@ -385,7 +385,7 @@ class NODBRecordManager:
         unloaded = obj.metadata
         changed = False
         remove_keys = []
-        for element_name in record.metadata.keys():
+        for element_name in record.metadata:
             element_group = self.ontology.group_name(element_name)
             if element_group == group_name:
                 if element_name not in unloaded:

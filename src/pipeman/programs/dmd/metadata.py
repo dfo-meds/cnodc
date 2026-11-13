@@ -24,7 +24,7 @@ if t.TYPE_CHECKING:
 
 def get_bilingual_attribute(attribute_dict, attribute_name, locale_map):
     attr = {}
-    for suffix in locale_map.keys():
+    for suffix in locale_map:
         if f"{attribute_name}{suffix}" in attribute_dict:
             attr[locale_map[suffix]] = attribute_dict.pop(f"{attribute_name}{suffix}")
     return attr
@@ -601,13 +601,13 @@ class GCContentType(enum.Enum):
 
 
 class GCLanguage(enum.Enum):
-    NoLanguage = tuple()
+    NoLanguage = ()
     """ The resource has no language component. """
 
-    English = tuple(["ENG"])
+    English = ("ENG", )
     """ The resource is provided in English. """
 
-    French = tuple(["FRA"])
+    French = ("FRA", )
     """ The resource is provided in French. """
 
     Bilingual = ("ENG", "FRA")
@@ -1010,9 +1010,7 @@ class QuickWebPage(EntityRef):
         elif "en" in full_url:
             url = full_url["en"]
         else:
-            for key in full_url.keys():
-                url = full_url[key]
-                break
+            url = next(iter(full_url.values()))
         if url.startswith("https://"):
             return ResourceType.SecureWebPage
         elif url.startswith("http://"):
@@ -1058,9 +1056,7 @@ class Resource(QuickWebPage):
         elif "en" in full_url:
             url = full_url["en"]
         else:
-            for key in full_url.keys():
-                url = full_url[key]
-                break
+            url = next(iter(full_url.values()))
         if url.upper().endswith(".TAR.GZ"):
             return GCContentFormat.ArchiveTARGZIP
         else:
@@ -1074,7 +1070,7 @@ class Resource(QuickWebPage):
                 extension = filename[filename.rfind(".") + 1 :].upper()
                 if any(x.value == extension for x in GCContentFormat):
                     return GCContentFormat(extension)
-            if url.startswith("https://") or url.startswith("http://"):
+            if url.startswith(("https://", "http://")):
                 return GCContentFormat.Hypertext
         return None
 
@@ -1090,7 +1086,7 @@ class _IdentifierMixin:
     id_code: str = dd.p_str()
 
     def set_id_and_system(
-        self, id_code: str, id_system: IDSystem, remove_prefixes: list[str] = None
+        self, id_code: str, id_system: IDSystem, remove_prefixes: list[str] | None = None
     ):
         if remove_prefixes:
             for prefix in remove_prefixes:
@@ -1343,7 +1339,7 @@ class CNODCStorageLocation(EntityRef):
 
 
 class DatasetMetadata(EntityRef, _ResponsiblesMixin):
-    REPRESENTATION_MAP = {
+    REPRESENTATION_MAP: t.ClassVar[dict[CommonDataModelType, SpatialRepresentation]] = {
         CommonDataModelType.TrajectoryProfile: SpatialRepresentation.TextTable,
         CommonDataModelType.Profile: SpatialRepresentation.TextTable,
         CommonDataModelType.TimeSeries: SpatialRepresentation.TextTable,
@@ -1524,7 +1520,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
         self._log = logging.getLogger("cnodc.dmd.metadata")
         self.profiles.add("cnodc")
 
-    SIZE_GATES: list[tuple[int, str]] = [
+    SIZE_GATES: t.ClassVar[list[tuple[int, str]]] = [
         (1024**4, "TiB"),
         (1024**3, "GiB"),
         (1024**2, "MiB"),
@@ -1985,7 +1981,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
                     if len(element.essential_ocean_vars) == 1:
                         self.essential_ocean_variables.add(
                             EssentialOceanVariable(
-                                list(element.essential_ocean_vars)[0]
+                                next(iter(element.essential_ocean_vars))
                             )
                         )
                     elif eov_prefixes:

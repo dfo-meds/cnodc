@@ -65,7 +65,7 @@ def enable_api_access(username: str, ac: AccessController = auto()):
 @access.command
 @click.argument("username")
 @injector.inject
-def enable_api_access(username: str, ac: AccessController = auto()):
+def disable_api_access(username: str, ac: AccessController = auto()):
     ac.update_user(username=username, api_access=False)
 
 
@@ -183,7 +183,7 @@ def _get_password(entry_mode: str, password: str | None = None) -> str | None:
     elif entry_mode == "input":
         pw_test = getpass.getpass("Password: ")
         pw_test2 = getpass.getpass("Retype Password: ")
-        while not pw_test == pw_test2:
+        while pw_test != pw_test2:
             print("Passwords do not match, please try again")
             pw_test = getpass.getpass("Password: ")
             pw_test2 = getpass.getpass("Retype Password: ")

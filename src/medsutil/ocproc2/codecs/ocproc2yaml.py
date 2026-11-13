@@ -22,7 +22,7 @@ class OCProc2YamlCodec(BaseCodec):
             **kwargs,
         )
 
-    def _encode_start(self, options: dict) -> t.ByteString:
+    def _encode_start(self, options: dict) -> bytes | bytearray:
         return b"%YAML 1.1\n---\n"
 
     def _encode_single_record(
@@ -30,15 +30,15 @@ class OCProc2YamlCodec(BaseCodec):
     ) -> ct.ByteStrings:
         yield yaml.dump(record.to_mapping()).encode(options.get("encoding", "utf-8"))
 
-    def _encode_separator(self, options: dict) -> t.ByteString:
+    def _encode_separator(self, options: dict) -> bytes | bytearray:
         return b"\n...\n---\n"
 
-    def _encode_end(self, options: dict) -> t.ByteString:
+    def _encode_end(self, options: dict) -> bytes | bytearray:
         return b"\n...\n"
 
     def _parse_into_messages(
-        self, data: t.Iterable[t.ByteString], options: dict
-    ) -> t.Iterable[t.ByteString]:
+        self, data: t.Iterable[bytes | bytearray], options: dict
+    ) -> t.Iterable[bytes | bytearray]:
         stream = self._as_byte_sequence(data)
         data: bytearray = bytearray()
         for line in stream.split_and_iterate(LINE_BREAKS, include_target=False):

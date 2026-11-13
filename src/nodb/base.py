@@ -53,11 +53,11 @@ class NODBBaseObject(DataDictModifiedTracker, CachedObjectMixin):
     @classmethod
     def get_mock_index_keys(cls) -> list[list[str]]:
         keys = []
-        pks = list(x for x in cls.get_primary_keys())
+        pks = [x for x in cls.get_primary_keys()]
         pks.sort()
         keys.append(pks)
         if hasattr(cls, "MOCK_INDEX_KEYS"):
-            keys.extend(sorted(list(x)) for x in cls.MOCK_INDEX_KEYS)
+            keys.extend(sorted(x) for x in cls.MOCK_INDEX_KEYS)
         return keys
 
     @classmethod

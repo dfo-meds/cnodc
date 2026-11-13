@@ -8,7 +8,7 @@ class CNODCError(exceptions.CodedError):
         self,
         msg: str,
         code_space: str = "CNODC",
-        code_number: int = None,
+        code_number: int | None = None,
         is_transient: bool = False,
     ):
         super().__init__(
@@ -20,12 +20,12 @@ class CNODCError(exceptions.CodedError):
 
 
 class TransientError(CNODCError):
-    def __init__(self, msg: str, code_space: str = "CNODC", code_number: int = None):
+    def __init__(self, msg: str, code_space: str = "CNODC", code_number: int | None = None):
         super().__init__(msg, code_space, code_number, is_transient=True)
 
 
 class ConfigError(CNODCError):
-    def __init__(self, missing_key: str, code_number: int = None):
+    def __init__(self, missing_key: str, code_number: int | None = None):
         super().__init__(
             f"Missing configuration key [{missing_key}]", "CONFIG", code_number
         )

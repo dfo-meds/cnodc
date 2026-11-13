@@ -73,12 +73,12 @@ class OCProc2DebugCodec(BaseCodec):
             rs_count = len(rs.records)
             s += f"    TABULAR DATA n={rs_count}\n"
             m_common: dict[str, AbstractElement] = {
-                x: rs.records[0].metadata[x] for x in rs.records[0].metadata.keys()
+                x: y for x, y in rs.records[0].metadata.items()
             }
             for sr in rs.records:
                 remove_keys = []
-                for mk in m_common:
-                    if mk not in sr.metadata or sr.metadata[mk] != m_common[mk]:
+                for mk, mv in m_common.items():
+                    if mk not in sr.metadata or sr.metadata[mk] != mv:
                         remove_keys.append(mk)
                 for mk in remove_keys:
                     del m_common[mk]
@@ -105,12 +105,9 @@ class OCProc2DebugCodec(BaseCodec):
             p_headers, p_display, p_sizes, p_common = self._build_table(
                 rs, "parameters"
             )
-            c_keys = [x for x in c_display.keys()]
-            c_keys.sort()
-            p_keys = [x for x in p_display.keys()]
-            p_keys.sort()
-            m_keys = [x for x in m_headers]
-            m_keys.sort()
+            c_keys = sorted(c_display)
+            p_keys = sorted(p_display)
+            m_keys = sorted(m_headers)
             s += "      "
             no_col_len = len(str(rs_count))
             s += "#".rjust(no_col_len, " ")
@@ -161,11 +158,11 @@ class OCProc2DebugCodec(BaseCodec):
         for sr in rs.records:
             vmap = getattr(sr, group)
             for x in c_keys:
-                c_values[x].append(vmap[x] if x in vmap else None)
+                c_values[x].append(vmap.get(x, None))
         c_common = {}
-        for x in c_values:
+        for x, z in c_values.items():
             c_common[x] = {}
-            sub_bvs = [y for y in c_values[x] if y is not None]
+            sub_bvs = [y for y in z if y is not None]
             if not sub_bvs:
                 continue
             for m in sub_bvs[0].metadata:
@@ -176,11 +173,11 @@ class OCProc2DebugCodec(BaseCodec):
                     c_common[x][m] = sub_bvs[0].metadata[m]
         c_display = {}
         c_sizes = {}
-        for x in c_values:
-            c_ignore = [y for y in c_common[x].keys()]
+        for x, z in c_values.items():
+            c_ignore = [y for y in c_common[x]]
             c_display[x] = [
                 self._encode_element(x, y, "", c_ignore, True) if y is not None else ""
-                for y in c_values[x]
+                for y in z
             ]
             c_sizes[x] = max(len(x) for x in c_display[x])
 
@@ -232,7 +229,7 @@ class OCProc2DebugCodec(BaseCodec):
                 and v.metadata["Uncertainty"].is_numeric()
             ):
                 unc = v.metadata["Uncertainty"].to_float() or 0
-                places = int(math.floor(-1 * math.log10(unc)))
+                places = math.floor(-1 * math.log10(unc))
                 if places >= 0:
                     format_str = "{:." + str(places) + "f}"
                     s += format_str.format(v.to_float())

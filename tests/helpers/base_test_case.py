@@ -344,13 +344,13 @@ class BaseTestCase(ut.TestCase):
                 value,
                 msg=f"{name} does not match expected value",
             )
-        for kwarg, value in kwargs.items():
-            if isinstance(value, tuple):
+        for kwarg, val in kwargs.items():
+            if isinstance(val, tuple):
                 self.assert_element_equals(
-                    em[name].metadata, kwarg, value[0], **value[1]
+                    em[name].metadata, kwarg, val[0], **val[1]
                 )
             else:
-                self.assert_element_equals(em[name].metadata, kwarg, value)
+                self.assert_element_equals(em[name].metadata, kwarg, val)
 
     @contextmanager
     def assertRaisesCoded(

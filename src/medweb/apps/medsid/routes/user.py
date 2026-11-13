@@ -411,9 +411,8 @@ def _users_table() -> DataTable:
 def _user_actions(user: NODBUser, for_action_table: bool = False) -> ActionList:
     actions = ActionList()
     kwargs = {"username": user.username}
-    if for_action_table:
-        if current_user().require_all(["medsid.user_management.view"]):
-            actions.add_action("medsid.page.view_user.link", "user.view_user", **kwargs)
+    if for_action_table and current_user().require_all(["medsid.user_management.view"]):
+        actions.add_action("medsid.page.view_user.link", "user.view_user", **kwargs)
     if current_user().require_all(["medsid.user_management.edit"]):
         actions.add_action("medsid.page.edit_user.link", "user.edit_user", **kwargs)
         actions.add_action(

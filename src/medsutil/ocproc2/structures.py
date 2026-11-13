@@ -26,9 +26,11 @@ from medsutil.ocproc2.history import (
     QCResult,
     QCTestRunInfo,
 )
+import medsutil.types as ct
+
 
 if t.TYPE_CHECKING:
-    import medsutil.types as ct
+
     from medsutil.ocproc2.elements import DefaultValueDict, SupportedValueOrElement
 
     type FindType = (
@@ -100,7 +102,7 @@ class BaseRecord:
         element_full_name: str,
         values: t.Sequence[SupportedValueOrElement],
         common_metadata: DefaultValueDict | None = None,
-        specific_metadata: t.Sequence[DefaultValueDict | None] = None,
+        specific_metadata: t.Sequence[DefaultValueDict | None] | None = None,
         **kwargs,
     ):
         child_parent, element_name = self._find_element_map(element_full_name)
@@ -198,7 +200,7 @@ class BaseRecord:
         except KeyError:
             ...
 
-    def iter_subrecords(self, subrecord_type: str = None) -> t.Iterable[BaseRecord]:
+    def iter_subrecords(self, subrecord_type: str | None = None) -> t.Iterable[BaseRecord]:
         if self._subrecords is not None:
             yield from self._subrecords.iter_subrecords(subrecord_type)
 
@@ -322,7 +324,7 @@ class ParentRecord(BaseRecord):
         test_version: str,
         outcome: QCResult,
         messages: list[QCMessage],
-        notes: str = None,
+        notes: str | None = None,
         test_tags: list[str] | None = None,
         test_time: datetime.datetime | None = None,
     ):
@@ -539,9 +541,9 @@ class RecordMap:
             except KeyError:
                 pass
         else:
-            for _srt in self.record_sets.keys():
-                for rs_idx in self.record_sets[_srt]:
-                    yield from self.record_sets[_srt][rs_idx].records
+            for subrecord_group in self.record_sets.values():
+                for subrecordset in subrecord_group.values():
+                    yield from subrecordset.records
 
     def find_child(self, path: list[str]) -> FindType:
         if not path:
