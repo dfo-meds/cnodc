@@ -111,7 +111,7 @@ class _BaseInfo:
     def build_one_from_literal(ref_value: LiteralValue) -> str | int | float:
         if isinstance(ref_value, set):
             return _BaseInfo.unquote(
-                next(iter((ref_value))).value
+                next(iter(ref_value)).value
             )  # pragma: no coverage (this is unused usually unless there's a major issue)
         else:
             return _BaseInfo.unquote(ref_value.value)
@@ -293,9 +293,7 @@ class OCProc2Ontology:
                             e_name = key[key.rfind("#") + 1 :]
                             self._parameters[e_name] = OCProc2ElementInfo(e_name)
                             if SKOS_LABEL in value:
-                                self._parameters[e_name].set_label(
-                                    value[SKOS_LABEL]
-                                )
+                                self._parameters[e_name].set_label(value[SKOS_LABEL])
                             if SKOS_DOCUMENTATION in value:
                                 self._parameters[e_name].set_documentation(
                                     value[SKOS_DOCUMENTATION]
@@ -317,13 +315,9 @@ class OCProc2Ontology:
                                     value[CNODC_ALLOW_MULTI]
                                 )
                             if CNODC_MIN in value:
-                                self._parameters[e_name].set_min_value(
-                                    value[CNODC_MIN]
-                                )
+                                self._parameters[e_name].set_min_value(value[CNODC_MIN])
                             if CNODC_MAX in value:
-                                self._parameters[e_name].set_max_value(
-                                    value[CNODC_MAX]
-                                )
+                                self._parameters[e_name].set_max_value(value[CNODC_MAX])
                             if CNODC_ALLOW in value:
                                 self._parameters[e_name].update_allowed_values(
                                     value[CNODC_ALLOW]
@@ -340,10 +334,7 @@ class OCProc2Ontology:
                                 self._parameters[e_name].set_ignore_for_dedupe(
                                     value[CNODC_IGNORE_IN_DUPES]
                                 )
-                        elif (
-                            str(value[SKOS_IN_SCHEME])
-                            == CNODC_RECORDSET_TYPES
-                        ):
+                        elif str(value[SKOS_IN_SCHEME]) == CNODC_RECORDSET_TYPES:
                             e_name = key[key.rfind("#") + 1 :]
                             self._recordset_types[e_name] = OCProc2ChildRecordTypeInfo(
                                 key
@@ -414,9 +405,7 @@ class OCProc2Ontology:
             return self._parameters[element_name].max_value
         return None
 
-    def allowed_values(
-        self, element_name: str
-    ) -> set[str | int | float] | None:
+    def allowed_values(self, element_name: str) -> set[str | int | float] | None:
         if element_name in self._parameters:
             return self._parameters[element_name].allowed_values or None
         return None

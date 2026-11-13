@@ -1,4 +1,3 @@
-
 import typing as t
 
 import medsutil.types as ct
@@ -76,7 +75,7 @@ class GtsCodec(BaseCodec):
         )
         from medsutil.ocproc2.codecs.wmo.bufr import Bufr4Decoder
 
-        super().__init__(log_name="cnodc.codecs.gts", is_decoder=True, *args, **kwargs)
+        super().__init__(*args, log_name="cnodc.codecs.gts", is_decoder=True, **kwargs)
         self._sub_codecs: dict[bytes, GtsSubDecoder] = {
             b"BUFR": Bufr4Decoder(),
             b"ZZYY": BuoyZZYY(),

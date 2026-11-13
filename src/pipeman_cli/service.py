@@ -58,6 +58,7 @@ def health_check(silent: bool = False, config: zr.ApplicationConfig = None):
     except Exception:
         if not silent:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 

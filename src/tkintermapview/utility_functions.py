@@ -1,6 +1,5 @@
 import math
 
-import geocoder
 
 
 def decimal_to_osm(lat_deg: float, lon_deg: float, zoom: int) -> tuple:
@@ -17,9 +16,7 @@ def decimal_to_osm(lat_deg: float, lon_deg: float, zoom: int) -> tuple:
     return xtile, ytile
 
 
-def osm_to_decimal(
-    tile_x: float, tile_y: float, zoom: int
-) -> tuple:
+def osm_to_decimal(tile_x: float, tile_y: float, zoom: int) -> tuple:
     """converts internal OSM coordinates to decimal coordinates"""
 
     n = 2.0**zoom
@@ -31,7 +28,8 @@ def osm_to_decimal(
 
 def convert_coordinates_to_address(
     deg_x: float, deg_y: float
-) -> geocoder.osm_reverse.OsmReverse:
+):
+    import geocoder
     """returns address object with the following attributes:
     street, housenumber, postal, city, state, country, latlng
     Geocoder docs: https://geocoder.readthedocs.io/api.html#reverse-geocoding"""
@@ -42,9 +40,11 @@ def convert_coordinates_to_address(
 
 def convert_coordinates_to_city(deg_x: float, deg_y: float) -> str:
     """returns city name"""
+    import geocoder
     return geocoder.osm([deg_x, deg_y], method="reverse").city
 
 
 def convert_coordinates_to_country(deg_x: float, deg_y: float) -> str:
     """returns country name"""
+    import geocoder
     return geocoder.osm([deg_x, deg_y], method="reverse").country

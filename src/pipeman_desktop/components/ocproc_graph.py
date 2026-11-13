@@ -454,7 +454,11 @@ class ParameterGraph(Graph):
         self, independent_value: float, parameter: str | tuple[str, int | None]
     ) -> t.Iterable[tuple[float | None, str | None, float | None]]:
         for ind_value, parameters in self._element_map.items():
-            if ind_value is not None and ind_value > independent_value and parameters[parameter][1] is not None:
+            if (
+                ind_value is not None
+                and ind_value > independent_value
+                and parameters[parameter][1] is not None
+            ):
                 yield ind_value, parameters[parameter][0], parameters[parameter][1]
 
     def _highlight_all_greater_than(
@@ -581,9 +585,7 @@ class ParameterGraph(Graph):
         other_axis = self._twin_axis(axes, reverse_plot)
         self._set_axis_info(
             axes,
-            label=self._get_variable_label(
-                ind_var, units.get(ind_var, None)
-            ),
+            label=self._get_variable_label(ind_var, units.get(ind_var, None)),
             min_value=mins[ind_var],
             max_value=maxs[ind_var],
             on_y_axis=reverse_plot,
@@ -592,9 +594,7 @@ class ParameterGraph(Graph):
         )
         self._set_axis_info(
             axes,
-            label=self._get_variable_label(
-                dep1_var, units.get(dep1_var, None)
-            ),
+            label=self._get_variable_label(dep1_var, units.get(dep1_var, None)),
             min_value=mins[dep1_var],
             max_value=maxs[dep1_var],
             max_value_pos=0.48,
@@ -604,9 +604,7 @@ class ParameterGraph(Graph):
         )
         self._set_axis_info(
             other_axis,
-            label=self._get_variable_label(
-                dep2_var, units.get(dep2_var, None)
-            ),
+            label=self._get_variable_label(dep2_var, units.get(dep2_var, None)),
             min_value=mins[dep2_var],
             max_value=maxs[dep2_var],
             min_value_pos=0.52,
@@ -643,9 +641,7 @@ class ParameterGraph(Graph):
         reverse_plot = self._should_reverse(ind_var)
         self._set_axis_info(
             axes,
-            label=self._get_variable_label(
-                ind_var, units.get(ind_var, None)
-            ),
+            label=self._get_variable_label(ind_var, units.get(ind_var, None)),
             min_value=mins[ind_var],
             max_value=maxs[ind_var],
             on_y_axis=reverse_plot,
@@ -654,9 +650,7 @@ class ParameterGraph(Graph):
         )
         self._set_axis_info(
             axes,
-            label=self._get_variable_label(
-                dep_var, units.get(dep_var, None)
-            ),
+            label=self._get_variable_label(dep_var, units.get(dep_var, None)),
             min_value=mins[dep_var],
             max_value=maxs[dep_var],
             on_y_axis=not reverse_plot,

@@ -604,10 +604,10 @@ class GCLanguage(enum.Enum):
     NoLanguage = ()
     """ The resource has no language component. """
 
-    English = ("ENG", )
+    English = ("ENG",)
     """ The resource is provided in English. """
 
-    French = ("FRA", )
+    French = ("FRA",)
     """ The resource is provided in French. """
 
     Bilingual = ("ENG", "FRA")
@@ -1086,7 +1086,10 @@ class _IdentifierMixin:
     id_code: str = dd.p_str()
 
     def set_id_and_system(
-        self, id_code: str, id_system: IDSystem, remove_prefixes: list[str] | None = None
+        self,
+        id_code: str,
+        id_system: IDSystem,
+        remove_prefixes: list[str] | None = None,
     ):
         if remove_prefixes:
             for prefix in remove_prefixes:
@@ -1265,9 +1268,7 @@ class Sensor(_Manufactured):
     )
     instrument_type: ct.LanguageDict | None = dd.p_i18n_text(managed_name="type")
     citation: Citation | None = dd.p_ddo(Citation)
-    description: ct.LanguageDict | None = dd.p_i18n_text(
-        managed_name="description"
-    )
+    description: ct.LanguageDict | None = dd.p_i18n_text(managed_name="description")
 
 
 class Instrument(Sensor):
@@ -1639,13 +1640,9 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
             self.date_modified = awaretime.AwareDateTime.utcfromisoformat(
                 attrs.pop("date_modified")
             )
-        if (
-            attrs.get("data_maintenance_frequency")
-        ):
+        if attrs.get("data_maintenance_frequency"):
             self.data_maintenance_frequency = attrs.pop("data_maintenance_frequency")
-        if (
-            attrs.get("metadata_maintenance_frequency")
-        ):
+        if attrs.get("metadata_maintenance_frequency"):
             self.metadata_maintenance_frequency = attrs.pop(
                 "metadata_maintenance_frequency"
             )
@@ -1687,9 +1684,7 @@ class DatasetMetadata(EntityRef, _ResponsiblesMixin):
                 self._log.exception("Invalid value for time_coverage_resolution")
         if attrs.get("geospatial_bounds_crs"):
             self.geospatial_crs = attrs.pop("geospatial_bounds_crs")
-        if (
-            attrs.get("geospatial_bounds_vertical_crs")
-        ):
+        if attrs.get("geospatial_bounds_vertical_crs"):
             self.geospatial_vertical_crs = attrs.pop("geospatial_bounds_vertical_crs")
         self._build_from_netcdf_contacts(
             locale_map,

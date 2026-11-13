@@ -54,7 +54,7 @@ def _expand_environment_placeholders(
     """
     env_var_map = {}
     existing_env_vars = list(os.environ.keys())
-    for key in variables:
+    for key, value in variables.items():
         if "$1" in key:
             pos = key.find("$1")
             prefix = key[:pos]
@@ -62,14 +62,12 @@ def _expand_environment_placeholders(
             for env_var in existing_env_vars:
                 if env_var.startswith(prefix) and env_var.endswith(suffix):
                     dollar1 = env_var[len(prefix) : -len(suffix)]
-                    if isinstance(variables[key], str):
-                        env_var_map[env_var] = variables[key].replace("$1", dollar1)
+                    if isinstance(value, str):
+                        env_var_map[env_var] = value.replace("$1", dollar1)
                     else:
-                        env_var_map[env_var] = [
-                            x.replace("$1", dollar1) for x in variables[key]
-                        ]
+                        env_var_map[env_var] = [x.replace("$1", dollar1) for x in value]
         else:
-            env_var_map[key] = variables[key]
+            env_var_map[key] = value
     return env_var_map
 
 

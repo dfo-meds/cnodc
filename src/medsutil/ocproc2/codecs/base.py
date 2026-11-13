@@ -17,7 +17,7 @@ class DecodeResult:
         self,
         records: list[ParentRecord],
         message_idx: int = 0,
-        original: t.ByteString | None = None,
+        original: bytes | bytearray | None = None,
         skipped: bool = False,
         single_message: bool = False,
     ): ...
@@ -27,14 +27,14 @@ class DecodeResult:
         self,
         exc: Exception,
         message_idx: int = 0,
-        original: t.ByteString | None = None,
+        original: bytes | bytearray | None = None,
         skipped: bool = False,
         single_message: bool = False,
     ): ...
 
     @t.overload
     def __init__(
-        self, skipped: t.Literal[True], original: t.ByteString | None = None
+        self, skipped: t.Literal[True], original: bytes | bytearray | None = None
     ): ...
 
     def __init__(
@@ -91,8 +91,8 @@ class BaseCodec:
         is_encoder: bool = False,
         is_decoder: bool = False,
         force_single_mode: bool = False,
-        halt_flag: HaltFlag = None,
-        default_options: dict = None,
+        halt_flag: HaltFlag | None = None,
+        default_options: dict | None = None,
     ):
         self.is_encoder = is_encoder
         self.is_decoder = is_decoder
@@ -195,16 +195,16 @@ class BaseCodec:
     ) -> ct.ByteStrings:
         raise NotSupportedError
 
-    def _encode_start(self, options: dict) -> t.ByteString | None: ...
+    def _encode_start(self, options: dict) -> bytes | bytearray | None: ...
 
-    def _encode_separator(self, options: dict) -> t.ByteString | None: ...
+    def _encode_separator(self, options: dict) -> bytes | bytearray | None: ...
 
-    def _encode_end(self, options: dict) -> t.ByteString | None: ...
+    def _encode_end(self, options: dict) -> bytes | bytearray | None: ...
 
     def load(
         self,
-        file: ct.SupportsBinaryRead | t.ByteString | ct.ByteStrings | ct.PathLike,
-        chunk_size: int = None,
+        file: ct.SupportsBinaryRead | bytes | bytearray | ct.ByteStrings | ct.PathLike,
+        chunk_size: int | None = None,
         **kwargs,
     ) -> t.Iterable[ParentRecord]:
         # most common use case, for database loading
@@ -285,14 +285,14 @@ class BaseCodec:
             result.single_message = True
             yield result
         else:
-            idx = 0
-            for message_data in self._parse_into_messages(data, options):
+            for idx, message_data in enumerate(
+                self._parse_into_messages(data, options)
+            ):
                 result = self._decode_message(message_data, options)
                 result.message_idx = idx
-                idx += 1
                 yield result
 
-    def _decode_message(self, record_data: t.ByteString, options: dict):
+    def _decode_message(self, record_data: bytes | bytearray, options: dict):
         try:
             return DecodeResult(
                 records=[x for x in self._decode_single_message(record_data, options)],
@@ -307,7 +307,7 @@ class BaseCodec:
         yield b"".join(data)
 
     def _decode_single_message(
-        self, data: t.ByteString, options: dict
+        self, data: bytes | bytearray, options: dict
     ) -> t.Iterable[ParentRecord]:
         raise NotSupportedError
 
@@ -318,7 +318,7 @@ class BaseCodec:
             file_handle.write(bytes_)
 
     def _read_in_chunks(
-        self, file_handle: ct.SupportsBinaryRead, chunk_size: int = None
+        self, file_handle: ct.SupportsBinaryRead, chunk_size: int | None = None
     ) -> ct.ByteStrings:
         yield from self._halt_flag.read_all(file_handle, chunk_size)
 
@@ -329,5 +329,5 @@ class BaseCodec:
         return False
 
     @staticmethod
-    def _yield_bytes(b: t.ByteString) -> t.Iterable[t.ByteString]:
+    def _yield_bytes(b: bytes | bytearray) -> t.Iterable[bytes | bytearray]:
         yield b

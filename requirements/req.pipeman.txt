@@ -4,3 +4,6 @@
 -r ./helpers/req.gcclick.txt
 
 psutil ~= 7.2.2
+
+beautifulsoup4 ~= 4.15.0
+soupsieve ~= 4.1

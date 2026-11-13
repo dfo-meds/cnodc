@@ -1,4 +1,3 @@
-
 from autoinject import injector
 
 from nodb.queue import NODBQueueItem

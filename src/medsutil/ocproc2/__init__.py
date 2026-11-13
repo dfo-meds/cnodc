@@ -92,9 +92,34 @@ from .operations import AssignPlatform, ChangeQuality, ChangeValue, OCProc2Actio
 from .structures import (
     BaseRecord,
     ChildRecord,
-    ElementMap,
     ParentRecord,
     RecordMap,
     RecordSet,
 )
 from .util import normalize_ocproc_path
+
+__all__ = [
+    "AbstractElement",
+    "AssignPlatform",
+    "BaseRecord",
+    "ChangeQuality",
+    "ChangeValue",
+    "ChildRecord",
+    "ElementMap",
+    "HistoryEntry",
+    "MessageType",
+    "MultiElement",
+    "OCProc2Action",
+    "OCProc2ChildRecordTypeInfo",
+    "OCProc2ElementInfo",
+    "OCProc2Ontology",
+    "ParentRecord",
+    "QCInfo",
+    "QCMessage",
+    "QCResult",
+    "QCTestRunInfo",
+    "RecordMap",
+    "RecordSet",
+    "SingleElement",
+    "normalize_ocproc_path",
+]

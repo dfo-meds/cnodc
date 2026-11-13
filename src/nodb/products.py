@@ -10,7 +10,6 @@ from pipeman.programs.nodb.record_manager import CreationResultType
 
 
 class ProductRule(dd.DataDictObject):
-
     def check(
         self,
         obs_data: NODBObservationData,

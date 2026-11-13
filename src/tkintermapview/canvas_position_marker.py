@@ -24,7 +24,7 @@ class CanvasPositionMarker:
         icon: tkinter.PhotoImage | None = None,
         icon_anchor: str = "center",
         image_zoom_visibility: tuple = (0, float("inf")),
-        data = None,
+        data=None,
     ):
 
         self.map_widget = map_widget

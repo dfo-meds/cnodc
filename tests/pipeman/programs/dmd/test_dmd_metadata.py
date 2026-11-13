@@ -285,8 +285,11 @@ class TestDMDMetadataBasics(BaseTestCase):
         }
         for enc_cls, enc_values in enum_values.items():
             for value in enc_values:
-                with self.subTest(cls=enc_cls.__name__, value=value), self.assertRaises(ValueError):
-                        _ = enc_cls(value)
+                with (
+                    self.subTest(cls=enc_cls.__name__, value=value),
+                    self.assertRaises(ValueError),
+                ):
+                    _ = enc_cls(value)
 
     def test_get_bilingual_attribute(self):
         locale_map = {"_en": "en", "_fr": "fr", "": "en"}
@@ -1012,7 +1015,7 @@ class TestMetadata(BaseTestCase):
                         self.assertEqual(getattr(md.time_resolution, key), 0)
         for test_val in bad_tests:
             with self.subTest(input_val=test_val), self.assertRaises(ValueError):
-                    md.time_resolution = ISODuration.from_iso_format(test_val)
+                md.time_resolution = ISODuration.from_iso_format(test_val)
 
     def test_add_eov(self):
         md = DatasetMetadata()

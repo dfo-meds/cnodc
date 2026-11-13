@@ -218,8 +218,6 @@ def wrap_azure_errors(cb):
                     3005,
                     is_transient=False,
                 ) from ex
-            raise StorageError(
-                f"Azure: {ex.__class__.__name__}: {ex!s}", 3000
-            ) from ex
+            raise StorageError(f"Azure: {ex.__class__.__name__}: {ex!s}", 3000) from ex
 
     return _inner

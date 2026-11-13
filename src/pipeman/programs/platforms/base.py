@@ -145,9 +145,17 @@ class PlatformManager:
             )
 
     def service_overlaps(self, platform: NODBPlatform, info: PlatformInfo) -> bool:
-        if info.end_date is not None and platform.service_start_date is not None and info.end_date < platform.service_start_date:
+        if (
+            info.end_date is not None
+            and platform.service_start_date is not None
+            and info.end_date < platform.service_start_date
+        ):
             return False
-        if info.start_date is not None and platform.service_end_date is not None and info.start_date > platform.service_end_date:
+        if (
+            info.start_date is not None
+            and platform.service_end_date is not None
+            and info.start_date > platform.service_end_date
+        ):
             return False
         return True
 

@@ -8,7 +8,7 @@ from tests.helpers.base_test_case import BaseTestCase
 
 
 class TestConversions(BaseTestCase):
-    COMMON_SI_EQUIVALENTS: typing.ClassVar[dict[str, tuple[float, str]]]  = {
+    COMMON_SI_EQUIVALENTS: typing.ClassVar[dict[str, tuple[float, str]]] = {
         "inch": (0.0254, "m"),
         "mi": (1609.344, "m"),
     }

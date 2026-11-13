@@ -42,9 +42,7 @@ class PathMapper:
                         else:
                             self._path_map = path_map[p] or {}
 
-    def get_path_translations(
-        self, path: str
-    ) -> t.Generator[tuple[str, str]]:
+    def get_path_translations(self, path: str) -> t.Generator[tuple[str, str]]:
         """Iterates over all the pairs of languages and translated paths for a given path."""
         if self._path_map.get(path):
             for lang in self._path_map[path]:

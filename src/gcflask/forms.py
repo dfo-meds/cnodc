@@ -89,9 +89,7 @@ class Length(wtfv.Length):
 class NumberRange(wtfv.NumberRange):
     """Validator to ensure the number is between min_Value and max_value inclusive."""
 
-    def __init__(
-        self, min_value: float | None = None, max_value: float | None = None
-    ):
+    def __init__(self, min_value: float | None = None, max_value: float | None = None):
         if min_value is not None and max_value is not None:
             super().__init__(
                 min_value,
@@ -278,14 +276,13 @@ class TranslatableField(DynamicFormField):
         return self.ld.detect_language(found_languages)
 
     def __call__(self, **kwargs):
-        if self.allow_translation_requests:
-            if self.form.data["_translation_request"]:
-                for fn in self.form._fields:
-                    if fn != "und":
-                        if self.form._fields[fn].render_kw:
-                            self.form._fields[fn].render_kw["disabled"] = True
-                        else:
-                            self.form._fields[fn].render_kw = {"disabled": True}
+        if self.allow_translation_requests and self.form.data["_translation_request"]:
+            for fn in self.form._fields:
+                if fn != "und":
+                    if self.form._fields[fn].render_kw:
+                        self.form._fields[fn].render_kw["disabled"] = True
+                    else:
+                        self.form._fields[fn].render_kw = {"disabled": True}
         return super().__call__(**kwargs)
 
     def get_language_keys(self) -> list[str]:

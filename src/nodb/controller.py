@@ -338,9 +338,7 @@ class PostgresController:
             first_row = cur.fetchone()
             if first_row:
                 try:
-                    fields = {
-                        x: y for x, y in first_row.items() if isinstance(x, str)
-                    }
+                    fields = {x: y for x, y in first_row.items() if isinstance(x, str)}
                     return obj_cls(is_new=False, **fields)
                 except TypeError as ex:
                     raise CodedError(
@@ -1192,7 +1190,7 @@ class PostgresController:
     def build_insert_statement(
         table: str,
         insert_values: dict[str, t.Any] | None = None,
-        primary_keys: list[str]| None = None,
+        primary_keys: list[str] | None = None,
         stable_sort: bool = False,
     ) -> t.Iterable[pgs.Composable]:
         yield pgs.SQL("INSERT INTO")

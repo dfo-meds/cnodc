@@ -19,15 +19,15 @@ class FrozenDict[X: Hashable, Y: Hashable](
 
     __slots__ = ("__hash", "__keys", "__values")
 
-    def __init__(self, d: t.Mapping[X, Y] = None, **kwargs: Y):
+    def __init__(self, d: t.Mapping[X, Y] | None = None, **kwargs: Y):
         fd = {}
-        for key in kwargs:
-            self._add_hashable(key, kwargs[key], fd)
+        for key, value in kwargs.items():
+            self._add_hashable(key, value, fd)
         if d:
-            for key in d:
-                self._add_hashable(key, d[key], fd)
+            for key, value in d.items():
+                self._add_hashable(key, value, fd)
         self.__values: dict[X, Y] = fd
-        self.__keys: list[X] = sorted(list(fd.keys()))
+        self.__keys: list[X] = sorted(fd)
         self.__hash: int | None = None
 
     def __repr__(self) -> str:

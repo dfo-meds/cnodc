@@ -8,9 +8,7 @@ if t.TYPE_CHECKING:
 
 
 class UnitError(CNODCError):
-    def __init__(
-        self, msg: str, code: int | None = None, is_transient: bool = False
-    ):
+    def __init__(self, msg: str, code: int | None = None, is_transient: bool = False):
         super().__init__(msg, "UNITS", code, is_transient)
 
 
@@ -238,7 +236,7 @@ class Product(UnitExpression):
             if raw_products[k] < 0:
                 right = Exponent(SimpleUnit(k), Integer(str(raw_products[k])))
                 expr = right if expr is None else Product(right, expr)
-        for k in sorted(raw_products.keys()), reverse=True):
+        for k in sorted(raw_products.keys(), reverse=True):
             if raw_products[k] > 0:
                 right = (
                     SimpleUnit(k)

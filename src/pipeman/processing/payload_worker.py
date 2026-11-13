@@ -80,9 +80,7 @@ class PayloadWorker[T: Payload](QueueWorker):
     def before_payload(self):
         self.run_hook("before_payload", payload=self.current_payload)
 
-    def after_payload(
-        self, res: QueueItemResult | None, ex: Exception | None = None
-    ):
+    def after_payload(self, res: QueueItemResult | None, ex: Exception | None = None):
         self.run_hook(
             "after_payload", payload=self.current_payload, result=res, exception=ex
         )
@@ -253,9 +251,7 @@ class SourceWorkflowWorker(WorkflowWorker[SourceFilePayload]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, require_type=SourceFilePayload)
 
-    def process_payload(
-        self, payload: SourceFilePayload
-    ) -> QueueItemResult | None:
+    def process_payload(self, payload: SourceFilePayload) -> QueueItemResult | None:
         raise NotImplementedError  # pragma: no coverage
 
 
@@ -277,9 +273,7 @@ class ObservationWorkflowWorker(WorkflowWorker[ObservationPayload]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, require_type=ObservationPayload)
 
-    def process_payload(
-        self, payload: ObservationPayload
-    ) -> QueueItemResult | None:
+    def process_payload(self, payload: ObservationPayload) -> QueueItemResult | None:
         raise NotImplementedError  # pragma: no coverage
 
 

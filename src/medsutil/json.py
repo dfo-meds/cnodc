@@ -28,21 +28,21 @@ try:
                 f"Cannot encode object of type [{x.__class__.__name__}]"
             ) from ex
 
-    def dumpb(__obj: ct.SupportsExtendedJson) -> bytes:
+    def dumpb(__obj: ct.SupportsExtendedJson, /) -> bytes:
         """Returns a JSON string in utf-8 encoding from the given JSON-compatible object."""
         return orjson.dumps(__obj, default=_clean_for_orjson)
 
-    def dumps(__obj: ct.SupportsExtendedJson) -> str:
+    def dumps(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a JSON string for the given object."""
         return orjson.dumps(__obj, default=_clean_for_orjson).decode("utf-8")
 
-    def dumpp(__obj: ct.SupportsExtendedJson) -> str:
+    def dumpp(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a prettified JSON string for the given object."""
         return orjson.dumps(
             __obj, default=_clean_for_orjson, option=orjson.OPT_INDENT_2
         ).decode("utf-8")
 
-    def loads(__obj: ct.JsonString) -> ct.SupportsNativeJson:
+    def loads(__obj: ct.JsonString, /) -> ct.SupportsNativeJson:
         """Converts a JSON string into the correct object."""
         return orjson.loads(__obj)
 
@@ -57,24 +57,24 @@ except ModuleNotFoundError:
         except TypeError:
             return None
 
-    def dumpb(__obj: ct.SupportsExtendedJson) -> bytes:
+    def dumpb(__obj: ct.SupportsExtendedJson, /) -> bytes:
         """Returns a JSON string in utf-8 encoding from the given JSON-compatible object."""
         return json.dumps(__obj, default=_clean_for_json).encode("utf-8")
 
-    def dumps(__obj: ct.SupportsExtendedJson) -> str:
+    def dumps(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a JSON string for the given object."""
         return json.dumps(__obj, default=_clean_for_json)
 
-    def dumpp(__obj: ct.SupportsExtendedJson) -> str:
+    def dumpp(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a prettified JSON string for the given object."""
         return json.dumps(__obj, default=_clean_for_json, indent=2)
 
-    def loads(__obj: ct.JsonString) -> ct.SupportsNativeJson:
+    def loads(__obj: ct.JsonString, /) -> ct.SupportsNativeJson:
         """Converts a JSON string into the correct object."""
         return json.loads(__obj)
 
 
-def clean_for_json(__obj):
+def clean_for_json(__obj, /):
     """General clean-up function to convert to JSON.
     :raises TypeError: If the object isn't supported.
     """
@@ -93,7 +93,7 @@ def clean_for_json(__obj):
     raise TypeError(f"Invalid data type [{__obj.__class__.__name__}] for a JSON object")
 
 
-def load_dict(__obj: ct.JsonDictString) -> dict[str, ct.SupportsNativeJson]:
+def load_dict(__obj: ct.JsonDictString, /) -> dict[str, ct.SupportsNativeJson]:
     """Loads an object from a JSON string and ensures it is a dictionary."""
     d = loads(__obj)
     if not isinstance(d, dict):
@@ -101,7 +101,7 @@ def load_dict(__obj: ct.JsonDictString) -> dict[str, ct.SupportsNativeJson]:
     return d
 
 
-def load_list(__obj: ct.JsonListString) -> list[ct.SupportsNativeJson]:
+def load_list(__obj: ct.JsonListString, /) -> list[ct.SupportsNativeJson]:
     """Loads an object from a JSON string and ensures it is a list"""
     d = loads(__obj)
     if not isinstance(d, list):
@@ -109,7 +109,7 @@ def load_list(__obj: ct.JsonListString) -> list[ct.SupportsNativeJson]:
     return d
 
 
-def load_set(__obj: ct.JsonListString) -> set[ct.SupportsNativeJson]:
+def load_set(__obj: ct.JsonListString, /) -> set[ct.SupportsNativeJson]:
     """Loads an object from a JSON string and ensures it is a list"""
     d = loads(__obj)
     if not isinstance(d, list):

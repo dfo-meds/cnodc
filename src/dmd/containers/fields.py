@@ -271,7 +271,7 @@ class KeyValueField(Field):
             if isinstance(raw_value, (list, tuple, set)):
                 suffix = "_list"
                 if raw_value:
-                    raw_value = list(raw_value)[0]
+                    raw_value = next(iter(raw_value))
                     value["value"] = ",".join(raw_value)
                 else:
                     raw_value = ""

@@ -1,4 +1,3 @@
-
 from medsutil.dynamic import dynamic_object
 from medsutil.exceptions import CodedError
 from nodb.interface import NODBInstance

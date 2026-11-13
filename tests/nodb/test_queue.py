@@ -102,9 +102,7 @@ class TestQueueItem(BaseTestCase):
         self.assertEqual(qi.priority, 1)
         self.assertEqual(qi.escalation_level, 2)
         self.assertIsNotNone(qi.delay_release)
-        self.assertGreater(
-            qi.delay_release, datetime.datetime.now(datetime.UTC)
-        )
+        self.assertGreater(qi.delay_release, datetime.datetime.now(datetime.UTC))
         qi2 = NODBQueueItem.find_by_uuid(self.db, "12345")
         self.assertIs(qi2.status, QueueStatus.DELAYED_RELEASE)
         self.assertIsNone(qi2.locked_by)
@@ -112,14 +110,10 @@ class TestQueueItem(BaseTestCase):
         self.assertEqual(qi2.priority, 1)
         self.assertEqual(qi2.escalation_level, 2)
         self.assertIsNotNone(qi.delay_release)
-        self.assertGreater(
-            qi.delay_release, datetime.datetime.now(datetime.UTC)
-        )
+        self.assertGreater(qi.delay_release, datetime.datetime.now(datetime.UTC))
 
     def test_renew(self):
-        ls = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
-            seconds=90
-        )
+        ls = datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=90)
         qi = NODBQueueItem(
             queue_uuid="12345",
             priority=1,

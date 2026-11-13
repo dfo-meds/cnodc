@@ -1,4 +1,3 @@
-
 from medsutil import types as ct
 from medsutil.exceptions import CodedError
 from medsutil.ocproc2 import ParentRecord
@@ -16,7 +15,9 @@ class BadCodec(BaseCodec):
     ) -> ct.ByteStrings:
         raise ValueError
 
-    def _decode_single_message(self, data: bytes | bytearray, options: dict) -> ParentRecord:
+    def _decode_single_message(
+        self, data: bytes | bytearray, options: dict
+    ) -> ParentRecord:
         raise ValueError
 
 

@@ -1,4 +1,3 @@
-
 from medsutil.exceptions import (
     CodedError,
     TransientCodedError,

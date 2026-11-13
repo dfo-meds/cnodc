@@ -24,7 +24,9 @@ class ContextMenuWithHover(Popup):
         self._frame = tk.Frame(window)
         self._frame.pack(ipadx=2, ipady=2)
         items = []
-        for index, (text, command, on_mouse_in, on_mouse_out) in enumerate(self._menu_items):
+        for index, (text, command, on_mouse_in, on_mouse_out) in enumerate(
+            self._menu_items
+        ):
             label = tk.Label(
                 self._frame,
                 text=text,

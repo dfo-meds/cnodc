@@ -184,7 +184,7 @@ class ByteSequenceReader:
 
         :raises medsutil.exceptions.HaltInterrupt: If the system is shutting down.
         """
-        n_or_r, index = self._find_first_match_fast({10, 13})
+        _, index = self._find_first_match_fast({10, 13})
         if index is None:
             return self._buffer
         if not exclude_line_endings:
@@ -251,7 +251,7 @@ class ByteSequenceReader:
         self._discard_leading(length)
         return res
 
-    def lstrip(self, bytes_: bytes, max_strip: int = None):
+    def lstrip(self, bytes_: bytes, max_strip: int | None = None):
         """Consumes any leading bytes that are found in the first argument.
 
         :param bytes_: The byte characters to strip (e.g. b"\r\n\t " strips any of these four characters).
@@ -272,7 +272,7 @@ class ByteSequenceReader:
             self._discard_leading(idx)
 
     def find_first_match(
-        self, matches: t.ByteString | t.Sequence[t.ByteString]
+        self, matches: bytes | bytearray | t.Sequence[bytes | bytearray]
     ) -> tuple[bytes | None, int | None]:
         """Finds the first match from the given match options.
 
@@ -285,7 +285,7 @@ class ByteSequenceReader:
 
     def split_and_iterate(
         self,
-        matches: t.ByteString | t.Sequence[t.ByteString],
+        matches: bytes | bytearray | t.Sequence[bytes | bytearray],
         include_target: bool = False,
     ):
         """Splits the binary content based on the given match options and returns them.
@@ -300,7 +300,7 @@ class ByteSequenceReader:
 
     def _get_matcher(
         self,
-        matches: t.ByteString | t.Sequence[t.ByteString],
+        matches: bytes | bytearray | t.Sequence[bytes | bytearray],
     ) -> t.Callable[[], tuple[bytes | None, int | None]]:
         """Builds the correct matching function for the given set of matches.
 
@@ -308,10 +308,8 @@ class ByteSequenceReader:
         `_find_first_match_fast`, otherwise it uses the slower
         `_find_first_match`.
         """
-        m: list[t.ByteString] = (
-            [matches]
-            if isinstance(matches, (bytes, bytearray, memoryview))
-            else list(matches)
+        m: list[bytes | bytearray] = (
+            [matches] if isinstance(matches, (bytes, bytearray)) else list(matches)
         )
         options = set()
         min_length = 0
@@ -329,7 +327,7 @@ class ByteSequenceReader:
             raise ValueError("No matches provided")
         if max_length == 1:
             return functools.partial(
-                self._find_first_match_fast, options=set(x[0] for x, _ in options)
+                self._find_first_match_fast, options={x[0] for x, _ in options}
             )
         return functools.partial(
             self._find_first_match,
@@ -416,7 +414,7 @@ class ByteSequenceReader:
 
     def __getitem__(
         self, user_index: slice | int
-    ) -> t.Iterator[t.ByteString] | t.ByteString:
+    ) -> t.Iterator[bytes | bytearray] | bytes | bytearray:
         if isinstance(user_index, slice):
             self._read_up_to(user_index.stop)
             return self._buffer[user_index]

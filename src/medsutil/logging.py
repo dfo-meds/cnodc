@@ -82,7 +82,7 @@ def init_subprocess_handler(
 
 def init_as_subprocess(q: multiprocessing.Queue):
     """Initializes a multiprocessing process to send log messages to the queue."""
-    for logger_name, logger in logging.root.manager.loggerDict.items():
+    for logger in logging.root.manager.loggerDict.values():
         if isinstance(logger, logging.Logger) and logger.handlers:
             for handler in logger.handlers:
                 logger.removeHandler(handler)

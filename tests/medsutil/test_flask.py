@@ -57,7 +57,7 @@ class TestProxyFix(BaseTestCase):
         "256.256.256.256",
     )
 
-    TEST_SUBNETS: typing.ClassVar[dict[str, list | tuple]]  = {
+    TEST_SUBNETS: typing.ClassVar[dict[str, list | tuple]] = {
         "": [],
         "*": VALID_IPS,
         "127.0.0.1": ["127.0.0.1"],
@@ -191,7 +191,9 @@ class TestRequestInfo(BaseTestCase):
         self.assertIsNone(info.user_agent())
         self.assertIsNone(info.username())
         self.assertIsNone(info.referrer())
-        res = subprocess.run([str(shutil.which("whoami"))], capture_output=True, check=False)
+        res = subprocess.run(
+            [str(shutil.which("whoami"))], capture_output=True, check=False
+        )
         txt = res.stdout.decode("utf-8").replace("\t", " ").strip("\r\n\t")
         while "  " in txt:
             txt = txt.replace("  ", " ")
@@ -204,16 +206,19 @@ class TestRequestInfo(BaseTestCase):
     def test_with_request(self):
         info = RequestInfo()
         client = flask.Flask(__name__)
-        with client.test_client(), client.test_request_context(
-            "/foobar",
-            method="GET",
-            headers={
-                "X-Correlation-ID": "12345",
-                "X-Client-ID": "67890",
-                "User-Agent": "test user agent",
-                "Referer": "http://localhost/other",
-            },
-            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        with (
+            client.test_client(),
+            client.test_request_context(
+                "/foobar",
+                method="GET",
+                headers={
+                    "X-Correlation-ID": "12345",
+                    "X-Client-ID": "67890",
+                    "User-Agent": "test user agent",
+                    "Referer": "http://localhost/other",
+                },
+                environ_base={"REMOTE_ADDR": "127.0.0.1"},
+            ),
         ):
             self.assertEqual(info.request_method(), "GET")
             self.assertEqual(info.remote_ip(), "127.0.0.1")
@@ -230,11 +235,14 @@ class TestRequestInfo(BaseTestCase):
     def test_less_helpful_request(self):
         info = RequestInfo()
         client = flask.Flask(__name__)
-        with client.test_client(), client.test_request_context(
-            "/foobar2",
-            method="POST",
-            headers={"X-Forwarded-For": "17.1.2.3 127.0.0.1"},
-            environ_base={"REMOTE_ADDR": "10.1.2.3"},
+        with (
+            client.test_client(),
+            client.test_request_context(
+                "/foobar2",
+                method="POST",
+                headers={"X-Forwarded-For": "17.1.2.3 127.0.0.1"},
+                environ_base={"REMOTE_ADDR": "10.1.2.3"},
+            ),
         ):
             # todo: is this correct behavior?
             self.assertEqual(info.remote_ip(), "10.1.2.3")

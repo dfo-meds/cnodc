@@ -481,7 +481,10 @@ class TestQueueWorker(BaseTestCase):
         obj = self.db.load_object(NODBQueueItem, {"queue_name": "hello"})
         self.assertIsNotNone(obj)
         self.assertEqual(0, len(worker._called_methods))
-        with self.assertRaises(HaltInterrupt), self.assertLogs("cnodc.worker.test", "CRITICAL"):
+        with (
+            self.assertRaises(HaltInterrupt),
+            self.assertLogs("cnodc.worker.test", "CRITICAL"),
+        ):
             worker.run_once()
         self.assertEqual(4, len(worker._called_methods))
         self.assertIn("before_cycle", worker._called_methods)
@@ -629,7 +632,10 @@ class TestQueueWorker(BaseTestCase):
         worker.nodb = self.mock_nodb
         worker._ret_value = HaltInterrupt
         self.db.create_queue_item(data={"foobar": "hello"}, queue_name="hello")
-        with self.assertLogs("cnodc.worker.test", "CRITICAL"), self.assertRaises(HaltInterrupt):
+        with (
+            self.assertLogs("cnodc.worker.test", "CRITICAL"),
+            self.assertRaises(HaltInterrupt),
+        ):
             worker.run()
 
 

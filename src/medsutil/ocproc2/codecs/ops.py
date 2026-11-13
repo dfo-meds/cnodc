@@ -184,7 +184,12 @@ class InstructionGroup(Instruction):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" not in instruction and "repeats" not in instruction:
+        if (
+            isinstance(instruction, dict)
+            and "instructions" in instruction
+            and "recordset_type" not in instruction
+            and "repeats" not in instruction
+        ):
             return cls.build(
                 {
                     "instructions": Instruction.parse_instructions(
@@ -233,7 +238,12 @@ class RecordSetInstructionGroup(InstructionGroup):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" in instruction and "repeats" not in instruction:
+        if (
+            isinstance(instruction, dict)
+            and "instructions" in instruction
+            and "recordset_type" in instruction
+            and "repeats" not in instruction
+        ):
             return cls.build(
                 {
                     "instructions": Instruction.parse_instructions(
@@ -277,7 +287,12 @@ class RecordRepeatInstructionGroup(RepeatGroup):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" not in instruction and "repeats" in instruction:
+        if (
+            isinstance(instruction, dict)
+            and "instructions" in instruction
+            and "recordset_type" not in instruction
+            and "repeats" in instruction
+        ):
             return cls.build(
                 {
                     "instructions": Instruction.parse_instructions(
@@ -324,7 +339,12 @@ class RecordSetRepeatInstructionGroup(RepeatGroup):
         extras: dict[str, t.Any] | None = None,
         helper: t.Callable | None = None,
     ) -> Instruction | None:
-        if isinstance(instruction, dict) and "instructions" in instruction and "recordset_type" in instruction and "repeats" in instruction:
+        if (
+            isinstance(instruction, dict)
+            and "instructions" in instruction
+            and "recordset_type" in instruction
+            and "repeats" in instruction
+        ):
             return cls.build(
                 {
                     "instructions": Instruction.parse_instructions(

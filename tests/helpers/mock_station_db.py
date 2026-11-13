@@ -173,17 +173,25 @@ class TestStationDatabase:
         for platform in self._platforms.values():
             matched = False
             if (
-                ship_code is not None
-                and platform.ship_code is not None
-                and platform.ship_code.lower() == ship_code.lower()
-            ) or (
-                platform_id is not None
-                and platform.platform_id is not None
-                and platform.platform_id.lower() == platform_id.lower()
-            ) or wigos_id is not None and platform.wigos_id == wigos_id or wmo_id is not None and platform.wmo_id == wmo_id or (
-                platform_name is not None
-                and platform.platform_name is not None
-                and platform.platform_name.lower() == platform_name.lower()
+                (
+                    ship_code is not None
+                    and platform.ship_code is not None
+                    and platform.ship_code.lower() == ship_code.lower()
+                )
+                or (
+                    platform_id is not None
+                    and platform.platform_id is not None
+                    and platform.platform_id.lower() == platform_id.lower()
+                )
+                or wigos_id is not None
+                and platform.wigos_id == wigos_id
+                or wmo_id is not None
+                and platform.wmo_id == wmo_id
+                or (
+                    platform_name is not None
+                    and platform.platform_name is not None
+                    and platform.platform_name.lower() == platform_name.lower()
+                )
             ):
                 matched = True
             if not matched:

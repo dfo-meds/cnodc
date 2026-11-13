@@ -80,11 +80,10 @@ class BaseUserMixin:
                 if "|" in x:
                     if not self.require_any([x.strip() for x in x.split("|")]):
                         return False
-                if x not in self._permissions:
+                elif x not in self._permissions:
                     return False
-            elif isinstance(x, AnyPermission):
-                if not self.require_any(x.permissions):
-                    return False
+            elif isinstance(x, AnyPermission) and not self.require_any(x.permissions):
+                return False
         return True
 
     def require_any(self, permissions: PermissionType) -> bool:
@@ -97,41 +96,42 @@ class BaseUserMixin:
             else permissions
         )
         for x in perms:
-            if isinstance(x, str):
-                if x in self._permissions:
-                    return True
-            elif isinstance(x, AnyPermission):
-                if self.require_any(x.permissions):
-                    return True
+            if (
+                isinstance(x, str)
+                and x in self._permissions
+                or isinstance(x, AnyPermission)
+                and self.require_any(x.permissions)
+            ):
+                return True
         return False
 
     def last_login_success_time(self) -> AwareDateTime | None:
         """Retrieves the last time the user logged in."""
-        dt = self.extra("last_success", None)
+        dt = self.user_property("last_success", None)
         if dt is not None:
             return AwareDateTime.fromisoformat(dt)
         return None
 
     def last_login_error_time(self) -> AwareDateTime | None:
         """Retrieves the last time the user attempted to login and failed."""
-        dt = self.extra("last_error", None)
+        dt = self.user_property("last_error", None)
         if dt is not None:
             return AwareDateTime.fromisoformat(dt)
         return None
 
     def last_login_success_ip(self) -> str:
         """Retrieves the IP address that the user last logged in from."""
-        return self.extra("last_success_ip", "") or ""
+        return str(self.user_property("last_success_ip", "") or "")
 
     def last_login_error_ip(self) -> str:
         """Retrieves the IP address that the user last attempted to login from and failed."""
-        return self.extra("last_error_ip", "") or ""
+        return str(self.user_property("last_error_ip", "") or "")
 
     def total_errors_since_last_login(self) -> int:
         """Retrieves the total number of failed login attempts since the last success."""
-        return int(self.extra("total_errors", 0))
+        return int(self.user_property("total_errors", 0))
 
-    def extra(self, name: str, default=None) -> t.Any:
+    def user_property(self, name: str, default=None):
         """Retrieve the value of an extra user property as set by the authentication system."""
         try:
             return self._extras[name]
@@ -147,7 +147,7 @@ class AuthenticatedUser(BaseUserMixin, fl.UserMixin):
         unique_id: int,
         username: str,
         display_name: str,
-        email: str = None,
+        email: str | None = None,
         permissions: t.Iterable[str] | None = None,
         **extras,
     ):

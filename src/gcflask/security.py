@@ -116,7 +116,7 @@ class RequestSecurity:
             return False
 
         pieces = urlparse(flask.request.url)
-        if not pieces.scheme == "https":
+        if pieces.scheme != "https":
             self._log.warning("Request denied because it is not an HTTPS request")
             return False
 
@@ -209,13 +209,13 @@ class RequirePermission:
 
     def __call__[**P, Q](
         self,
-        required_permissions: PermissionType | t.Callable = None,
+        required_permissions: PermissionType | t.Callable | None = None,
         *,
         authenticated_only: bool = False,
         anonymous_only: bool = False,
         anyone: bool = False,
-        check_referrer: bool = None,
-        check_https: bool = None,
+        check_referrer: bool | None = None,
+        check_https: bool | None = None,
         is_api: bool = False,
         require_any: bool = False,
         allow_auth_header_access: bool = False,
@@ -258,7 +258,7 @@ class RequirePermission:
         elif callable(required_permissions):
             return self._build_wrapper(required_permissions)
         else:
-            raise ValueError("Invalid argument to __call__")
+            raise TypeError("Invalid argument to __call__")
 
     def _build_wrapper[**P, Q](
         self,

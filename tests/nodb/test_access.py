@@ -24,8 +24,7 @@ class SessionTest(BaseTestCase):
     def test_is_expired(self):
         session = NODBSession(
             start_time=datetime.datetime.now(datetime.UTC),
-            expiry_time=datetime.datetime.now(datetime.UTC)
-            + datetime.timedelta(60),
+            expiry_time=datetime.datetime.now(datetime.UTC) + datetime.timedelta(60),
         )
         self.assertFalse(session.is_expired())
 

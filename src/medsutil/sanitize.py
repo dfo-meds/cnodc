@@ -56,7 +56,9 @@ def clean_wigos_id(wigos_id: str) -> str | None:
     return "-".join(pieces)
 
 
-def netcdf_bytes_to_string(byte_sequence: str | bytes | bytearray, encoding="utf-8") -> str:
+def netcdf_bytes_to_string(
+    byte_sequence: str | bytes | bytearray, encoding="utf-8"
+) -> str:
     """Converts NetCDF characters to a Python string object, if necessary."""
     return DataCoercer.nc_bytes_as_string(byte_sequence, encoding)
 
@@ -102,7 +104,9 @@ class DataCoercer:
             return float(f)
 
     @staticmethod
-    def nc_bytes_as_string(byte_sequence: str | bytes | bytearray, encoding="utf-8") -> str:
+    def nc_bytes_as_string(
+        byte_sequence: str | bytes | bytearray, encoding="utf-8"
+    ) -> str:
         """Converts a NetCDF byte sequence to a string."""
         if isinstance(byte_sequence, str):
             return DataCoercer.as_normalized_string(byte_sequence)
@@ -121,9 +125,7 @@ class DataCoercer:
 
         if fixed_len is not None:
             if isinstance(s, str):
-                full_array = [
-                    s[b] if b < len(s) else "\x00" for b in range(fixed_len)
-                ]
+                full_array = [s[b] if b < len(s) else "\x00" for b in range(fixed_len)]
             else:
                 full_array = [
                     [x[b] if b < len(x) else "\x00" for b in range(fixed_len)]
@@ -301,7 +303,7 @@ class DataCoercer:
     def as_set[AcceptType, StoreType](
         obj: t.Iterable[AcceptType],
         value_coerce: t.Callable[[AcceptType], StoreType] | None = None,
-        str_coerce: t.Callable[[str], t.Iterable[AcceptType]]| None = None,
+        str_coerce: t.Callable[[str], t.Iterable[AcceptType]] | None = None,
     ) -> set[StoreType]:
         if isinstance(obj, str):
             if str_coerce is not None:
@@ -317,7 +319,8 @@ class DataCoercer:
     @staticmethod
     def as_dict[AcceptKeyType, AcceptType, StoreKeyType, StoreType](
         obj: t.Mapping[AcceptKeyType | StoreKeyType, AcceptType | StoreType] | str,
-        key_coerce: t.Callable[[AcceptKeyType | StoreKeyType], StoreKeyType] | None = None,
+        key_coerce: t.Callable[[AcceptKeyType | StoreKeyType], StoreKeyType]
+        | None = None,
         value_coerce: t.Callable[[AcceptType | StoreType], StoreType] | None = None,
         str_coerce: t.Callable[[str], dict[AcceptKeyType, AcceptType]] | None = None,
     ) -> dict[StoreKeyType, StoreType]:
@@ -439,9 +442,11 @@ class DataCoercer:
             value = value.replace(c, " ")
         for c in UNICODE_DASHES:
             value = value.replace(c, "-")
-        value = "".join(
-            c for c in value if unicodedata.category(c) != "Cc" or c == "\n"
-        ).replace("\x00", "").strip(" ")
+        value = (
+            "".join(c for c in value if unicodedata.category(c) != "Cc" or c == "\n")
+            .replace("\x00", "")
+            .strip(" ")
+        )
         while "  " in value:
             value = value.replace("  ", " ")
         return value
@@ -467,11 +472,12 @@ class DataValidator:
 
     @staticmethod
     def mapping_meets_all[X, Y](
-        __obj: t.Mapping[X, Y], /,
+        __obj: t.Mapping[X, Y],
+        /,
         key_validators: list[t.Callable[[X], t.NoReturn]] | None = None,
         value_validators: list[t.Callable[[Y], t.NoReturn]] | None = None,
     ):
-        key_vs= key_validators or []
+        key_vs = key_validators or []
         value_vs = value_validators or []
         for key, value in __obj.items():
             for key_v in key_vs:

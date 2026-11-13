@@ -15,7 +15,7 @@ SN = t.TypeVar("SN", bound=float | decimal.Decimal)
 
 
 def with_error_propagation(
-    *derivative_args, units_func: t.Callable = None, **derivative_kwargs
+    *derivative_args, units_func: t.Callable | None = None, **derivative_kwargs
 ):
     """Given derivatives for the arguments and keyword arguments, decorates a function to correctly
     calculate the error using standard error propagation techniques.
@@ -45,7 +45,7 @@ def with_error_propagation(
             nominal_args = [_common.nominal_value(x) for x in args]
             nominal_kwargs = {x: _common.nominal_value(v) for x, v in kwargs.items()}
             nv = nominal_value(func(*args, **kwargs))
-            linear_part: mt.UnexpandedLinearCombination = list()
+            linear_part: mt.UnexpandedLinearCombination = []
 
             for arg_pos, arg_value in itertools.chain(
                 ((idx, arg) for idx, arg in enumerate(args)),
@@ -120,7 +120,7 @@ class ScienceNumber:
     def __init__(
         self,
         value: mt.NonScienceNumber,
-        std_dev: mt.NonScienceNumber | type[mt.Placeholder] = mt.Placeholder(),
+        std_dev: mt.NonScienceNumber | type[mt.Placeholder] = mt.Placeholder,
         min_std_dev: mt.NonScienceNumber | None = None,
         units: str | None = None,
         tag: str | None = None,

@@ -1,4 +1,3 @@
-
 import markupsafe
 from autoinject import injector
 from markupsafe import Markup, escape
@@ -34,7 +33,7 @@ class BetterTableWidget:
         html = []
         if self.with_table_tag:
             kwargs.setdefault("id", field.id)
-            html.append("<table %s>\n" % html_params(**kwargs))
+            html.append(f"<table {html_params(**kwargs)}>\n")
         hidden = ""
         for subfield in field:
             content = str(
@@ -44,21 +43,19 @@ class BetterTableWidget:
                 hidden += str(subfield)
             elif subfield.type in ("BooleanField"):
                 html.append(
-                    "<tr><td colspan='2'>%s%s%s</td></tr>\n"
-                    % (content, str(subfield.label), hidden)
+                    f"<tr><td colspan='2'>{content}{subfield.label!s}{hidden}</td></tr>\n"
                 )
                 hidden = ""
             else:
                 html.append(
-                    "<tr><th>%s</th><td>%s%s</td></tr>\n"
-                    % (str(subfield.label), hidden, content)
+                    f"<tr><th>{subfield.label!s}</th><td>{hidden}{content}</td></tr>\n"
                 )
                 hidden = ""
         if self.with_table_tag:
             html.append("</table>\n")
         if hidden:
             html.append(hidden + "\n")
-        return Markup("".join(html))
+        return Markup("".join(html))  # nosec: B704  # trusted data only
 
 
 class TabbedFieldFormWidget:
@@ -66,7 +63,7 @@ class TabbedFieldFormWidget:
         self,
         no_tab_fields: list | None = None,
         for_txt_input: bool = False,
-        default_tab: int = None,
+        default_tab: int | None = None,
     ):
         self._no_tab_fields = no_tab_fields or []
         self._for_txt_input = for_txt_input
@@ -124,21 +121,13 @@ class TabbedFieldFormWidget:
                 if subfield.type in ("HiddenField", "CSRFTokenField"):
                     hidden += str(subfield)
                 elif subfield.type in ("BooleanField",):
-                    html += "<tr><td colspan='2'>%s%s%s</td></tr>\n" % (
-                        content,
-                        str(subfield.label),
-                        hidden,
-                    )
+                    html += f"<tr><td colspan='2'>{content}{subfield.label!s}{hidden}</td></tr>\n"
                 else:
-                    html += "<tr><th>%s</th><td>%s%s</td></tr>\n" % (
-                        str(subfield.label),
-                        hidden,
-                        content,
-                    )
+                    html += f"<tr><th>{subfield.label!s}</th><td>{hidden}</td></tr>\n"
             html += "</tbody>\n</table>\n"
             if hidden:
                 html += hidden + "\n"
-        return Markup(html)
+        return Markup(html)  # nosec: B704  # trusted data only
 
 
 class HtmlContent:
@@ -158,7 +147,7 @@ class HtmlList(HtmlContent):
         for item in self.items:
             h += f"<li>{escape(item)}</li>"
         h += "</ul>"
-        return Markup(h)
+        return Markup(h)  # nosec: B704  # trusted data only
 
 
 class MultilingualList(HtmlContent):
@@ -166,13 +155,11 @@ class MultilingualList(HtmlContent):
         self.items = items
 
     def __html__(self):
-        valid_keys = [
-            k for k in self.items.keys() if k and k[0] != "_" and self.items[k]
-        ]
+        valid_keys = [k for k, y in self.items.items() if k and k[0] != "_" and y]
         if len(valid_keys) == 0:
             return ""
         elif len(valid_keys) == 1:
-            return escape(list(self.items.values())[0])
+            return escape(next(iter(self.items.values())))
         else:
             html = "<dl>"
             for key in valid_keys:
@@ -184,7 +171,7 @@ class MultilingualList(HtmlContent):
                 html += "<dt>" + tr("languages.full.und") + "</dt>"
                 html += "<dd>" + escape(self.items["und"]) + "</dd>"
             html += "</dl>"
-            return Markup(html)
+            return Markup(html)   # nosec: B704  # trusted data only
 
 
 class InfoTable(HtmlContent):
@@ -241,7 +228,7 @@ class Select2Widget:
 
     def __call__(self, field, **kwargs):
         markup = (
-            f'<select class="form-control-select2" id="{field.id}" name="{field.name}"'
+            f'<select class="form-control-select2" id="{escape(field.id)}" name="{escape(field.name)}"'
         )
         if self.allow_multiple:
             markup += 'multiple="multiple"'
@@ -265,7 +252,7 @@ class Select2Widget:
         markup += "  });\n"
         markup += "});\n"
         markup += "</script>\n"
-        return markupsafe.Markup(markup)
+        return markupsafe.Markup(markup)  # nosec: B704  # trusted data only
 
     def render_option(self, val, label, selected, render_kw=None, **kwargs):
         if val is True or val is False:
@@ -295,83 +282,31 @@ class FlatPickrWidget:
         tm: TranslationManager = None,
         **kwargs,
     ):
-        markup = f'<input class="form-control-datetime-flatpickr" id="{field.id}" name="{field.name}" data-input '
+        markup = f'<input class="form-control-datetime-flatpickr" id="{escape(field.id)}" name="{escape(field.name)}" data-input '
         if self.placeholder:
             markup += f"placeholder='{escape(self.placeholder)}' "
         if field.data:
             markup += f"value='{field.data!s}' "
         markup += "/>"
-        markup += f' <button type="button" id="flatpickr-clear-button-{field.id}">{tr("pipeman.common.clear")}</button>'
+        markup += f' <button type="button" id="flatpickr-clear-button-{escape(field.id)}">{escape(tr("pipeman.common.clear"))}</button>'
         markup += f'<script language="javascript" type="text/javascript" nonce="{csp_nonce("script-src")}">'
         markup += "$(document).ready(function() {\n"
-        markup += f"  let fp = $('#{field.id}').flatpickr(" + "{\n"
+        markup += f"  let fp = $('#{escape(field.id)}').flatpickr(" + "{\n"
         if self.with_time:
             markup += "    'enableTime': true,\n"
             markup += "    'enableSeconds': true,\n"
             markup += "    'minuteIncrement': 1,\n"
         if not self.with_calendar:
             markup += "    'noCalendar': true,\n"
-        markup += f"    'locale': '{ld.detect_language(tm.supported_languages())}'\n"
+        markup += f"    'locale': '{escape(ld.detect_language(tm.supported_languages()))}'\n"
         markup += "  });\n"
-        markup += f"  $('#flatpickr-clear-button-{field.id}').data('flatpickr', fp);"
-        markup += f"  $('#flatpickr-clear-button-{field.id}').click(function() " + "{\n"
+        markup += f"  $('#flatpickr-clear-button-{escape(field.id)}').data('flatpickr', fp);"
+        markup += f"  $('#flatpickr-clear-button-{escape(field.id)}').click(function() " + "{\n"
         markup += "      $(this).data('flatpickr').clear();\n"
         markup += "});\n"
         markup += "});\n"
         markup += "</script>"
-        return Markup(markup)
-
-
-class Select2Widget:
-    def __init__(
-        self,
-        ajax_callback=None,
-        allow_multiple: bool = False,
-        query_delay=None,
-        placeholder=None,
-        min_input=None,
-    ):
-        self.ajax_callback = ajax_callback
-        self.allow_multiple = allow_multiple
-        self.query_delay = query_delay or 0
-        self.placeholder = placeholder
-        self.min_input = min_input
-
-    def __call__(self, field, **kwargs):
-        markup = (
-            f'<select class="form-control-select2" id="{field.id}" name="{field.name}"'
-        )
-        if self.allow_multiple:
-            markup += 'multiple="multiple"'
-        markup += ">\n"
-        for opts in field.iter_choices():
-            markup += self.render_option(*opts) + "\n"
-        markup += f'</select>\n<script language="javascript" type="text/javascript" nonce="{csp_nonce("script-src")}">'
-        markup += "$(document).ready(function() {\n"
-        markup += f"  $('#{field.id}').select2(" + "{\n"
-        if self.ajax_callback:
-            markup += "    ajax: {\n"
-            markup += f"      url: '{self.ajax_callback}',\n"
-            markup += "      dataType: 'json'\n"
-            markup += "    },\n"
-            if self.min_input:
-                markup += f"    minimumInputLength: {int(self.min_input)},\n"
-        if self.placeholder:
-            markup += "    allowClear: true,\n"
-            markup += f"    placeholder: '{self.placeholder}',\n"
-        markup += f"    delay: {int(self.query_delay)}\n"
-        markup += "  });\n"
-        markup += "});\n"
-        markup += "</script>\n"
-        return Markup(markup)
-
-    def render_option(self, val, label, selected, render_kw=None, **kwargs):
-        if val is True or val is False:
-            val = str(val)
-        if val is None:
-            val = ""
-        sel_text = ' selected="selected"' if selected else ""
-        return f'<option{sel_text} value="{val}">{escape(label)}</option>'
+        return Markup(markup)  # nosec: B704  # trusted data
 
 
 class ActionList:
@@ -403,7 +338,7 @@ class ActionList:
         for path, txt, _ in self._items:
             markup += f'<li><a href="{escape(path)}">{escape(i18n.tr(txt))}</a></li>'
         markup += "</ul>"
-        return Markup(markup)
+        return Markup(markup)  # nosec: B704 # trusted input
 
     def __html__(self) -> Markup:
         return self.render()

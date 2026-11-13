@@ -81,8 +81,8 @@ class HaltFlag:
                 break
 
     def read_all(
-        self, readable: ct.SupportsBinaryRead, chunk_size: int = None
-    ) -> t.Generator[t.ByteString]:
+        self, readable: ct.SupportsBinaryRead, chunk_size: int | None = None
+    ) -> t.Generator[bytes | bytearray]:
         """Reads all data from a file, calling `breakpoint()` after each item has been yielded.
         :raises HaltInterrupt: If the system is shutting down.
         :raises TypeError: If `readable` is not supported
@@ -129,7 +129,7 @@ class HaltFlag:
         self,
         readable: ct.SupportsBinaryRead,
         writable: ct.SupportsBinaryWrite,
-        chunk_size: int = None,
+        chunk_size: int | None = None,
         remove_on_halt: bool = True,
     ):
         """Copies all data from one file to another, checking after every read and write.
@@ -161,8 +161,8 @@ class DummyHaltFlag(HaltFlag):
 def copy_with_halt(
     source_handle: ct.SupportsBinaryRead,
     destination_handle: ct.SupportsBinaryWrite,
-    chunk_size: int = None,
-    halt_flag: HaltFlag = None,
+    chunk_size: int | None = None,
+    halt_flag: HaltFlag | None = None,
 ):
     """Copy a file with halt flag support. If no halt flag is specified, shutil.copyfileobj is used."""
     if halt_flag is None:
@@ -176,30 +176,30 @@ def copy_with_halt(
 def gzip_with_halt(
     source_file: pathlib.Path,
     target_file: pathlib.Path,
-    chunk_size: int = None,
-    halt_flag: HaltFlag = None,
+    chunk_size: int | None = None,
+    halt_flag: HaltFlag | None = None,
 ):
     """Gzip a file into the target file with halt flag checking. ."""
     try:
         with open(source_file, "rb") as src:
             with gzip.open(target_file, "wb") as dest:
                 copy_with_halt(src, dest, chunk_size, halt_flag)
-    except HaltInterrupt as ex:
+    except HaltInterrupt:
         target_file.unlink(True)
-        raise ex
+        raise
 
 
 def ungzip_with_halt(
     source_file: pathlib.Path,
     target_file: pathlib.Path,
-    chunk_size: int = None,
-    halt_flag: HaltFlag = None,
+    chunk_size: int | None = None,
+    halt_flag: HaltFlag | None = None,
 ):
     """Ungzip a file into the target file with halt flag checking."""
     try:
         with gzip.open(source_file, "rb") as src:
             with open(target_file, "wb") as dest:
                 copy_with_halt(src, dest, chunk_size, halt_flag)
-    except HaltInterrupt as ex:
+    except HaltInterrupt:
         target_file.unlink(True)
-        raise ex
+        raise

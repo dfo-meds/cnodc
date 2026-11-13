@@ -95,7 +95,7 @@ for file in os.scandir(scan_dir):
         with open(result_file, "w") as h:
             h.write(traceback.format_exc())
         traceback.print_exc()
-        exit(1)
+        sys.exit(1)
         failure += 1
         print(
             f"{success + failure + completed} / {expected} [{success} + {failure} + {completed} || {skipped}]  {file.name} - error                 ",

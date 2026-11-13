@@ -1,4 +1,3 @@
-
 from medsutil.ocproc2 import ParentRecord, RecordSet
 from medsutil.ocproc2.codecs.wmo.bufr import BufrCodeMap, _Bufr4Decoder
 from tests.helpers.base_test_case import BaseTestCase

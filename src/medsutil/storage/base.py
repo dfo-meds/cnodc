@@ -321,7 +321,8 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         source: pathlib.Path
         | ct.SupportsBinaryRead
         | t.Iterable[bytes | bytearray]
-        | bytes | bytearray,
+        | bytes
+        | bytearray,
         allow_overwrite: bool = False,
         buffer_size: int | None = None,
         metadata: dict[str, str] | None = None,
@@ -493,9 +494,13 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         if pattern is not None and not case_sensitive:
             pattern = pattern.lower()
         for file in self.iterdir(recursive, path_types):
-            if pattern is None or (not case_sensitive) and fnmatch.fnmatchcase(
-                file.name.lower(), pattern
-            ) or case_sensitive and fnmatch.fnmatchcase(file.name, pattern):
+            if (
+                pattern is None
+                or (not case_sensitive)
+                and fnmatch.fnmatchcase(file.name.lower(), pattern)
+                or case_sensitive
+                and fnmatch.fnmatchcase(file.name, pattern)
+            ):
                 yield file
 
     def iterdir(
@@ -764,7 +769,10 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
 
     @classmethod
     def build(
-        cls, file_path: str, force_is_dir: bool | None = None, halt_flag: HaltFlag = None
+        cls,
+        file_path: str,
+        force_is_dir: bool | None = None,
+        halt_flag: HaltFlag = None,
     ) -> t.Self:
         """Construct a handle from the given file path."""
         return cls(file_path, force_is_dir, halt_flag=halt_flag)
@@ -775,9 +783,7 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         raise NotImplementedError  # pragma: no coverage
 
     @staticmethod
-    def _add_default_metadata(
-        metadata: dict, storage_tier: StorageTier | None = None
-    ):
+    def _add_default_metadata(metadata: dict, storage_tier: StorageTier | None = None):
         """Add default metadata to the file based on NODB standards."""
         from medsutil.storage import StorageController
 
@@ -809,7 +815,9 @@ class BaseStorageHandle(CachedObjectMixin, interface.FilePath, abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _streaming_read(self, buffer_size: int | None = None) -> t.Iterable[bytes | bytearray]:
+    def _streaming_read(
+        self, buffer_size: int | None = None
+    ) -> t.Iterable[bytes | bytearray]:
         raise NotImplementedError
 
     @abc.abstractmethod

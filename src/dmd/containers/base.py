@@ -1,13 +1,14 @@
 import itertools
 import typing as t
 
+import wtforms as wtf
 from autoinject import injector
 from markupsafe import Markup, escape
 from wtforms.fields.core import UnboundField
 from wtforms.validators import Optional
 
 from dmd.containers.keywords import Keyword
-from gcapp import i18n as i18n
+from gcapp import i18n
 from gcapp.i18n.base import MLString
 from gcflask.forms import (
     InputRequired,
@@ -24,9 +25,6 @@ from gcflask.widgets import (
     MultilingualList,
 )
 from medsutil.dynamic import dynamic_object
-
-if t.TYPE_CHECKING:
-    import wtforms as wtf
 
 
 class BaseValidator:
@@ -107,7 +105,7 @@ class ValidationResult:
 
 
 class Container:
-    FIELD_TYPE_REGISTRY: dict[str, type] = {}
+    FIELD_TYPE_REGISTRY: t.ClassVar[dict[str, type]] = {}
 
     def __init__(
         self,
@@ -187,7 +185,13 @@ class Container:
 
     def display_values(
         self, display_group: str | None = None
-    ) -> t.Generator[tuple[list[str] | None, str | MLString | Markup | HtmlContent, str | MLString | Markup | HtmlContent]]:
+    ) -> t.Generator[
+        tuple[
+            list[str] | None,
+            str | MLString | Markup | HtmlContent,
+            str | MLString | Markup | HtmlContent,
+        ]
+    ]:
         for field_name in self.ordered_field_names(display_group):
             field = self._fields[field_name]
             label = field.label()
@@ -595,9 +599,7 @@ class Field[AcceptType, ActualType]:
     def _data_value_multilingual_check(self, value, lang: str | None = None, **kwargs):
         if self.is_multilingual:
             if lang is not None:
-                return self._data_value(
-                    value[lang] if lang in value else None, **kwargs
-                )
+                return self._data_value(value.get(lang, None), **kwargs)
             else:
                 return {k: self._data_value(value[k], **kwargs) for k in value}
         else:

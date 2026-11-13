@@ -12,7 +12,7 @@ CacheParameterType = t.Hashable | t.Iterable[t.Hashable]
 
 
 def cached_method[**P, Q](
-    func: t.Callable[P, Q] = None,
+    func: t.Callable[P, Q] | None = None,
     *,
     limit_args: t.Container[int] | None = None,
     limit_kwargs: t.Container[str] | None = None,
@@ -231,9 +231,7 @@ class LeastRecentCache[X, Y]:
         with self._lock:
             if len(self._values) > self._max_size:
                 d = AwareDateTime(1980, 1, 1, 0, 0, 0)
-                keys = [
-                    (k, self._value_used_times.get(k, d)) for k in self._values.keys()
-                ]
+                keys = [(k, self._value_used_times.get(k, d)) for k in self._values]
                 keys.sort(key=lambda x: x[1], reverse=True)
                 for k, _ in keys[self._max_size :]:
                     del self._values[k]

@@ -7,7 +7,7 @@ virtualenv ~= 21.15.6
 # can't install 1 or greater
 distlib ~= 0.4.4
 # can't install 5 or greater
-filelock ~= 3.29.0
+filelock ~= 4.2.10
 packaging ~= 26.3
 platformdirs ~= 4.13.5
 python-discovery ~= 1.9.5
@@ -34,17 +34,17 @@ cyclonedx-python-lib ~= 11.12.0
 license-expression ~= 30.4.4
 boolean.py ~= 5.0
 packageurl-python ~= 0.17.6
-py-serializable ~= 2.1.0
+py-serializable ~= 2.2.0
 defusedxml ~= 0.7.1
 sortedcontainers ~= 2.4.0
 pip-api ~= 0.0.35
 pip-requirements-parser ~= 32.0.1
 pyparsing ~= 3.3.3
-platformdirs ~= 4.13.5
+platformdirs ~= 4.14.5
 tomli ~= 2.5.0
 tomli_w ~= 1.2.0
 
-pipdeptree ~= 2.35.2
-
+pipdeptree ~= 4.2.14
+Sphinx ~= 9.2.0
 sphinx-rtd-theme ~= 3.1.0
 sphinxcontrib-jquery ~= 4.1

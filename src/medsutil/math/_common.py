@@ -223,13 +223,11 @@ def match_convert[T](
     """If any of the arguments are decimals, converts them all to decimals otherwise converts to floats."""
     has_decimals = False
     for x in args:
-        if isinstance(x, decimal.Decimal):
+        if isinstance(x, decimal.Decimal) or (
+            mt.is_science_number(x) and isinstance(x.nominal_value, decimal.Decimal)
+        ):
             has_decimals = True
             break
-        elif mt.is_science_number(x):
-            if isinstance(x.nominal_value, decimal.Decimal):
-                has_decimals = True
-                break
     if has_decimals:
         return tuple(convert(x, to_float=False) for x in args)
     else:

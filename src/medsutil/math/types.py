@@ -8,10 +8,8 @@ class NotSupportedMathOperation(ValueError):
     """An error for when there is a math error"""
 
 
-
 class MathTypeError(TypeError):
     """A math-based type error."""
-
 
 
 class Placeholder:

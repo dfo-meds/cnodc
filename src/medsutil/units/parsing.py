@@ -201,9 +201,7 @@ def _parse_logs(pieces: list[str]) -> list[str]:
                 elif log_argument.startswith("re"):
                     log_argument = log_argument[2:].strip()
                 skip_next = True
-                new_pieces.append(
-                    Log(parse_unit_string(log_argument), info)
-                )
+                new_pieces.append(Log(parse_unit_string(log_argument), info))
                 break
         else:
             new_pieces.append(pieces[idx])

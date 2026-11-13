@@ -22,7 +22,6 @@ AZURE_FILE_SHARES = (
 
 
 class AzureMockClientPool:
-
     def __init__(self):
         self.containers: dict[str, _AzureContainer] = {}
         self.shares: dict[str, _AzureFileShare] = {}

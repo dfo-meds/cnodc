@@ -13,7 +13,7 @@ class MockBathymetryModel:
         try:
             depth = self.water_depth(longitude, latitude)
             return ScienceNumber.from_float(depth, units="m")
-        except (IndexError, KeyError):
+        except IndexError, KeyError:
             return None
 
     def water_depth(self, x: amath.AnyNumber, y: amath.AnyNumber) -> float:

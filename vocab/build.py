@@ -16,7 +16,12 @@ def map_group_for_tests(group_human_name: str):
         return "child_record"
     elif group_human_name == "Metadata (Element)":
         return "element"
-    elif group_human_name == "Metadata (Platform)" or group_human_name == "Metadata (Mission)" or group_human_name == "Metadata (Parent)" or group_human_name == "Metadata (Product)":
+    elif (
+        group_human_name == "Metadata (Platform)"
+        or group_human_name == "Metadata (Mission)"
+        or group_human_name == "Metadata (Parent)"
+        or group_human_name == "Metadata (Product)"
+    ):
         return "parent_record"
     elif group_human_name == "Metadata (Recordset)":
         return "recordset"
@@ -201,7 +206,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
                 output.write(f'  skos:prefLabel "{row[2]}"@fr ;\n')
             # if present, at least one from each group of coordinates is required for it to make sense.
             if row[3]:
-                output.writelines(f'  rstypes:requireCoordinate "{sanitize(coordinate_name)}" ;\n' for coordinate_name in row[3].split("+"))
+                output.writelines(
+                    f'  rstypes:requireCoordinate "{sanitize(coordinate_name)}" ;\n'
+                    for coordinate_name in row[3].split("+")
+                )
             # scheme
             output.write("  skos:inScheme rstypes:recordSetTypes .\n")
 
@@ -250,7 +258,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
                 output.write(f"  cnodc:ioosCategory ioos:{sanitize(row[10])} ; \n")
             # CIOOS EOVs
             if row[11]:
-                output.writelines(f"  cnodc:essentialOceanVariable eov:{sanitize(eov)} ; \n" for eov in row[11].split(";"))
+                output.writelines(
+                    f"  cnodc:essentialOceanVariable eov:{sanitize(eov)} ; \n"
+                    for eov in row[11].split(";")
+                )
             # Minimum valid value
             if row[12]:
                 output.write(f"  cnodc:minValue {row[12]} ; \n")
@@ -259,7 +270,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
                 output.write(f"  cnodc:maxValue {row[13]} ; \n")
             # Allowed values, separated by semicolons
             if row[14]:
-                output.writelines(f'  cnodc:allowedValue "{allowed_value}" ;\n' for allowed_value in row[14].split(";"))
+                output.writelines(
+                    f'  cnodc:allowedValue "{allowed_value}" ;\n'
+                    for allowed_value in row[14].split(";")
+                )
             # Whether to ignore this field when checking for duplicates.
             if row[15] and row[15] == "Y":
                 output.write('  cnodc:ignoreInDuplicateCheck "True" ;\n')
@@ -318,7 +332,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
             if row[0] in maps:
                 for vocab_name in maps[row[0]]:
                     if vocab_name == "WMO Codes":
-                        output.writelines(f'  cnodc:wmoCodeGroup "{mapping[1]}" ; \n' for mapping in maps[row[0]][vocab_name])
+                        output.writelines(
+                            f'  cnodc:wmoCodeGroup "{mapping[1]}" ; \n'
+                            for mapping in maps[row[0]][vocab_name]
+                        )
                     else:
                         prefix = map_vocab(vocab_name)
                         for mapping in maps[row[0]][vocab_name]:

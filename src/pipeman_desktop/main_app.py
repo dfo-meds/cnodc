@@ -87,7 +87,7 @@ class PipemanDispatcher(threading.Thread):
         on_success: t.Callable,
         on_error: t.Callable | None = None,
         job_args: list | None = None,
-        job_kwargs: dict| None = None,
+        job_kwargs: dict | None = None,
     ):
 
         _ = dynamic_object(job_callable)
@@ -274,11 +274,12 @@ class PipemanDesktop:
         if change_type & DisplayChange.HISTORY:
             self.menus.set_state("qc/undo", self.state.can_undo())
             self.menus.set_state("qc/redo", self.state.can_redo())
-        if change_type & DisplayChange.QC_MODE and self._current_state != self.state.qc_mode:
+        if (
+            change_type & DisplayChange.QC_MODE
+            and self._current_state != self.state.qc_mode
+        ):
             self._display_modes[self._current_state].grid_forget()
-            self._display_modes[self.state.qc_mode].grid(
-                row=1, column=0, sticky="NSEW"
-            )
+            self._display_modes[self.state.qc_mode].grid(row=1, column=0, sticky="NSEW")
             self._current_state = self.state.qc_mode
         self._pane_broadcast("refresh_display", app_state, change_type)
 

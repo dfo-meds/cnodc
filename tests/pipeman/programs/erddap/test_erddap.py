@@ -177,8 +177,11 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_config_no_username(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertLogs("cnodc.erddap", "ERROR"), self.assertRaisesCoded("ERDDAPUTIL-1000"):
-                    control.reload_dataset("foo")
+            with (
+                self.assertLogs("cnodc.erddap", "ERROR"),
+                self.assertRaisesCoded("ERDDAPUTIL-1000"),
+            ):
+                control.reload_dataset("foo")
             self.assertEqual(0, len(self.reloaded))
 
     @zr.test_with_config(
@@ -187,8 +190,11 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_config_no_password(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertLogs("cnodc.erddap", "ERROR"), self.assertRaisesCoded("ERDDAPUTIL-1000"):
-                    control.reload_dataset("foo")
+            with (
+                self.assertLogs("cnodc.erddap", "ERROR"),
+                self.assertRaisesCoded("ERDDAPUTIL-1000"),
+            ):
+                control.reload_dataset("foo")
             self.assertEqual(0, len(self.reloaded))
 
     @zr.test_with_config(
@@ -202,8 +208,11 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_config_no_base_url(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertLogs("cnodc.erddap", "ERROR"), self.assertRaisesCoded("ERDDAPUTIL-1000"):
-                    control.reload_dataset("foo")
+            with (
+                self.assertLogs("cnodc.erddap", "ERROR"),
+                self.assertRaisesCoded("ERDDAPUTIL-1000"),
+            ):
+                control.reload_dataset("foo")
             self.assertEqual(0, len(self.reloaded))
 
     @zr.test_with_config(
@@ -218,8 +227,11 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_base_url_not_str(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertLogs("cnodc.erddap", "ERROR"), self.assertRaisesCoded("ERDDAPUTIL-1000"):
-                    control.reload_dataset("foo")
+            with (
+                self.assertLogs("cnodc.erddap", "ERROR"),
+                self.assertRaisesCoded("ERDDAPUTIL-1000"),
+            ):
+                control.reload_dataset("foo")
             self.assertEqual(0, len(self.reloaded))
 
     @zr.test_with_config(
@@ -251,8 +263,11 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_cluster(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertLogs("cnodc.erddap", "ERROR"), self.assertRaisesCoded("ERDDAPUTIL-1000"):
-                    control.reload_dataset("foo", cluster_name="bar")
+            with (
+                self.assertLogs("cnodc.erddap", "ERROR"),
+                self.assertRaisesCoded("ERDDAPUTIL-1000"),
+            ):
+                control.reload_dataset("foo", cluster_name="bar")
             self.assertEqual(0, len(self.reloaded))
 
     @zr.test_with_config(
@@ -283,7 +298,10 @@ class TestERDDAPWorkerAndConnection(BaseTestCase):
     def test_bad_config_no_cluster_defined(self):
         with self.mock_web_test():
             control = ErddapController()
-            with self.assertLogs("cnodc.erddap", "ERROR"), self.assertRaisesCoded("ERDDAPUTIL-1000"):
+            with (
+                self.assertLogs("cnodc.erddap", "ERROR"),
+                self.assertRaisesCoded("ERDDAPUTIL-1000"),
+            ):
                 control.reload_dataset("foo", cluster_name="hello")
             self.assertEqual(0, len(self.reloaded))
 

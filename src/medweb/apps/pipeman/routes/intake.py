@@ -32,10 +32,7 @@ def submit_file(workflow_name: str, im: IntakeManager = None):
     return im.submit_file(
         workflow_name,
         flask.request.data,
-        {
-            x.lower(): y or ""
-            for x, y in flask.request.headers.items()
-        },
+        {x.lower(): y or "" for x, y in flask.request.headers.items()},
     )
 
 
@@ -47,10 +44,7 @@ def submit_followup_file(workflow_name: str, request_id: str, im: IntakeManager 
     return im.submit_file(
         workflow_name,
         flask.request.data,
-        {
-            x.lower(): y or ""
-            for x, y in flask.request.headers.items()
-        },
+        {x.lower(): y or "" for x, y in flask.request.headers.items()},
         request_id=request_id,
     )
 
@@ -63,8 +57,5 @@ def cancel_upload(workflow_name: str, request_id: str, im: IntakeManager = None)
     return im.cancel_upload(
         workflow_name,
         request_id,
-        {
-            x.lower(): y or ""
-            for x, y in flask.request.headers.items()
-        },
+        {x.lower(): y or "" for x, y in flask.request.headers.items()},
     )

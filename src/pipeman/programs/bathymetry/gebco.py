@@ -80,7 +80,7 @@ class GEBCOBathymetry(FastGeoGrid):
             bathymetry.build_file(_get_value, output=output)
             with open(output_file.parent / (output_file.name + ".finished"), "w") as h:
                 h.write("done")
-        except (KeyboardInterrupt, Exception):
+        except KeyboardInterrupt, Exception:
             output_file.unlink(True)
             raise
         finally:

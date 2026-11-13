@@ -20,7 +20,9 @@ class CNODCError(exceptions.CodedError):
 
 
 class TransientError(CNODCError):
-    def __init__(self, msg: str, code_space: str = "CNODC", code_number: int | None = None):
+    def __init__(
+        self, msg: str, code_space: str = "CNODC", code_number: int | None = None
+    ):
         super().__init__(msg, code_space, code_number, is_transient=True)
 
 

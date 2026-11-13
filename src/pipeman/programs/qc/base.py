@@ -129,9 +129,7 @@ class QualityController(abc.ABC):
         self._test_name = test_name
         self._station_invariant = station_invariant
         self._test_version = test_version
-        self._test_tags = {
-            (x for x in (test_tags or []) if x is not None)
-        }
+        self._test_tags = {(x for x in (test_tags or []) if x is not None)}
         self._working_sort = working_sort
         self._qc_messages: list[ocproc2.QCMessage] = []
         self._qc_result: ocproc2.QCResult = ocproc2.QCResult.PASS
@@ -597,9 +595,7 @@ class QualityController(abc.ABC):
         for record in records:
             if include_parameters is not None:
                 param_names.update(
-                    k
-                    for k in record.record.parameters
-                    if k in include_parameters
+                    k for k in record.record.parameters if k in include_parameters
                 )
             else:
                 param_names.update(record.record.parameters.keys())
@@ -620,9 +616,7 @@ class QualityController(abc.ABC):
             keyed_elements.append(keyed)
             keys.update(keyed.keys())
         for key in keys:
-            yield tuple(
-                by_key.get(key, None) for by_key in keyed_elements
-            )
+            yield tuple(by_key.get(key, None) for by_key in keyed_elements)
 
     def extract_good_values(
         self,
@@ -764,7 +758,11 @@ class QualityController(abc.ABC):
         **kwargs,
     ) -> bool:
         if element not in collection:
-            if add_ref and isinstance(collection, t.Iterable) and not kwargs.get("ref_value", None):
+            if (
+                add_ref
+                and isinstance(collection, t.Iterable)
+                and not kwargs.get("ref_value", None)
+            ):
                 kwargs["ref_value"] = collection
             self.report_qc_error(msg or "not_in", **kwargs)
         return True
@@ -1164,4 +1162,7 @@ class RealSearchEngine(CachedObjectMixin):
             is not None
         ):
             return True
-        return NODBWorkingRecord.find_by_uuid(self._db, obs_uuid, key_only=True) is not None
+        return (
+            NODBWorkingRecord.find_by_uuid(self._db, obs_uuid, key_only=True)
+            is not None
+        )

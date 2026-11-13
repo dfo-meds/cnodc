@@ -107,10 +107,7 @@ class WebAPIClient:
         else:
             json_body = response.json()
             if "error" in json_body:
-                raise RemoteAPIError(
-                    json_body["error"],
-                    json_body.get("code", None)
-                )
+                raise RemoteAPIError(json_body["error"], json_body.get("code", None))
             raise LocalAPIError("Expected raw file, got JSON", 1300)
 
     @with_remote_api_error_handling
@@ -121,9 +118,7 @@ class WebAPIClient:
             response.raise_for_status()
         json_body = response.json()
         if "error" in json_body:
-            raise RemoteAPIError(
-                json_body["error"], json_body.get("code", None)
-            )
+            raise RemoteAPIError(json_body["error"], json_body.get("code", None))
         return json_body
 
 

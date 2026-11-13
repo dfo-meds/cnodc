@@ -5,6 +5,7 @@ import hashlib
 import typing as t
 from _hashlib import HASH
 
+import medsutil.types as ct
 from medsutil import awaretime
 from medsutil.awaretime import AwareDateTime
 from medsutil.lazy_load import LazyLoadList
@@ -26,11 +27,8 @@ from medsutil.ocproc2.history import (
     QCResult,
     QCTestRunInfo,
 )
-import medsutil.types as ct
-
 
 if t.TYPE_CHECKING:
-
     from medsutil.ocproc2.elements import DefaultValueDict, SupportedValueOrElement
 
     type FindType = (
@@ -200,7 +198,9 @@ class BaseRecord:
         except KeyError:
             ...
 
-    def iter_subrecords(self, subrecord_type: str | None = None) -> t.Iterable[BaseRecord]:
+    def iter_subrecords(
+        self, subrecord_type: str | None = None
+    ) -> t.Iterable[BaseRecord]:
         if self._subrecords is not None:
             yield from self._subrecords.iter_subrecords(subrecord_type)
 
@@ -514,7 +514,7 @@ class RecordSet:
             if idx < 0 or idx >= len(self.records):
                 return None
             return self.records[idx].find_child(path)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return None
 
 

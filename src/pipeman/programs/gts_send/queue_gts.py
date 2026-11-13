@@ -1,4 +1,3 @@
-
 import nodb as orm
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payload_worker import ObservationWorkflowWorker
@@ -11,9 +10,7 @@ class GTSQueueWorker(ObservationWorkflowWorker):
         super().__init__(process_name="gts_enqueuer", process_version="1.0", **kwargs)
         self.set_defaults({})
 
-    def process_payload(
-        self, payload: ObservationPayload
-    ) -> QueueItemResult | None:
+    def process_payload(self, payload: ObservationPayload) -> QueueItemResult | None:
         if "gts_info" not in payload.metadata or not payload.metadata["gts_info"]:
             raise CNODCError("Missing GTS message data")
         if isinstance(payload.metadata["gts_info"], (list, tuple, set)):

@@ -86,7 +86,7 @@ class OCProc2DebugCodec(BaseCodec):
                     break
             m_headers = set()
             for sr in rs.records:
-                m_headers.update(mk for mk in sr.metadata.keys() if mk not in m_common)
+                m_headers.update(mk for mk in sr.metadata if mk not in m_common)
             m_headers = [x for x in m_headers]
             m_values = {mk: [] for mk in m_headers}
             for sr in rs.records:

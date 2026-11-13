@@ -56,8 +56,8 @@ class TkinterMapView(tkinter.Frame):
 
         self.width = width
         self.height = height
-        self.corner_radius = (
-            min(corner_radius, 30)
+        self.corner_radius = min(
+            corner_radius, 30
         )  # corner_radius can't be greater than 30
         self.configure(width=self.width, height=self.height)
 
@@ -496,7 +496,11 @@ class TkinterMapView(tkinter.Frame):
         return marker_object
 
     def set_address(
-        self, address_string: str, marker: bool = False, text: str | None = None, **kwargs
+        self,
+        address_string: str,
+        marker: bool = False,
+        text: str | None = None,
+        **kwargs,
     ) -> CanvasPositionMarker:
         """Function uses geocode service of OpenStreetMap (Nominatim).
         https://geocoder.readthedocs.io/providers/OpenStreetMap.html"""
@@ -1168,7 +1172,9 @@ class TkinterMapView(tkinter.Frame):
             self.check_map_border_crossing()
             self.draw_move()
 
-            if self.running and (abs(self.move_velocity[0]) > 1 or abs(self.move_velocity[1]) > 1):
+            if self.running and (
+                abs(self.move_velocity[0]) > 1 or abs(self.move_velocity[1]) > 1
+            ):
                 self.after(1, self.fading_move)
 
     def set_zoom(

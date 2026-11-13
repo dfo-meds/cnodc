@@ -103,9 +103,7 @@ def hash_password(
 
 def generate_secure_random_password() -> str:
     """Generates a secure random password."""
-    return "".join(
-        secrets.choice(PASSWORD_CHARACTERS) for _ in range(PASSWORD_LENGTH)
-    )
+    return "".join(secrets.choice(PASSWORD_CHARACTERS) for _ in range(PASSWORD_LENGTH))
 
 
 def generate_secure_key(length: int = 16) -> bytes:

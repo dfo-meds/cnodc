@@ -1,4 +1,3 @@
-
 from autoinject import injector
 
 import gcapp.i18n.base as i18n

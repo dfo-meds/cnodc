@@ -62,13 +62,13 @@ class CursorWrapper:
             self._in_tx = True
 
     def truncate_table(self, table_name: str):
-        self.execute(f"DELETE FROM {table_name}")
+        self.execute(f"DELETE FROM {table_name}")  # nosec: B608  # table_name is not user generated
 
     def insert(self, table_name: str, values: dict) -> int:
         keys = list(values.keys())
         actual_values = [self._clean_for_insert(values[k]) for k in keys]
         value_placeholders = ",".join("?" for _ in keys)
-        q = f"INSERT INTO {table_name}({','.join(keys)}) VALUES ({value_placeholders})"
+        q = f"INSERT INTO {table_name}({','.join(keys)}) VALUES ({value_placeholders})" # nosec: B608 # table_name, keys, and placeholders are not user generated
         self.execute(q, actual_values)
         return t.cast(int, self._cursor.lastrowid)
 
@@ -80,13 +80,13 @@ class CursorWrapper:
         actual_values.extend([self._clean_for_insert(values[k]) for k in v_keys])
         where_clause = " AND ".join(f"{key} = ?" for key in w_keys)
         actual_values.extend([self._clean_for_insert(where[k]) for k in w_keys])
-        q = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
+        q = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"  # nosec: B608 # table_name, set_clause, and where_clause are not user generated
         self.execute(q, actual_values)
 
     def delete(self, table_name: str, values: dict):
         keys = list(values.keys())
         clause = " AND ".join(f"{key} = ?" for key in keys)
-        q = f"DELETE FROM {table_name} WHERE {clause}"
+        q = f"DELETE FROM {table_name} WHERE {clause}"  # nosec: B608 # table_name and clause are not user generated
         self.execute(q, [values[x] for x in keys])
 
     def _clean_for_insert(self, value):

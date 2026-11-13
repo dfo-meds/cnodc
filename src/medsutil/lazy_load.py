@@ -21,8 +21,8 @@ class LazyLoadDict[KeyType, UnloadedType, LoadedType]:
     def __len__(self) -> int:
         return len(self._dict)
 
-    def __iter__(self) -> t.Iterable[KeyType]:
-        yield from self.keys()
+    def __iter__(self) -> t.Iterator[KeyType]:
+        return iter(self.keys())
 
     def __getitem__(self, item: KeyType) -> LoadedType:
         try:
@@ -52,11 +52,11 @@ class LazyLoadDict[KeyType, UnloadedType, LoadedType]:
         return self._dict.keys()
 
     def values(self) -> t.Generator[LoadedType]:
-        for key in self._dict.keys():
+        for key in self._dict:
             yield self._load(key)
 
     def items(self) -> t.Iterable[tuple[KeyType, LoadedType]]:
-        for key in self._dict.keys():
+        for key in self._dict:
             yield key, self._load(key)
 
     def clear(self):
@@ -115,9 +115,8 @@ class LazyLoadList[UnloadedType, LoadedType]:
     def __bool__(self) -> bool:
         return bool(self._list)
 
-    def __iter__(self) -> t.Iterable[LoadedType]:
-        # TODO: this is implemented wrong I think.
-        yield from self.iterate_with_load()
+    def __iter__(self) -> t.Iterator[LoadedType]:
+        return iter(self.iterate_with_load())
 
     def __len__(self) -> int:
         return len(self._list)

@@ -52,7 +52,6 @@ class SqlCondition:
     """Represents a SQL condition that can be translated into SQL code."""
 
 
-
 class And(SqlCondition):
     """SQL "AND" statement - all given conditions must be true."""
 

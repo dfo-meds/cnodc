@@ -145,7 +145,8 @@ if _t.TYPE_CHECKING:
         def update(self, b: bytes): ...
 
     SupportsByteStreaming = (
-        bytes | bytearray
+        bytes
+        | bytearray
         | str
         | _os.PathLike
         | SupportsBinaryRead

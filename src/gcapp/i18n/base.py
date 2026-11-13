@@ -174,7 +174,9 @@ class DStringComposition(BaseDString):
 class FormattableString(BaseDString):
     """A string that can be formatted"""
 
-    def __init__(self, *format_args, _transforms: list[str] = None, **format_kwargs):
+    def __init__(
+        self, *format_args, _transforms: list[str] | None = None, **format_kwargs
+    ):
         """
         :param format_args: Arguments to render with
         :param _transforms: Transformations to apply (i.e. functions to call on the final string)
@@ -264,7 +266,9 @@ class MLString(FormattableString):
         return all(not self.language_map[x] for x in self.language_map)
 
     @injector.inject
-    def _render(self, language: str = None, ld: LanguageDetector = auto(), **kwargs):
+    def _render(
+        self, language: str | None = None, ld: LanguageDetector = auto(), **kwargs
+    ):
         lang_opts = list(self.language_map.keys())
         lang = (
             language
@@ -336,8 +340,8 @@ class MLLink(MLString):
         text = super().render(**kwargs)
         target = "" if not self.new_tab else " target='_blank'"
         return markupsafe.Markup(
-            f'<a href="{self.link}"{target}>{markupsafe.escape(text)}</a>'
-        )
+            f'<a href="{markupsafe.escape(self.link)}"{target}>{markupsafe.escape(text)}</a>'
+        )  # nosec: B704  # trusted data only
 
     def _build(
         self,
@@ -468,9 +472,9 @@ def i18n_sort_key[T](
                 x = x[lang]
                 break
         else:
-            for lang in x.keys():
-                if x[lang]:
-                    x = x[lang]
+            for lang, value in x.items():
+                if value:
+                    x = value
                     break
             else:
                 x = ""

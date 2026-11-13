@@ -77,7 +77,7 @@ class OfflineLoader:
                             .replace("{z}", str(zoom))
                         )
                         image_data = requests.get(
-                            url, stream=True, headers={"User-Agent": "TkinterMapView"}
+                            url, stream=True, headers={"User-Agent": "TkinterMapView"}, timeout=5
                         ).content
 
                         self.lock.acquire()
@@ -156,7 +156,7 @@ class OfflineLoader:
             return
 
         # insert tile_server if not in database
-        db_cursor.execute(f"SELECT * FROM server s WHERE s.url='{self.tile_server}';")
+        db_cursor.execute("SELECT * FROM server s WHERE s.url = ?", (self.tile_server, ))
         if len(db_cursor.fetchall()) == 0:
             db_cursor.execute(
                 "INSERT INTO server (url, max_zoom) VALUES (?, ?);",

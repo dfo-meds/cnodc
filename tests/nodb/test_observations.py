@@ -277,9 +277,7 @@ class TestPlatform(BaseTestCase):
             for x in NODBPlatform.search(
                 self.db,
                 wmo_id="0000008",
-                in_service_time=AwareDateTime(
-                    2015, 1, 2, 0, 0, 0, tzinfo=datetime.UTC
-                ),
+                in_service_time=AwareDateTime(2015, 1, 2, 0, 0, 0, tzinfo=datetime.UTC),
             )
         ]
         self.assertEqual(1, len(x))
@@ -292,9 +290,7 @@ class TestPlatform(BaseTestCase):
             for x in NODBPlatform.search(
                 self.db,
                 wmo_id="0000008",
-                in_service_time=AwareDateTime(
-                    2016, 1, 2, 0, 0, 0, tzinfo=datetime.UTC
-                ),
+                in_service_time=AwareDateTime(2016, 1, 2, 0, 0, 0, tzinfo=datetime.UTC),
             )
         ]
         self.assertEqual(1, len(x))
@@ -307,9 +303,7 @@ class TestPlatform(BaseTestCase):
             for x in NODBPlatform.search(
                 self.db,
                 wmo_id="0000008",
-                in_service_time=AwareDateTime(
-                    2016, 1, 1, 0, 0, 0, tzinfo=datetime.UTC
-                ),
+                in_service_time=AwareDateTime(2016, 1, 1, 0, 0, 0, tzinfo=datetime.UTC),
             )
         ]
         self.assertEqual(1, len(x))

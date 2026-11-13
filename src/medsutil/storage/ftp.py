@@ -103,7 +103,7 @@ class _FTPWrapper:
         if "username" not in config:
             config["username"] = ""
         if "password" not in config:
-            config["password"] = ""  # noqa: B105 # default blank password for anon login
+            config["password"] = ""  # nosec: B105 # default blank password for anon login
         if "tls" not in config:
             config["tls"] = "none"
         if "port" not in config:

@@ -57,7 +57,7 @@ class CanvasTile:
         try:
             self.map_widget.canvas.delete(self.canvas_object)
         except Exception:
-            pass
+            pass  # TODO: logging
 
     def draw(self, image_update=False):
 

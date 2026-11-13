@@ -57,7 +57,13 @@ class WSIValidator(Validator):
 
 
 class PlatformDialog(FormDialog):
-    PLATFORM_IDS: tuple[str] = ("wmo_id", "wigos_id", "platform_name", "platform_id", "ship_code",)
+    PLATFORM_IDS: tuple[str] = (
+        "wmo_id",
+        "wigos_id",
+        "platform_name",
+        "platform_id",
+        "ship_code",
+    )
 
     PLATFORM_STATUS: t.ClassVar[dict[str, str]] = {
         "ACTIVE": "platform_status.active",
@@ -70,7 +76,10 @@ class PlatformDialog(FormDialog):
         "glider": "platform.glider",
     }
 
-    SPEED_UNITS: tuple[str] = ("m s-1", "knots",)
+    SPEED_UNITS: tuple[str] = (
+        "m s-1",
+        "knots",
+    )
 
     def __init__(self, parent, defaults=None, readonly=False):
         super().__init__(parent, i18n.tr("dialog.platform.title"), defaults, readonly)
@@ -402,9 +411,7 @@ class PlatformPane(BasePane):
 
     def _on_right_click(self, item, event):
         cm = PlatformContextMenu(
-            self.app,
-            item["iid"],
-            self._can_update_platform.get(item["iid"], False)
+            self.app, item["iid"], self._can_update_platform.get(item["iid"], False)
         )
         cm.handle_popup_click(event)
 

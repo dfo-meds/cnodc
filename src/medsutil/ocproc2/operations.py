@@ -99,13 +99,9 @@ class OCProc2Action(dd.DataDictObject):
         if not hasattr(action_type, "ACTION_NAME"):
             raise TypeError("Must have ACTION_NAME")
         if OCProc2Action.ACTION_TYPES is None:
-            OCProc2Action.ACTION_TYPES = {
-                str(action_type.ACTION_NAME): action_type
-            }
+            OCProc2Action.ACTION_TYPES = {str(action_type.ACTION_NAME): action_type}
         else:
-            OCProc2Action.ACTION_TYPES[str(action_type.ACTION_NAME)] = (
-                action_type
-            )
+            OCProc2Action.ACTION_TYPES[str(action_type.ACTION_NAME)] = action_type
         return action_type
 
 

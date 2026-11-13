@@ -1,4 +1,3 @@
-
 from tkinter import ttk
 
 from autoinject import injector
@@ -126,6 +125,6 @@ class RelationshipsPane(BasePane):
         cm = PlatformContextMenu(
             self.app,
             item_info["iid"],
-            self._can_update_platform.get(item_info["iid"], False)
+            self._can_update_platform.get(item_info["iid"], False),
         )
         cm.handle_popup_click(e)

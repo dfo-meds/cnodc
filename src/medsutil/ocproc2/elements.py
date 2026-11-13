@@ -63,7 +63,11 @@ def duck_type_catch[**P](cb: t.Callable[P, None]) -> t.Callable[P, bool]:
 
 
 type AnyElementExport = (
-    ExportMultipleWithMetadata | ExportWithMetadata | ExportComplexValue | ocut.SupportedStorage | list[AnyElementExport]
+    ExportMultipleWithMetadata
+    | ExportWithMetadata
+    | ExportComplexValue
+    | ocut.SupportedStorage
+    | list[AnyElementExport]
 )
 type MetadataDict = dict[str, AnyElementExport]
 
@@ -620,7 +624,11 @@ class MultiElement(AbstractElement[list[AbstractElement]]):
                 sr = -1 * idx
             replace = False
 
-            if best_wq is None or wq in ALLOWED_QUALITY_MAP_FOR_UPGRADE[best_wq] and best_wq != 5:
+            if (
+                best_wq is None
+                or wq in ALLOWED_QUALITY_MAP_FOR_UPGRADE[best_wq]
+                and best_wq != 5
+            ):
                 replace = True
             elif wq == best_wq:
                 if best_sr is None:

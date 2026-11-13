@@ -423,7 +423,7 @@ class AuthenticationManager:
         # otherwise, go to the forbidden page
         return flask.redirect(flask.url_for(self._forbidden_redirect))
 
-    def endpoint_login(self, redirect_to: str = None) -> flask.Response | str:
+    def endpoint_login(self, redirect_to: str | None = None) -> flask.Response | str:
         """Handles a request to login via one of the available handlers.
 
         If the user is already logged in, they'll be immediately redirected.
@@ -485,7 +485,7 @@ class AuthenticationManager:
             return None
         return self.login_success(redirect_to)
 
-    def login_success(self, redirect_to: str = None) -> flask.Response:
+    def login_success(self, redirect_to: str | None = None) -> flask.Response:
         """Handles what happens next once login is successful."""
         next_url: str | None = redirect_to
         if "next_url" in flask.request.args:

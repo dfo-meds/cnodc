@@ -169,7 +169,9 @@ class MockWorkflow:
             db.insert_object(wf)
             db.commit()
 
-    def add_worker(self, worker_cls: type[BaseWorker], worker_config: dict | None = None):
+    def add_worker(
+        self, worker_cls: type[BaseWorker], worker_config: dict | None = None
+    ):
         self._worker_info.append((worker_cls, worker_config or {}))
 
     def test_file(
@@ -244,8 +246,9 @@ class MockWorkflow:
 
 
 class BaseWorkflowTestCase(BaseTestCase):
-
-    def assertEventDidOccur(self, process_name: str, event_name: str, msg: str | None = None):
+    def assertEventDidOccur(
+        self, process_name: str, event_name: str, msg: str | None = None
+    ):
         unique_events = set()
         for x in self.workflow_result.worker_events:
             if x.process_name == process_name:

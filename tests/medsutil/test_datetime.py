@@ -152,9 +152,7 @@ class TestDateTime(BaseTestCase):
 
     def test_from_timestamp(self):
         n = AwareDateTime.utcfromtimestamp(0)
-        self.assertEqual(
-            n, datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=datetime.UTC)
-        )
+        self.assertEqual(n, datetime.datetime(1970, 1, 1, 0, 0, 0, tzinfo=datetime.UTC))
 
     def test_today(self):
         dt = AwareDateTime.today()

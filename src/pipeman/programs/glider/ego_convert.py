@@ -75,9 +75,7 @@ def _ego_old_sensor_info(
         var = original_nc.variables[var_name]
         if not hasattr(var, "sensor_name"):
             continue
-        sensor_full_name = utf_normalize_string(
-            var.sensor_name.strip().lower()
-        )
+        sensor_full_name = utf_normalize_string(var.sensor_name.strip().lower())
         if sensor_full_name not in sensor_map:
             raise GliderError(f"Unknown sensor [{sensor_full_name}]", 1000)
         info: dict = copy(sensor_map[sensor_full_name])
@@ -200,7 +198,10 @@ class OpenGliderConverter:
             self._halt.breakpoint()
 
     def convert(self, ego_file, og_file, file_name: str | None = None, **kwargs):
-        with nc.Dataset(ego_file, "r") as original_nc, nc.Dataset(og_file, "w", format="NETCDF4") as open_nc:
+        with (
+            nc.Dataset(ego_file, "r") as original_nc,
+            nc.Dataset(og_file, "w", format="NETCDF4") as open_nc,
+        ):
             return self._convert(
                 open_nc,
                 original_nc,
@@ -478,9 +479,7 @@ class OpenGliderConverter:
         var = open_nc.createVariable(
             var_name,
             str if var_config["type"] == "str" else var_config["type"],
-            var_config["dimensions"]
-            if var_config.get("dimensions")
-            else (),
+            var_config["dimensions"] if var_config.get("dimensions") else (),
             **kwargs,
         )
         if var_config["attributes"]:
@@ -1081,9 +1080,7 @@ class OpenGliderConverter:
         else:
             raise ValueError(f"Bad mission time [{mission_time}]")
 
-    def validate_ego_glider_file(
-        self, file: pathlib.Path, filename: str | None = None
-    ):
+    def validate_ego_glider_file(self, file: pathlib.Path, filename: str | None = None):
         self._validate_file_name(filename or file.name)
         with nc.Dataset(file, "r") as ds:
             self._validate_glider_info(ds)

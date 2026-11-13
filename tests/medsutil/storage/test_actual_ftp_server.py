@@ -84,7 +84,10 @@ class TestFTPHandle(BaseTestCase):
         {"storage": {"ftp": {"localhost": {"username": "test", "password": "test"}}}}
     )
     def test_mkdir(self):
-        with FTPHandle("ftp://localhost/hello_world/") as handle, self.temp_data_dir("ftp_root/hello_world") as real_dir:
+        with (
+            FTPHandle("ftp://localhost/hello_world/") as handle,
+            self.temp_data_dir("ftp_root/hello_world") as real_dir,
+        ):
             self.assertFalse(real_dir.exists())
             self.assertFalse(handle.exists())
             handle.mkdir()

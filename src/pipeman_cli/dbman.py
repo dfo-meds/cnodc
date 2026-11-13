@@ -105,7 +105,5 @@ def download_errors(nodb: NODB = None):
 @injector.inject
 def redownload(file_path: str, nodb: NODB = None):
     with nodb as db, db.cursor() as cur:
-        cur.execute(
-            "DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path]
-        )
+        cur.execute("DELETE FROM nodb_scanned_files WHERE file_path = %s", [file_path])
         db.commit()

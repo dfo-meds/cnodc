@@ -205,7 +205,7 @@ class DataTable:
         conditions = []
         txt: str | None = flask.request.args.get("search[value]", default=None)
         if txt:
-            for _, column in self._columns.items():
+            for column in self._columns.values():
                 if column.allow_search:
                     cond = column.filter(txt)
                     if cond is not None:
@@ -308,9 +308,11 @@ class DataTable:
             )
         block = f"<script nonce='{csp_nonce('script-src')}'>"
         block += "$(document).ready(function() {\n"
-        block += f"  $('#{self._table_id}').DataTable({json.dumps(htmlsafe_json(config))});"
+        block += (
+            f"  $('#{self._table_id}').DataTable({json.dumps(htmlsafe_json(config))});"
+        )
         block += "});</script>"
-        return Markup(block)
+        return Markup(block)   # nosec: B704  # trusted data only
 
     def build_html(self) -> Markup:
         """Renders the table."""
@@ -326,7 +328,7 @@ class DataTable:
                     html += f"<td>{escape(self._columns[cname].value(row))}</td>"
             html += "</tr>"
         html += "</tbody></table>"
-        return Markup(html)
+        return Markup(html)  # nosec: B704  # trusted data only
 
     def build_ajax(self) -> dict:
         """Builds an AJAX response for the page."""

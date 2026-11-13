@@ -1,5 +1,84 @@
 [project]
+name = "cnodc"
+version = "1.1.0"
+description = "Tools for the CNODC"
+
 requires-python = ">=3.14"
+dependencies = [
+    "autoinject >= 2.0.0",
+    "zirconium >= 1.3.0",
+    "zrlog >= 0.3.0",
+    "requests",
+    "pyyaml",
+    "markupsafe",
+    "itsdangerous",
+    "orjson",
+    "tzdata",
+    "typing_extensions",
+]
+
+[project.optional-dependencies]
+medweb = [
+    "flask",
+    "psycopg2",
+    "netCDF4",
+    "azure-storage-blob",
+    "azure-storage-file-share",
+    "prometheus-client",
+    "prometheus-flask-exporter",
+    "flask-autoinject",
+    "flask-csrf",
+    "flask-login",
+    "flask-wtf",
+    "wtforms",
+    "click",
+]
+pipeman_desktop = [
+    "tkcalendar",
+    "pillow",
+    "matplotlib",
+    "numpy",
+    "rdflib",
+    "certifi",
+    "pyperclip",
+    "geopy",
+]
+pipeman = [
+    "prometheus_client",
+    "psycopg2",
+    "jinja2",
+    "MarkupSafe",
+    "orjson",
+    "netCDF4",
+    "numpy",
+    "requests",
+    "beautifulsoup4",
+    "shapely",
+    "psutil",
+    "itsdangerous",
+    "click",
+    "rdflib",
+    "azure-storage-blob",
+    "azure-storage-file-share",
+    "pybufrkit",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit",
+    "coverage",
+    "ruff",
+    "bandit",
+    "pip-audit",
+    "Sphinx",
+    "sphinx-rtd-theme",
+    "pyftpdlib",
+]
+docker = [
+    "gunicorn",
+    "gevent",
+    "greenlet"
+]
 
 [tool.ruff]
 extend-exclude = [
@@ -9,6 +88,7 @@ line-length = 88
 indent-width = 4
 
 [tool.ruff.lint]
+extend-select = ["I001"]
 ignore = ["SIM117", "BLE001", "RUF012"]
 
 [tool.ruff.lint.flake8-bugbear]

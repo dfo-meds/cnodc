@@ -31,9 +31,7 @@ class DateTimeValidator(Validator):
 
 
 class RangeValidator(Validator):
-    def __init__(
-        self, min_value: float | None = None, max_value: float | None = None
-    ):
+    def __init__(self, min_value: float | None = None, max_value: float | None = None):
         self._min_value = min_value
         self._max_value = max_value
 

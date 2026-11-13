@@ -253,5 +253,5 @@ class ReferenceRange:
             decimal.Decimal(map_["minimum"]) if "minimum" in map_ else None,
             decimal.Decimal(map_["maximum"]) if "maximum" in map_ else None,
             str(map_["units"]) if "units" in map_ else None,
-            map_.get("kwargs", None)
+            map_.get("kwargs", None),
         )

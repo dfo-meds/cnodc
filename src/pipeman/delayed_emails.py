@@ -1,4 +1,3 @@
-
 from autoinject import injector
 
 from medsutil.sendmail import EmailController

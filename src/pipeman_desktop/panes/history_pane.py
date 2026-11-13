@@ -40,7 +40,10 @@ class HistoryPane(BasePane):
         self._pane_id = self.app.batch_bottom.tabs()[-1]
 
     def refresh_display(self, app_state: ApplicationState, change_type: DisplayChange):
-        if change_type & (DisplayChange.RECORD | DisplayChange.ACTION) and self._history_list is not None:
+        if (
+            change_type & (DisplayChange.RECORD | DisplayChange.ACTION)
+            and self._history_list is not None
+        ):
             self.update_history_display()
         if change_type & DisplayChange.LANGUAGE:
             if self._history_list is not None:

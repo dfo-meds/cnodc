@@ -227,9 +227,7 @@ class TestWorkflowController(BaseTestCase):
             ".test.txt.": ".test.txt",
         }
         for test_file_name, result in tests.items():
-            with self.subTest(
-                filename=test_file_name, expected_result=result
-            ):
+            with self.subTest(filename=test_file_name, expected_result=result):
                 self.assertEqual(
                     result,
                     WorkflowController._sanitize_filename(test_file_name),
@@ -353,9 +351,7 @@ class TestWorkflowController(BaseTestCase):
     def test_precedence_user_file_name_second(self):
         workflow = WorkflowController(
             "test",
-            WorkflowConfiguration(
-                accept_user_filename=True
-            ),
+            WorkflowConfiguration(accept_user_filename=True),
         )
         filename = workflow._determine_filename(
             {
@@ -382,13 +378,13 @@ class TestWorkflowController(BaseTestCase):
             "test",
             WorkflowConfiguration(
                 steps={
-                        "step2": {"name": "step2", "order": 2},
-                        "step1": {
-                            "name": "step1",
-                            "order": 1,
-                        },
-                        "step4": {"name": "step4", "order": 10},
-                    }
+                    "step2": {"name": "step2", "order": 2},
+                    "step1": {
+                        "name": "step1",
+                        "order": 1,
+                    },
+                    "step4": {"name": "step4", "order": 10},
+                }
             ),
         )
         self.assertEqual(workflow.step_list(), ["step1", "step2", "step4"])
@@ -421,26 +417,26 @@ class TestWorkflowController(BaseTestCase):
             "test",
             WorkflowConfiguration(
                 steps={
-                        "step2": {
-                            "name": "step2",
-                            "order": 2,
-                            "priority": 15,
-                        },
-                        "step1": {
-                            "name": "step1",
-                            "order": 1,
-                        },
-                        "step4": {
-                            "name": "step4",
-                            "order": 10,
-                            "priority": "0",
-                            "worker_config": {
-                                "myworker": {
-                                    "hello": "world",
-                                },
+                    "step2": {
+                        "name": "step2",
+                        "order": 2,
+                        "priority": 15,
+                    },
+                    "step1": {
+                        "name": "step1",
+                        "order": 1,
+                    },
+                    "step4": {
+                        "name": "step4",
+                        "order": 10,
+                        "priority": "0",
+                        "worker_config": {
+                            "myworker": {
+                                "hello": "world",
                             },
                         },
-                    }
+                    },
+                }
             ),
         )
         payload = BatchPayload(
@@ -530,23 +526,23 @@ class TestWorkflowController(BaseTestCase):
             "test",
             WorkflowConfiguration(
                 steps={
-                        "step2": {
-                            "name": "step2",
-                            "order": 2,
-                            "priority": 15,
+                    "step2": {
+                        "name": "step2",
+                        "order": 2,
+                        "priority": 15,
+                    },
+                    "step1": {
+                        "name": "step1",
+                        "order": 1,
+                    },
+                    "step4": {
+                        "name": "step4",
+                        "order": 10,
+                        "worker_config": {
+                            "hello": "world",
                         },
-                        "step1": {
-                            "name": "step1",
-                            "order": 1,
-                        },
-                        "step4": {
-                            "name": "step4",
-                            "order": 10,
-                            "worker_config": {
-                                "hello": "world",
-                            },
-                        },
-                    }
+                    },
+                }
             ),
         )
         file = LocalHandle(self.temp_dir / "hello.txt")
@@ -590,23 +586,23 @@ class TestWorkflowController(BaseTestCase):
             "test",
             WorkflowConfiguration(
                 steps={
-                        "step2": {
-                            "name": "step2",
-                            "order": 2,
-                            "priority": 15,
+                    "step2": {
+                        "name": "step2",
+                        "order": 2,
+                        "priority": 15,
+                    },
+                    "step1": {
+                        "name": "step1",
+                        "order": 1,
+                    },
+                    "step4": {
+                        "name": "step4",
+                        "order": 10,
+                        "worker_config": {
+                            "hello": "world",
                         },
-                        "step1": {
-                            "name": "step1",
-                            "order": 1,
-                        },
-                        "step4": {
-                            "name": "step4",
-                            "order": 10,
-                            "worker_config": {
-                                "hello": "world",
-                            },
-                        },
-                    }
+                    },
+                }
             ),
         )
         file = LocalHandle(self.temp_dir / "hello.txt")
@@ -631,9 +627,7 @@ class TestWorkflowController(BaseTestCase):
     def test_extend_default_metadata(self):
         workflow = WorkflowController(
             "test",
-            WorkflowConfiguration(
-                default_metadata={"foo": "bar", "over": "write"}
-            ),
+            WorkflowConfiguration(default_metadata={"foo": "bar", "over": "write"}),
         )
         metadata = {
             "over": "not",
@@ -648,9 +642,7 @@ class TestWorkflowController(BaseTestCase):
     def test_validate_file(self, d: InjectableDict = None):
         workflow = WorkflowController(
             "test",
-            WorkflowConfiguration(
-                validation=dynamic_name(_fake_validation_called)
-            ),
+            WorkflowConfiguration(validation=dynamic_name(_fake_validation_called)),
         )
         workflow._validate_file_upload(
             self.temp_dir / "hello.txt", {"foo": "bar"}, "hello.txt"
@@ -665,30 +657,33 @@ class TestWorkflowController(BaseTestCase):
             "test",
             WorkflowConfiguration(
                 working_target={
-                        "directory": self.temp_dir / "hello",
-                    }, accept_user_filename=True, additional_targets=[
-                        {
-                            "directory": self.temp_dir / "hello2",
-                            "gzip": True,
+                    "directory": self.temp_dir / "hello",
+                },
+                accept_user_filename=True,
+                additional_targets=[
+                    {
+                        "directory": self.temp_dir / "hello2",
+                        "gzip": True,
+                    },
+                ],
+                steps={
+                    "step2": {
+                        "name": "step2",
+                        "order": 2,
+                        "priority": 15,
+                    },
+                    "step1": {
+                        "name": "step1",
+                        "order": 1,
+                    },
+                    "step4": {
+                        "name": "step4",
+                        "order": 10,
+                        "worker_config": {
+                            "hello": "world",
                         },
-                    ], steps={
-                        "step2": {
-                            "name": "step2",
-                            "order": 2,
-                            "priority": 15,
-                        },
-                        "step1": {
-                            "name": "step1",
-                            "order": 1,
-                        },
-                        "step4": {
-                            "name": "step4",
-                            "order": 10,
-                            "worker_config": {
-                                "hello": "world",
-                            },
-                        },
-                    }
+                    },
+                },
             ),
         )
         file = self.temp_dir / "file.txt"
@@ -732,30 +727,33 @@ class TestWorkflowController(BaseTestCase):
             "test",
             WorkflowConfiguration(
                 working_target={
-                        "directory": self.temp_dir / "hello",
-                        "gzip": True,
-                    }, accept_user_filename=True, additional_targets=[
-                        {
-                            "directory": self.temp_dir / "hello2",
+                    "directory": self.temp_dir / "hello",
+                    "gzip": True,
+                },
+                accept_user_filename=True,
+                additional_targets=[
+                    {
+                        "directory": self.temp_dir / "hello2",
+                    },
+                ],
+                steps={
+                    "step2": {
+                        "name": "step2",
+                        "order": 2,
+                        "priority": 15,
+                    },
+                    "step1": {
+                        "name": "step1",
+                        "order": 1,
+                    },
+                    "step4": {
+                        "name": "step4",
+                        "order": 10,
+                        "worker_config": {
+                            "hello": "world",
                         },
-                    ], steps={
-                        "step2": {
-                            "name": "step2",
-                            "order": 2,
-                            "priority": 15,
-                        },
-                        "step1": {
-                            "name": "step1",
-                            "order": 1,
-                        },
-                        "step4": {
-                            "name": "step4",
-                            "order": 10,
-                            "worker_config": {
-                                "hello": "world",
-                            },
-                        },
-                    }
+                    },
+                },
             ),
         )
         file = self.temp_dir / "file.txt"
@@ -795,32 +793,37 @@ class TestWorkflowController(BaseTestCase):
             "test",
             WorkflowConfiguration(
                 working_target={
-                        "directory": self.temp_dir / "hello",
-                        "gzip": True,
-                    }, accept_user_filename=True, additional_targets=[
-                        {
-                            "directory": self.temp_dir / "hello2",
+                    "directory": self.temp_dir / "hello",
+                    "gzip": True,
+                },
+                accept_user_filename=True,
+                additional_targets=[
+                    {
+                        "directory": self.temp_dir / "hello2",
+                    },
+                ],
+                steps={
+                    "step2": {
+                        "name": "step2",
+                        "order": 2,
+                        "priority": 15,
+                    },
+                    "step1": {
+                        "name": "step1",
+                        "order": 1,
+                    },
+                    "step4": {
+                        "name": "step4",
+                        "order": 10,
+                        "worker_config": {
+                            "hello": "world",
                         },
-                    ], steps={
-                        "step2": {
-                            "name": "step2",
-                            "order": 2,
-                            "priority": 15,
-                        },
-                        "step1": {
-                            "name": "step1",
-                            "order": 1,
-                        },
-                        "step4": {
-                            "name": "step4",
-                            "order": 10,
-                            "worker_config": {
-                                "hello": "world",
-                            },
-                        },
-                    }, default_metadata={
-                        "foo2": "bar2",
-                    }, validation=dynamic_name(_fake_validation_called)
+                    },
+                },
+                default_metadata={
+                    "foo2": "bar2",
+                },
+                validation=dynamic_name(_fake_validation_called),
             ),
         )
         file = self.temp_dir / "file.txt"

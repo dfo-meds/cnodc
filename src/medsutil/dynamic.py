@@ -11,7 +11,9 @@ class DynamicObjectLoadError(CodedError):
     CODE_SPACE = "DOBJ"
 
 
-def dynamic_name(__obj: object | type | types.FunctionType | types.ModuleType) -> str:
+def dynamic_name(
+    __obj: object | type | types.FunctionType | types.ModuleType, /
+) -> str:
     """Returns the fully-qualified name of a Python object."""
     if not isinstance(__obj, (type, types.FunctionType, types.ModuleType)):
         __obj = type(__obj)

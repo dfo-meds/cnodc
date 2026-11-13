@@ -1,6 +1,6 @@
 import pathlib
 import threading
-import xml.etree.ElementTree as ET  # nosec B314 # file is under our control
+import xml.etree.ElementTree as ET  # nosec: B405 # file is under our control but should switch to defusedxml
 
 import zrlog
 from autoinject import injector
@@ -194,9 +194,7 @@ class UnitConverter:
         self, quantity: T, original_units: str, output_units: str
     ) -> T:
         self._load_tables()
-        factor_original, dims_original, _ = self._conversion_info(
-            original_units
-        )
+        factor_original, dims_original, _ = self._conversion_info(original_units)
         factor_output, dims_output, _ = self._conversion_info(output_units)
         if not self._check_compatibility(dims_original, dims_output):
             raise UnitError(
@@ -355,7 +353,9 @@ class UnitConverter:
                     self._log.warning(f"Prefix [{n}] already defined")
                 else:
                     self._loaded_tables["prefixes"][n] = val
-                    self._loaded_tables["preferred_prefixes"][n] = PREFERRED_PREFIX_OVERRIDES.get(preferred, preferred)
+                    self._loaded_tables["preferred_prefixes"][n] = (
+                        PREFERRED_PREFIX_OVERRIDES.get(preferred, preferred)
+                    )
 
     def _find_entry(self, simple_unit: str) -> tuple[amath.NumberString, str, str]:
         self._load_tables()

@@ -46,9 +46,7 @@ class TestLoader(BaseTestCase):
         file = self.temp_dir / "file.json"
         codec = OCProc2JsonCodec()
         codec.dump(file, records)
-        return FilePayload.from_path(
-            str(file), datetime.datetime.now(datetime.UTC)
-        )
+        return FilePayload.from_path(str(file), datetime.datetime.now(datetime.UTC))
 
     def test_bad_err_dir(self):
         loader: NODBDecodeLoadWorker = self.worker_controller.build_test_worker(
@@ -167,9 +165,7 @@ class TestLoader(BaseTestCase):
             h.write('{"_metadata": {"foo": "bar3"}},')
             h.write('{"_metadata": {"foo": "bar"}}')
             h.write("]")
-        fp = FilePayload.from_path(
-            str(file), datetime.datetime.now(datetime.UTC)
-        )
+        fp = FilePayload.from_path(str(file), datetime.datetime.now(datetime.UTC))
         with self.assertLogs("cnodc.worker.decoder", "ERROR"):
             self.worker_controller.test_queue_worker(
                 NODBDecodeLoadWorker,

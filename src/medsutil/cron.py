@@ -112,7 +112,7 @@ class CompiledCron:
     def __init__(
         self,
         cron_spec: CRON_SPEC,
-        hash_key: str | int = None,
+        hash_key: str | int | None = None,
         cron_spec_timezone: ct.TimeZoneInfo | None = None,
     ):
         """
@@ -122,11 +122,12 @@ class CompiledCron:
         :raises ValueError: If the cron specification is invalid.
         """
         if hash_key is None:
-            rgen = random.Random(id(self))
+            hk = id(self)
         elif isinstance(hash_key, str):
-            rgen = random.Random(hash(hash_key))
+            hk = hash(hash_key)
         else:
-            rgen = random.Random(hash_key)
+            hk = hash_key
+        rgen = random.Random(hk)  # nosec: B311 # not used for security
         cron_tuple = _expand_cron_str(cron_spec)
         self._cron_config: tuple[
             list[int], list[int], list[int], list[int], list[int]
@@ -380,7 +381,7 @@ def _validate_and_expand_cron_piece(
     min_value: int,
     max_value: int,
     rgen: random.Random,
-    special_map: dict[str | int, int] = None,
+    special_map: dict[str | int, int] | None = None,
 ) -> list[int]:
     """Validates and expands a cron piece to a list of valid integers.
 
@@ -424,7 +425,7 @@ def _expand_cron_str_piece(
     # Handle commas first by breaking them into pieces and recursing.
     if "," in piece:
         # Treat these as separate entries basically that we combine
-        l = list()
+        l = []
         for subpiece in piece.split(","):
             l.extend(
                 _expand_cron_str_piece(

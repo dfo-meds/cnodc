@@ -156,6 +156,6 @@ class DateTimeDialog(tksd.Dialog):
                     tzinfo=datetime.UTC,
                 )
             return True
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             tkmb.showwarning("Invalid", "Invalid time or date")
             return False

@@ -324,7 +324,11 @@ class BaseTestCase(ut.TestCase):
     @classmethod
     @contextmanager
     def mock_web_test(cls):
-        with mock.patch("requests.get", side_effect=cls.web.mock_get), mock.patch("requests.post", side_effect=cls.web.mock_post), mock.patch("requests.request", side_effect=cls.web.mock_request) as x:
+        with (
+            mock.patch("requests.get", side_effect=cls.web.mock_get),
+            mock.patch("requests.post", side_effect=cls.web.mock_post),
+            mock.patch("requests.request", side_effect=cls.web.mock_request) as x,
+        ):
             yield x
 
     def assert_element_equals(self, em: ElementMap, name: str, value, **kwargs):
@@ -346,15 +350,16 @@ class BaseTestCase(ut.TestCase):
             )
         for kwarg, val in kwargs.items():
             if isinstance(val, tuple):
-                self.assert_element_equals(
-                    em[name].metadata, kwarg, val[0], **val[1]
-                )
+                self.assert_element_equals(em[name].metadata, kwarg, val[0], **val[1])
             else:
                 self.assert_element_equals(em[name].metadata, kwarg, val)
 
     @contextmanager
     def assertRaisesCoded(
-        self, error_code: str | None = None, is_transient: bool | None = None, msg: str | None = None
+        self,
+        error_code: str | None = None,
+        is_transient: bool | None = None,
+        msg: str | None = None,
     ):
         try:
             with self.assertRaises(CodedError) as h:

@@ -199,7 +199,9 @@ class NODBRecordManager:
                     self.insert_relationship(obs, obs_uuid, obs_date, key)
         return result
 
-    LEFT_STATE_MAPS: t.ClassVar[dict[RelationshipAction, ObservationRelationshipType]] = {
+    LEFT_STATE_MAPS: t.ClassVar[
+        dict[RelationshipAction, ObservationRelationshipType]
+    ] = {
         RelationshipAction.A_IS_DUPLICATE: ObservationRelationshipType.IS_DUPLICATE,
         RelationshipAction.A_IS_DELAYED_MODE: ObservationRelationshipType.IS_BETTER,
         RelationshipAction.A_IS_BROADCAST: ObservationRelationshipType.IS_BROADCAST,
@@ -208,7 +210,9 @@ class NODBRecordManager:
         RelationshipAction.A_WAS_MERGED_FROM: ObservationRelationshipType.IS_MERGE,
     }
 
-    RIGHT_STATE_MAPS: t.ClassVar[dict[RelationshipAction, ObservationRelationshipType]] = {
+    RIGHT_STATE_MAPS: t.ClassVar[
+        dict[RelationshipAction, ObservationRelationshipType]
+    ] = {
         RelationshipAction.B_IS_DUPLICATE: ObservationRelationshipType.IS_DUPLICATE,
         RelationshipAction.B_IS_DELAYED_MODE: ObservationRelationshipType.IS_BETTER,
         RelationshipAction.B_IS_CORRECTION: ObservationRelationshipType.IS_CORRECTION,

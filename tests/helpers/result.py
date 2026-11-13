@@ -61,9 +61,12 @@ class CNODCTestResult(TextTestResult):
         traces = []
         while tb is not None:
             full_filename = tb.tb_frame.f_code.co_filename
-            if full_filename.endswith(
-                CNODCTestResult.SKIP_ALWAYS
-            ) or tb.tb_frame.f_code.co_name.startswith("assert") or filter and full_filename.endswith(CNODCTestResult.SKIP_FILES):
+            if (
+                full_filename.endswith(CNODCTestResult.SKIP_ALWAYS)
+                or tb.tb_frame.f_code.co_name.startswith("assert")
+                or filter
+                and full_filename.endswith(CNODCTestResult.SKIP_FILES)
+            ):
                 tb = tb.tb_next
                 continue
             else:
@@ -94,7 +97,5 @@ class CNODCTestResult(TextTestResult):
             else:
                 s += "\n[[traceback cutoff due to length]]\n\n"
         return (
-            s
-            + "\n".join(traces)
-            + f"\n\n\033[1;31m{ex_type.__name__}\033[0m: {ex!s}\n"
+            s + "\n".join(traces) + f"\n\n\033[1;31m{ex_type.__name__}\033[0m: {ex!s}\n"
         )

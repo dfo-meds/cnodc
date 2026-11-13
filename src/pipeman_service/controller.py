@@ -594,9 +594,7 @@ class BaseController(InstrumentedObject):
         self._signals = set()
         self._manager.cleanup()
 
-    def _load_config_from_file(
-        self, file: str | pathlib.Path
-    ) -> dict[str, t.Any]:
+    def _load_config_from_file(self, file: str | pathlib.Path) -> dict[str, t.Any]:
         """Loads configuration from a YAML file"""
         self._log.debug("Loading configuration from %s", file)
         with open(file, "r", encoding="utf-8") as h:
@@ -714,7 +712,7 @@ class BaseController(InstrumentedObject):
         if config.get("count"):
             try:
                 count = max(int(config["count"]), 1)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 raise PipemanServiceError(
                     f"Invalid worker definition, expecting numeric value number of processes for [{process_name}]",
                     4004,

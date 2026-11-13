@@ -1,4 +1,4 @@
-import pickle
+import pickle  # nosec: B403 # pickle only used as testing
 import typing as t
 
 import medsutil.types as ct
@@ -44,4 +44,4 @@ class OCProc2PickleCodec(BaseCodec):
     def _decode_single_message(
         self, data: bytes | bytearray, options: dict
     ) -> t.Iterable[ocproc2.ParentRecord]:
-        yield ocproc2.ParentRecord.build_from_mapping(pickle.loads(data))
+        yield ocproc2.ParentRecord.build_from_mapping(pickle.loads(data))  # nosec: B301  # pickle only used as testing

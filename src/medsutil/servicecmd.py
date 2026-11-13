@@ -22,7 +22,6 @@ class SocketTimeout(Exception):
     """Raised when a socket times out for the connection."""
 
 
-
 def recv_with_end(
     clientsocket: socket.socket, buffer_size: int = 1024, timeout: float = 5
 ) -> bytearray:

@@ -546,9 +546,7 @@ class _Bufr4Encoder:
                         and instruction.extras["can_omit"],
                     )
             elif isinstance(instruction, InstructionGroup):
-                if (
-                    instruction.extras.get("is_optional")
-                ):
+                if instruction.extras.get("is_optional"):
                     output: list[EncodeElement] = [
                         x
                         for x in self._build_from_instruction_group(
@@ -957,9 +955,11 @@ class _Bufr4Decoder:
         else:
             raise TypeError("Unrecognized instruction")
 
-        if instruction.extras.get("iterate_after", False) and isinstance(
-            node, SequenceNode
-        ) and node.members:
+        if (
+            instruction.extras.get("iterate_after", False)
+            and isinstance(node, SequenceNode)
+            and node.members
+        ):
             self._iterate_on_nodes(node.members, context)
 
     def _get_node_value(

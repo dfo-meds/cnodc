@@ -20,9 +20,7 @@ class FileTranslationManager(TranslationManager):
         for path in self._get_paths(extra_paths):
             self._scan_for_dictionaries(path)
 
-    def _get_paths(
-        self, extra_paths: list[str] | None
-    ) -> t.Generator[pathlib.Path]:
+    def _get_paths(self, extra_paths: list[str] | None) -> t.Generator[pathlib.Path]:
         """Generates a list of paths to search for translation files.
 
         Translation paths may come from extra_paths or from
@@ -72,13 +70,11 @@ class FileTranslationManager(TranslationManager):
             gcapp.common.placeholder: Placeholder
         """
         actual = {}
-        for key in content:
-            if isinstance(content[key], dict):
-                actual.update(
-                    self._collapse_dictionary(content[key], f"{prefix}{key}.")
-                )
+        for key, value in content.items():
+            if isinstance(value, dict):
+                actual.update(self._collapse_dictionary(value, f"{prefix}{key}."))
             else:
-                actual[prefix + key] = str(content[key])
+                actual[prefix + key] = str(value)
         return actual
 
     def get_text(
@@ -94,12 +90,12 @@ class FileTranslationManager(TranslationManager):
                 self.supported_languages(_context)
             )
 
-        if _language is not None:
-            if (
-                _language in self._dictionaries
-                and text_key in self._dictionaries[_language]
-            ):
-                return self._dictionaries[_language][text_key]
+        if (
+            _language is not None
+            and _language in self._dictionaries
+            and text_key in self._dictionaries[_language]
+        ):
+            return self._dictionaries[_language][text_key]
 
         return default if default is not None else text_key
 

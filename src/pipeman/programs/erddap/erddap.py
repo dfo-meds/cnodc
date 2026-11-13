@@ -120,7 +120,11 @@ class ErddapController:
             raise
 
     def _make_authenticated_request(
-        self, endpoint: str, method: str, json_data: dict, cluster_name: str | None = None
+        self,
+        endpoint: str,
+        method: str,
+        json_data: dict,
+        cluster_name: str | None = None,
     ):
         """Make an HTTP call to the endpoint with appropriate authentication."""
         config = self._get_config(cluster_name)

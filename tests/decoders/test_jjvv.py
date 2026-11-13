@@ -1,4 +1,3 @@
-
 from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import ChildRecord, ParentRecord
 from medsutil.ocproc2.codecs import GtsCodec

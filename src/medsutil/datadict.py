@@ -259,7 +259,10 @@ class DataDictObject:
         return prop.sanitize(getattr(self, prop.property_name))
 
     def get_data(
-        self, *, managed_prop: _ManagedNameProperty, coerce_get: t.Callable = None
+        self,
+        *,
+        managed_prop: _ManagedNameProperty,
+        coerce_get: t.Callable | None = None,
     ) -> t.Any:
         """Retrieves the data for the specified managed property.
         :raises KeyError: If the managed property doesn't exist.
@@ -289,7 +292,7 @@ class DataDictObject:
         value: t.Any,
         *,
         managed_prop: _ManagedNameProperty,
-        coerce_set: t.Callable = None,
+        coerce_set: t.Callable | None = None,
         readonly: bool = False,
         validators: list[t.Callable] | None = None,
         as_default: bool = False,
@@ -323,7 +326,7 @@ class DataDictObject:
                 validator(value)
 
         # track the change
-        original = self._data[managed_name] if managed_name in self._data else None
+        original = self._data.get(managed_name, None)
 
         # set the value
         self._data[managed_name] = value
@@ -374,10 +377,9 @@ class DataDictObject:
         """Builds a dictionary of managed properties for this class."""
         props = {}
         for rcls in reversed(cls.mro()):
-            if hasattr(rcls, "_datadict_props_"):
-                if rcls in rcls._datadict_props_:
-                    for prop in rcls._datadict_props_[rcls].values():
-                        props[prop.managed_name] = prop
+            if hasattr(rcls, "_datadict_props_") and rcls in rcls._datadict_props_:
+                for prop in rcls._datadict_props_[rcls].values():
+                    props[prop.managed_name] = prop
         return props
 
     @classmethod
@@ -462,12 +464,13 @@ def p_enum[X](
 
 def p_dict[AcceptKey, AcceptValue, StoreKey, StoreValue, ExportType](
     default: dict[StoreKey, StoreValue] = newdict,
-    str_coerce: t.Callable[[str], dict[AcceptKey, AcceptValue]] = None,
-    value_coerce: t.Callable[[AcceptValue], StoreValue] = None,
-    key_coerce: t.Callable[[AcceptKey], StoreKey] = None,
-    key_validators: list[t.Callable[[StoreKey], None]] = None,
-    value_validators: list[t.Callable[[StoreValue], None]] = None,
-    sanitizer: _ManagedNameSanitizer[dict[StoreKey, StoreValue], ExportType] = None,
+    str_coerce: t.Callable[[str], dict[AcceptKey, AcceptValue]] | None = None,
+    value_coerce: t.Callable[[AcceptValue], StoreValue] | None = None,
+    key_coerce: t.Callable[[AcceptKey], StoreKey] | None = None,
+    key_validators: list[t.Callable[[StoreKey], None]] | None = None,
+    value_validators: list[t.Callable[[StoreValue], None]] | None = None,
+    sanitizer: _ManagedNameSanitizer[dict[StoreKey, StoreValue], ExportType]
+    | None = None,
     **kwargs,
 ) -> _ExportedProperty[
     t.Mapping[AcceptKey, AcceptValue], dict[StoreKey, StoreValue], ExportType
@@ -508,10 +511,10 @@ def p_dict[AcceptKey, AcceptValue, StoreKey, StoreValue, ExportType](
 
 def p_list[AcceptItemType, StoreItemType, ExportType](
     default: list[StoreItemType] = newlist,
-    str_coerce: t.Callable[[str], list[AcceptItemType]] = None,
-    value_coerce: t.Callable[[AcceptItemType], StoreItemType] = None,
-    value_validators: list[_ManagedNameValidator[StoreItemType]] = None,
-    sanitizer: _ManagedNameSanitizer[list[StoreItemType], ExportType] = None,
+    str_coerce: t.Callable[[str], list[AcceptItemType]] | None = None,
+    value_coerce: t.Callable[[AcceptItemType], StoreItemType] | None = None,
+    value_validators: list[_ManagedNameValidator[StoreItemType]] | None = None,
+    sanitizer: _ManagedNameSanitizer[list[StoreItemType], ExportType] | None = None,
     **kwargs,
 ) -> _ExportedProperty[t.Iterable[AcceptItemType], list[StoreItemType], ExportType]:
     """Builds a property that accepts a Python list
@@ -541,10 +544,10 @@ def p_list[AcceptItemType, StoreItemType, ExportType](
 
 def p_set[AcceptItemType, StoreItemType, ExportItemType](
     default: set[StoreItemType] = newset,
-    str_coerce: t.Callable[[str], t.Iterable[AcceptItemType]] = None,
-    value_coerce: t.Callable[[AcceptItemType], StoreItemType] = None,
-    value_validators: list[_ManagedNameValidator[StoreItemType]] = None,
-    sanitizer: _ManagedNameSanitizer[set[StoreItemType], ExportItemType] = None,
+    str_coerce: t.Callable[[str], t.Iterable[AcceptItemType]] | None = None,
+    value_coerce: t.Callable[[AcceptItemType], StoreItemType] | None = None,
+    value_validators: list[_ManagedNameValidator[StoreItemType]] | None = None,
+    sanitizer: _ManagedNameSanitizer[set[StoreItemType], ExportItemType] | None = None,
     **kwargs,
 ) -> _ExportedProperty[t.Iterable[AcceptItemType], set[StoreItemType], ExportItemType]:
     """Builds a property that accepts a Python set
@@ -574,8 +577,8 @@ def p_set[AcceptItemType, StoreItemType, ExportItemType](
 
 def _coerce_ddo(
     v: DataDictObject | t.Mapping | str,
-    str_coerce: t.Callable[[str], t.Mapping | DataDictObject] = None,
-    required_type: type[DataDictObject] = None,
+    str_coerce: t.Callable[[str], t.Mapping | DataDictObject] | None = None,
+    required_type: type[DataDictObject] | None = None,
 ) -> DataDictObject:
     """
     Coerces another object to a data dict object.
@@ -601,7 +604,7 @@ def _coerce_ddo(
 
 
 def p_ddo(
-    required_type: type[DataDictObject] = None, **kwargs
+    required_type: type[DataDictObject] | None = None, **kwargs
 ) -> _ExportedProperty[
     dict[str, t.Any] | DataDictObject, DataDictObject, dict[str, ct.SupportsNativeJson]
 ]:
@@ -622,7 +625,7 @@ def p_ddo(
 
 
 def p_json_dict[AcceptType, GetType](
-    value_coerce: t.Callable[[AcceptType], GetType] = None, **kwargs
+    value_coerce: t.Callable[[AcceptType], GetType] | None = None, **kwargs
 ) -> _ExportedProperty[t.Mapping[str, AcceptType] | str, dict[str, GetType], str]:
     """Builds a dictionary property with JSON export and import."""
     if "sanitizer" not in kwargs or not kwargs["sanitizer"]:
@@ -631,7 +634,7 @@ def p_json_dict[AcceptType, GetType](
 
 
 def p_json_list[AcceptType, GetType](
-    value_coerce: t.Callable[[AcceptType], GetType] = None, **kwargs
+    value_coerce: t.Callable[[AcceptType], GetType] | None = None, **kwargs
 ) -> _ExportedProperty[t.Iterable[AcceptType] | str, list[GetType], str]:
     """Builds a list property with JSON export and import."""
     if "sanitizer" not in kwargs or not kwargs["sanitizer"]:
@@ -657,7 +660,7 @@ def p_json_str_set(**kwargs) -> _ExportedProperty[ct.AcceptAsJsonList, set[str],
 
 
 def p_json_object(
-    required_type: type[DataDictObject] = None, **kwargs
+    required_type: type[DataDictObject] | None = None, **kwargs
 ) -> _ExportedProperty[
     dict[str, t.Any] | DataDictObject | ct.JsonDictString, DataDictObject, str
 ]:
@@ -678,7 +681,7 @@ def p_json_object(
 
 
 def p_json_object_list(
-    required_type: type[DataDictObject] = None, **kwargs
+    required_type: type[DataDictObject] | None = None, **kwargs
 ) -> _ExportedProperty[
     t.Iterable[DataDictObject | t.Mapping | str] | ct.JsonListString,
     list[DataDictObject],
@@ -699,7 +702,7 @@ def p_json_object_list(
 
 
 def p_json_object_dict(
-    required_type: type[DataDictObject] = None, **kwargs
+    required_type: type[DataDictObject] | None = None, **kwargs
 ) -> _ExportedProperty[
     t.Mapping[str, DataDictObject | t.Mapping | str] | str,
     dict[str, DataDictObject],
@@ -720,7 +723,7 @@ def p_json_object_dict(
 
 
 def p_object_list(
-    required_type: type[DataDictObject] = None, **kwargs
+    required_type: type[DataDictObject] | None = None, **kwargs
 ) -> _ExportedProperty[
     t.Iterable[DataDictObject | t.Mapping | str] | ct.JsonListString,
     list[DataDictObject],
@@ -741,7 +744,7 @@ def p_object_list(
 
 
 def p_object_dict(
-    required_type: type[DataDictObject] = None, **kwargs
+    required_type: type[DataDictObject] | None = None, **kwargs
 ) -> _ExportedProperty[
     t.Mapping[str, DataDictObject | t.Mapping | str] | str,
     dict[str, DataDictObject],
@@ -823,17 +826,17 @@ def p_i18n_text(**kwargs) -> _SimpleProperty[ct.AcceptAsLanguageDict, ct.Languag
     )
 
 
-def p_bytearray(**kwargs) -> _SimpleProperty[t.ByteString, bytearray]:
+def p_bytearray(**kwargs) -> _SimpleProperty[bytes | bytearray, bytearray]:
     """Builds a bytearray property."""
     return ddo_property(coerce_set=coerce.as_bytearray, **kwargs)
 
 
-def p_bytes(**kwargs) -> _SimpleProperty[t.ByteString, bytes]:
+def p_bytes(**kwargs) -> _SimpleProperty[bytes | bytearray, bytes]:
     """Builds a bytes property."""
     return ddo_property(coerce_set=coerce.as_bytes, **kwargs)
 
 
-def p_bytes_b64(**kwargs) -> _ExportedProperty[t.ByteString | str, bytes, str]:
+def p_bytes_b64(**kwargs) -> _ExportedProperty[bytes | bytearray | str, bytes, str]:
     """Builds a base-64 encoded bytes property."""
     return ddo_property(
         coerce_set=coerce.as_bytes_from_base64, sanitizer=coerce.as_base64, **kwargs

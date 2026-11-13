@@ -18,9 +18,7 @@ class MockBathymetryModel(BathymetryModel):
         super().__init__("mock")
         self._lookup = results
 
-    def water_depth(
-        self, x: float | UFloat, y: float | UFloat
-    ) -> float | UFloat:
+    def water_depth(self, x: float | UFloat, y: float | UFloat) -> float | UFloat:
         if (x, y) in self._lookup:
             return self._lookup[(x, y)]
         else:

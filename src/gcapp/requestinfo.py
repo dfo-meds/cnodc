@@ -2,7 +2,7 @@
 
 import os
 import shutil
-import subprocess
+import subprocess  # nosec: B404  # subprocess module necessary
 import sys
 
 import zrlog
@@ -140,12 +140,16 @@ class RequestInfo:
         """Loads information about the current system user."""
         if not self._proc_info_loaded:
             # whoami works on most system.
-            res = subprocess.run([str(shutil.which("whoami"))], capture_output=True)  # noqa: B603 # hard coded
+            res = subprocess.run(
+                [str(shutil.which("whoami"))], capture_output=True, check=True
+            )  # nosec: B603 # hard coded
             self._parse_process_info(res.stdout.decode("utf-8"))
 
             # on Linux we can also get the emulated user
             if os.name == "posix":  # pragma: no coverage (windows testing only)
-                res = subprocess.run([str(shutil.which("who"))], capture_output=True)  # noqa: B603 # hard coded
+                res = subprocess.run(
+                    [str(shutil.which("who"))], capture_output=True, check=True
+                )  # nosec: B603 # hard coded
                 if res.returncode == 0 and res.stdout:
                     self._parse_emulated_user(res.stdout.decode("utf-8"))
 

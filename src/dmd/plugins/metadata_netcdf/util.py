@@ -385,6 +385,5 @@ def _build_keywords(dataset: Dataset) -> tuple[list[str], set[str]]:
         keywords.update(disp["secondary"].values())
         if disp["vocab"]:
             vocabs.add(disp["vocab"])
-    keywords = list(kw.replace(",", "") for kw in keywords)
-    keywords.sort()
+    keywords = sorted(kw.replace(",", "") for kw in keywords)
     return keywords, vocabs

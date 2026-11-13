@@ -32,15 +32,12 @@ def export_time_precision(
 def preprocess_metadata_for_all(dataset, **kwargs):
     erddap_ds_id = dataset["erddap_dataset_id"]
     erddap_data_type = dataset["erddap_dataset_type"]
-    f = dataset.get_field("erddap_servers")
     servers = dataset["erddap_servers"]
     if not (erddap_ds_id and erddap_data_type and servers):
         return
     dtype_dir = "tabledap"
-    dtype_format = "TableDAP"
     if erddap_data_type["short_name"].startswith("EDDGrid"):
         dtype_dir = "griddap"
-        dtype_format = "GridDAP"
     erddap_distribution_servers = []
     for server in servers:
         base_url = server["base_url"]
@@ -110,7 +107,7 @@ def _assemble_erddap_link(erddap_base, dtype_dir, dataset_id, lang="en"):
         lang = f"{lang}/"
     else:
         lang = ""
-    if not erddap_base[-1] == "/":
+    if erddap_base[-1] != "/":
         return f"{erddap_base}/{lang}{dtype_dir}/{dataset_id}".strip()
     else:
         return f"{erddap_base}{lang}{dtype_dir}/{dataset_id}".strip()

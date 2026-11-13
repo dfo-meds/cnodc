@@ -46,8 +46,11 @@ class TestBaseProcessController(BaseTestCase):
             nc._handle_halt(1, "")
         self.assertTrue(nc._halt_flag.is_set())
         self.assertEqual(nc._break_count, 2)
-        with self.assertLogs("cnodc.single_process", "CRITICAL"), self.assertRaises(KeyboardInterrupt):
-                nc._handle_halt(1, "")
+        with (
+            self.assertLogs("cnodc.single_process", "CRITICAL"),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            nc._handle_halt(1, "")
         self.assertTrue(nc._halt_flag.is_set())
         self.assertEqual(nc._break_count, 3)
 
@@ -57,16 +60,22 @@ class TestBaseProcessController(BaseTestCase):
         nc = SingleProcessController(
             process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"), self.assertRaises(CodedError):
-                nc.reload_check()
+        with (
+            self.assertLogs("cnodc.single_process", "ERROR"),
+            self.assertRaises(CodedError),
+        ):
+            nc.reload_check()
 
     def test_missing_process_directory(self):
         subdir = self.temp_dir / "subdir"
         nc = SingleProcessController(
             process_name="foo", config_file_dir=subdir, _no_report=True
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"), self.assertRaises(CodedError):
-                nc.reload_check()
+        with (
+            self.assertLogs("cnodc.single_process", "ERROR"),
+            self.assertRaises(CodedError),
+        ):
+            nc.reload_check()
 
     def test_bad_process_directory(self):
         file = self.temp_dir / "test.yaml"
@@ -74,15 +83,21 @@ class TestBaseProcessController(BaseTestCase):
         nc = SingleProcessController(
             process_name="foo", config_file_dir=file, _no_report=True
         )
-        with self.assertLogs("cnodc.single_process", "ERROR"), self.assertRaises(CodedError):
-                nc.reload_check()
+        with (
+            self.assertLogs("cnodc.single_process", "ERROR"),
+            self.assertRaises(CodedError),
+        ):
+            nc.reload_check()
 
     def test_bad_process_missing_file(self):
         file = self.temp_dir / "test.yaml"
         nc = SingleProcessController(
             process_name="foo", config_file=file, _no_report=True
         )
-        with self.assertRaises(CodedError), self.assertLogs("cnodc.single_process", "ERROR"):
+        with (
+            self.assertRaises(CodedError),
+            self.assertLogs("cnodc.single_process", "ERROR"),
+        ):
             nc.reload_check()
 
     def test_bad_process_file(self):
@@ -90,7 +105,10 @@ class TestBaseProcessController(BaseTestCase):
         nc = SingleProcessController(
             process_name="foo", config_file_dir=file, _no_report=True
         )
-        with self.assertRaises(CodedError), self.assertLogs("cnodc.single_process", "ERROR"):
+        with (
+            self.assertRaises(CodedError),
+            self.assertLogs("cnodc.single_process", "ERROR"),
+        ):
             nc.reload_check()
 
     def test_bad_process_no_class(self):

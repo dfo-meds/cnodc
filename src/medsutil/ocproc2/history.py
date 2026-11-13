@@ -39,7 +39,7 @@ class QCResult(enum.Enum):
     """Defines the outcome of the quality control test"""
 
     PASS = "P"  # nosec: B105 # is not a password
-    MANUAL_PASS = "RP"
+    MANUAL_PASS = "RP" # nosec: B105 # is not a password
 
     FAIL = "F"
     MANUAL_FAIL = "RF"
@@ -162,9 +162,7 @@ class HistoryEntry:
             organization=Organization(map_["_organization"])
             if "_organization" in map_
             else Organization.CNODC,
-            affected_path=map_["_affected"]
-            if map_.get("_affected")
-            else None,
+            affected_path=map_["_affected"] if map_.get("_affected") else None,
         )
 
 

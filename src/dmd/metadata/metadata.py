@@ -135,10 +135,10 @@ class MetadataRegistry:
     ) -> dict[str, dict[str, t.Any]]:
         fields = {}
         for profile in extended_profiles:
-            for field_name in self._profiles[profile].get("fields", {}).keys():
+            for field_name, value in self._profiles[profile].get("fields", {}).items():
                 if field_name not in fields:
                     if field_name in self._fields:
-                        fields[field_name] = self._fields[field_name]
+                        fields[field_name] = value
                     else:
                         self._log.error("Field %s is not defined, skipping", field_name)
         return fields
@@ -165,9 +165,7 @@ class MetadataRegistry:
         self, extended_profiles: set[str]
     ) -> t.Iterable[tuple[str, str]]:
         for profile_name in extended_profiles:
-            for format_name in (
-                self._profiles[profile_name].get("formatters", {}).keys()
-            ):
+            for format_name in self._profiles[profile_name].get("formatters", {}):
                 yield profile_name, format_name
 
     def formatter_preprocessors(
@@ -232,7 +230,7 @@ class MetadataRegistry:
             ]
         elif template_name.endswith(".xml"):
             mime_type = "text/xml"
-        elif template_name.endswith(".html") or template_name.endswith(".htm"):
+        elif template_name.endswith((".html", ".htm")):
             mime_type = "text/html"
             extension = "html"
         elif template_name.endswith(".rdf"):

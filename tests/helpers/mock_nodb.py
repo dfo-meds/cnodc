@@ -186,10 +186,14 @@ class DatabaseMock:
             if x["file_path"] == file_path:
                 if x["was_processed"]:
                     continue
-                if x["modified_date"] is None and mod_date is None or (
-                    x["modified_date"] is not None
-                    and mod_date is not None
-                    and x["modified_date"] <= mod_date
+                if (
+                    x["modified_date"] is None
+                    and mod_date is None
+                    or (
+                        x["modified_date"] is not None
+                        and mod_date is not None
+                        and x["modified_date"] <= mod_date
+                    )
                 ):
                     self._scanned_files[idx]["was_errored"] = True
 
@@ -403,9 +407,7 @@ class DatabaseMock:
         ):
             for index_key in self._lookups[table_name]:
                 keys = index_key.split("__")
-                if any(
-                    k not in filters or isinstance(filters[k], tuple) for k in keys
-                ):
+                if any(k not in filters or isinstance(filters[k], tuple) for k in keys):
                     continue
                 lookup_key = "__".join(str(filters[k]) for k in keys)
                 if lookup_key in self._lookups[table_name][index_key]:

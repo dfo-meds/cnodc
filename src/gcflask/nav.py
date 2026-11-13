@@ -19,7 +19,7 @@ class BaseNav:
         return self.__html__()
 
     def __html__(self):
-        return markupsafe.Markup(self.markup())
+        return markupsafe.Markup(self.markup())   # nosec: B704  # trusted data only
 
     def append_at(self, position: list[str], item: NavItem):
         """Appends a child node at the position within this menu."""

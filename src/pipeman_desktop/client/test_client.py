@@ -269,25 +269,31 @@ class MockNODB:
         for pid, platform in self._platforms.items():
             check = False
             if (
-                wmo_id
-                and platform["wmo_id"] is not None
-                and platform["wmo_id"] == wmo_id
-            ) or (
-                wigos_id
-                and platform["wigos_id"] is not None
-                and platform["wigos_id"] == wigos_id
-            ) or (
-                platform_id
-                and platform["platform_id"] is not None
-                and platform["platform_id"] == platform_id
-            ) or (
-                platform_name
-                and platform["platform_name"] is not None
-                and platform["platform_name"] == platform_name
-            ) or (
-                ship_code
-                and platform["ship_code"] is not None
-                and platform["ship_code"] == ship_code
+                (
+                    wmo_id
+                    and platform["wmo_id"] is not None
+                    and platform["wmo_id"] == wmo_id
+                )
+                or (
+                    wigos_id
+                    and platform["wigos_id"] is not None
+                    and platform["wigos_id"] == wigos_id
+                )
+                or (
+                    platform_id
+                    and platform["platform_id"] is not None
+                    and platform["platform_id"] == platform_id
+                )
+                or (
+                    platform_name
+                    and platform["platform_name"] is not None
+                    and platform["platform_name"] == platform_name
+                )
+                or (
+                    ship_code
+                    and platform["ship_code"] is not None
+                    and platform["ship_code"] == ship_code
+                )
             ):
                 check = True
             if not check:
@@ -560,10 +566,9 @@ class TestClient:
     def _login(self, username: str, password: str, app_id: str) -> dict:
         return {
             "success": True,
-            "token": "abc",
+            "token": "abc",  # nosec: B105 # dummy token
             "expiry": (
-                datetime.datetime.now(datetime.UTC)
-                + datetime.timedelta(hours=2)
+                datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
             ).isoformat(),
             "access": {
                 "user.renew": {
@@ -585,9 +590,8 @@ class TestClient:
     def _renew(self, app_id: str, token: str | None = None):
         return {
             "success": True,
-            "token": "abc",
+            "token": "abc",  # nosec: B105 # dummy token
             "expiry": (
-                datetime.datetime.now(datetime.UTC)
-                + datetime.timedelta(hours=2)
+                datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
             ).isoformat(),
         }

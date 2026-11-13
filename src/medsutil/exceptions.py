@@ -25,9 +25,9 @@ class CodedError(Exception):
     def __init__(
         self,
         msg: str,
-        code_number: int = None,
+        code_number: int | None = None,
         *,
-        code_space: str = None,
+        code_space: str | None = None,
         is_transient: bool = False,
     ):
         if code_space is None:
@@ -61,13 +61,14 @@ class CodedError(Exception):
 class TransientCodedError(CodedError):
     """A CodedError that is transient by default."""
 
-    def __init__(self, msg: str, code_number: int = None, *, code_space: str = None):
+    def __init__(
+        self, msg: str, code_number: int | None = None, *, code_space: str | None = None
+    ):
         super().__init__(msg, code_number, code_space=code_space, is_transient=True)
 
 
 class HaltInterrupt(KeyboardInterrupt):
     """This interrupt extends KeyboardInterrupt and is only raised when the system is shutting down."""
-
 
 
 def ex_pretty(e: BaseException) -> str:
@@ -91,12 +92,8 @@ def format_stack_trace(
     """Formats a stack trace nicely into a list of strings."""
     import traceback
 
-    efs: tuple[str] = (
-        tuple(*exclude_file_suffixes) if exclude_file_suffixes else tuple()
-    )
-    enp: tuple[str] = (
-        tuple(*exclude_name_prefixes) if exclude_name_prefixes else tuple()
-    )
+    efs: tuple[str] = tuple(*exclude_file_suffixes) if exclude_file_suffixes else ()
+    enp: tuple[str] = tuple(*exclude_name_prefixes) if exclude_name_prefixes else ()
 
     lines: list[str] = []
     skip_next: bool = False

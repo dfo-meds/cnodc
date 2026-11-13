@@ -92,7 +92,10 @@ class RecordListPane(BasePane):
                 )
             if self._subrecord_list is not None:
                 self._build_subrecord_list(self.app.state.current_parent)
-        if change_type & DisplayChange.RECORD_CHILD and self._subrecord_list is not None:
+        if (
+            change_type & DisplayChange.RECORD_CHILD
+            and self._subrecord_list is not None
+        ):
             if self.app.state.current_child_path is not None:
                 self._subrecord_list.set_selection(
                     [self.app.state.current_child_path], _ignore_callback=True
@@ -135,7 +138,7 @@ class RecordListPane(BasePane):
                 parent="",
                 iid=sr.record_uuid,
                 values=(sr.index, self._build_top_record_display(sr)),
-                tags=(tag,)
+                tags=(tag,),
             )
         if set_selection:
             self._record_list.set_selection([set_selection], _ignore_callback=True)

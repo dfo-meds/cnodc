@@ -1,4 +1,3 @@
-
 import click
 
 from medsutil.units.structures import UnitError
@@ -68,12 +67,7 @@ def _write_units(writer):
     for x in unique_names:
         try:
             base_units = converter.get_equivalent_base_units(x)
-            to_sort.append(
-                (
-                    x,
-                    BASE_SI_MAP.get(base_units, base_units)
-                )
-            )
+            to_sort.append((x, BASE_SI_MAP.get(base_units, base_units)))
         except UnitError as ex:
             to_sort.append((x, str(ex)))
     to_sort.sort(key=lambda x: (x[1], x[0]))

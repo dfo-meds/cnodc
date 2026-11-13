@@ -83,7 +83,11 @@ class NODBAccessToken(s.NODBBaseObject):
 
     def check_key(self, key: str | bytes) -> bool:
         if self.is_active == "Y":
-            if self.key_salt is not None and self.key_hash is not None and secure.check_password(key, self.key_salt, self.key_hash):
+            if (
+                self.key_salt is not None
+                and self.key_hash is not None
+                and secure.check_password(key, self.key_salt, self.key_hash)
+            ):
                 return True
             if (
                 self.old_key_hash is not None

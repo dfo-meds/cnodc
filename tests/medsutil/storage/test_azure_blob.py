@@ -48,7 +48,10 @@ class BlobTest(BaseTestCase):
             (ConnectionError, "", True),
         ]
         for err, code, is_transient in errors:
-            with self.subTest(error_type=err.__name__), self.assertRaisesCoded(code, is_transient):
+            with (
+                self.subTest(error_type=err.__name__),
+                self.assertRaisesCoded(code, is_transient),
+            ):
                 make_and_wrap_exception(AzureError("oh no2", error=err("oh no")))
 
     @injector.test_case({AzureClientPool: AzureMockClientPool})
@@ -60,7 +63,10 @@ class BlobTest(BaseTestCase):
             (AzureError, "", False),
         ]
         for err, code, is_transient in errors:
-            with self.subTest(error_type=err.__name__), self.assertRaisesCoded(code, is_transient):
+            with (
+                self.subTest(error_type=err.__name__),
+                self.assertRaisesCoded(code, is_transient),
+            ):
                 make_and_wrap_exception(err("oh no"))
 
     @injector.test_case({AzureClientPool: AzureMockClientPool})
@@ -90,8 +96,11 @@ class BlobTest(BaseTestCase):
     @injector.test_case({AzureClientPool: AzureMockClientPool})
     def test_set_tier(self):
         for x in (StorageTier.ARCHIVAL, StorageTier.INFREQUENT, StorageTier.FREQUENT):
-            with self.subTest(tier=x), self.temp_data_file(
-                "azure_containers/container/test99.txt", metadata=True
+            with (
+                self.subTest(tier=x),
+                self.temp_data_file(
+                    "azure_containers/container/test99.txt", metadata=True
+                ),
             ):
                 file = AzureBlobHandle.build(
                     "https://test.blob.core.windows.net/container/test99.txt"
@@ -208,9 +217,12 @@ class BlobTest(BaseTestCase):
             (StorageTier.FREQUENT, "frequent", StorageTier.FREQUENT),
         ]
         for storage_tier_arg, expected_metadata, expected_tier in tests:
-            with self.subTest(storage_tier_arg=storage_tier_arg), self.temp_data_file(
-                "azure_containers/container/test2.txt", metadata=True
-            ) as (af, _):
+            with (
+                self.subTest(storage_tier_arg=storage_tier_arg),
+                self.temp_data_file(
+                    "azure_containers/container/test2.txt", metadata=True
+                ) as (af, _),
+            ):
                 fp = self.temp_dir / "bar.txt"
                 with open(fp, "w") as h:
                     h.write("hello world")

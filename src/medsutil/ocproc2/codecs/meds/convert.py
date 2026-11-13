@@ -169,7 +169,7 @@ class MedsCodeMap:
             return "AC"
         return None
 
-    SOURCE_MAP = {
+    SOURCE_MAP: t.ClassVar[dict[str, str]] = {
         "pipeman_desktop": "PDSK",
         "finalizer": "PNFN",
         "merger": "PMER",
@@ -204,7 +204,9 @@ class MedsCodeMap:
 
 
 class MedsConverter:
-    PRECISION_BOUNDS = {
+    PRECISION_BOUNDS: t.ClassVar[
+        dict[str, list[tuple[str, float | None, float | None, str]]]
+    ] = {
         # NB: I is explicitly stated as "greater than 0.2"
         # therefore I'm assuming that the ranges are (min, max]
         # i.e the minimum is excluded and the maximum is included
@@ -341,13 +343,15 @@ class MedsConverter:
             pieces = header.to_string().split(" ")
             sr.gts_header_info = pieces[0]
             sr.gts_source_node = pieces[1]
-            if record.metadata.has_value("GTSHeaderFullDate"):
-                if record.metadata["GTSHeaderFullDate"].is_iso_datetime():
-                    sr.gts_bulletin_time = (
-                        record.metadata["GTSHeaderFullDate"]
-                        .to_datetime()
-                        .strftime("%Y%m%d%H%M")
-                    )
+            if (
+                record.metadata.has_value("GTSHeaderFullDate")
+                and record.metadata["GTSHeaderFullDate"].is_iso_datetime()
+            ):
+                sr.gts_bulletin_time = (
+                    record.metadata["GTSHeaderFullDate"]
+                    .to_datetime()
+                    .strftime("%Y%m%d%H%M")
+                )
 
         sr.iumsgno = 0
 
@@ -437,18 +441,22 @@ class MedsConverter:
                     and obj.coordinates["Pressure"].is_numeric()
                 ):
                     depth_or_pressure = obj.coordinates["Pressure"].to_float("dbar")
-            if isinstance(obj, AbstractElement):
-                if len(previous_names) >= 2 and previous_names[-2] in (
+            if (
+                isinstance(obj, AbstractElement)
+                and len(previous_names) >= 2
+                and previous_names[-2]
+                in (
                     "coordinates",
                     "parameters",
-                ):
-                    element_names.append(
-                        (
-                            "/".join(previous_names[-2:]),
-                            depth_or_pressure,
-                            obj.metadata.get("Unadjusted", default=None),
-                        )
+                )
+            ):
+                element_names.append(
+                    (
+                        "/".join(previous_names[-2:]),
+                        depth_or_pressure,
+                        obj.metadata.get("Unadjusted", default=None),
                     )
+                )
             next_name = path_parts.pop(0)
             obj = obj.find_child([next_name])
             previous_names.append(next_name)
@@ -471,11 +479,10 @@ class MedsConverter:
         if "pcode" not in instruction.extras:
             return None, None, None
         previous = None
-        if element is not None:
-            if isinstance(instruction, ElementInstruction):
-                previous, _, _, _ = instruction.process_element(element, context)
-                if not isinstance(previous, float):
-                    previous = None
+        if element is not None and isinstance(instruction, ElementInstruction):
+            previous, _, _, _ = instruction.process_element(element, context)
+            if not isinstance(previous, float):
+                previous = None
         return instruction.extras["pcode"], depth_or_pressure, previous
 
     def identify_data_type(self, record: ParentRecord, depth_pcodes: set[str]) -> str:
@@ -487,7 +494,6 @@ class MedsConverter:
             instrument_types = record.metadata["CNODCInstrumentTypes"].value
         else:
             instrument_types = []
-        no_instruments = len(instrument_types)
 
         # TODO: More types? this should be good enough for NOAA output
         if data_mode == "RT":
@@ -523,7 +529,7 @@ class MedsConverter:
     ) -> set[str]:
         pcodes = set()
         if "PROFILE" in context.record.subrecords:
-            for rs_idx, rs in context.record.subrecords["PROFILE"].items():
+            for rs in context.record.subrecords["PROFILE"].values():
                 with context.recordset_context(rs, "PROFILE"):
                     for pcode in self.code_map.pcode_list_for_encode(False, True):
                         prof_values, d_values, prof_priority, d_type = (
@@ -611,8 +617,10 @@ class MedsConverter:
                     # it should work for GTS reports at least.
                     if min_val is not None and worst_uniform < min_val:
                         continue
-                    if max_val is not None and worst_uniform > max_val and not math.isclose(
-                        worst_uniform, max_val
+                    if (
+                        max_val is not None
+                        and worst_uniform > max_val
+                        and not math.isclose(worst_uniform, max_val)
                     ):
                         continue
                     return code

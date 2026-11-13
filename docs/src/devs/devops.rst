@@ -133,9 +133,12 @@ Pre-Pull Request Checklist
    If you wrote your code with AI, you still need to review it to ensure it works properly
    and conforms with our best practices. Do not submit unreviewed pull requests.
 
-1. ``git rebase main`` to ensure you have merged any changes to main since you started
-2. Run the tests with code coverage, then ensure all tests pass and that code coverage is stable or improved
-3. Open your pull request
+1. Run ``git rebase main`` to ensure you have merged any changes to main since you started
+2. Run ``bandit -r src`` and address issues (high severity issues must be addressed, medium issues should be addressed - ``nosec`` flags should be used sparingly and only where an issue is clearly a false positive)
+2. Run ``python -m tests -C -L -I`` to ensure all the tests have passed (you can add ``-f`` to fail quickly) and that the code coverage is acceptable (minor coverage gaps where code is hard to test are acceptable).
+3. Run ``ruff check --fix`` and review any errors to resolve (you can prioritize readability over some errors, especially for ``SIM103`` and ``SIM102``).
+4. Run ``ruff format`` to format your code properly
+5. Open your pull request
 
 Commit Message Template
 ```````````````````````

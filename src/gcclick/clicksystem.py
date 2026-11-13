@@ -59,7 +59,9 @@ class ClickSystemMixin(System):
         self._click_app = None
         self._click_groups: list[tuple[str, str, str]] = []
 
-    def register_cli(self, module: str, command_name: str, register_as: str = None):
+    def register_cli(
+        self, module: str, command_name: str, register_as: str | None = None
+    ):
         """Registers a click command group to add to the main CLI application."""
         self._click_groups.append((module, command_name, register_as or command_name))
 

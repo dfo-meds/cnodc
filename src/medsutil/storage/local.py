@@ -21,7 +21,9 @@ class LocalHandle(BaseStorageHandle):
     caching layers.
     """
 
-    def __init__(self, path: str | pathlib.Path, force_is_dir: bool | None = None, **kwargs):
+    def __init__(
+        self, path: str | pathlib.Path, force_is_dir: bool | None = None, **kwargs
+    ):
         path: str = str(path)
         path = path.removeprefix("file://")
         path = str(pathlib.Path(path).expanduser().absolute().resolve()).replace(

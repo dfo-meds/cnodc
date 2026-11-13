@@ -60,14 +60,13 @@ class CNODCOrchestrator:
 
     def spawn_all(self):
         self.spawn_sender()
-        for key in self.config["scanners"].keys():
+        for key in self.config["scanners"]:
             self.spawn_scanner(key)
 
     def spawn_scanner(self, scanner_name: str):
         key = f"_scan_{scanner_name}"
-        if key in self._threads:
-            if not self._threads[key].is_alive():
-                del self._threads[key]
+        if key in self._threads and not self._threads[key].is_alive():
+            del self._threads[key]
         if key not in self._threads:
             scanner = CNODCLocalScanner(
                 transfer_queue=self._transfer_queue,
@@ -79,9 +78,8 @@ class CNODCOrchestrator:
             self._threads[key] = scanner
 
     def spawn_sender(self):
-        if "_sender" in self._threads:
-            if not self._threads["_sender"].is_alive():
-                del self._threads["_sender"]
+        if "_sender" in self._threads and not self._threads["_sender"].is_alive():
+            del self._threads["_sender"]
         if "_sender" not in self._threads:
             sender = CNODCSubmissionManager(
                 transfer_queue=self._transfer_queue,
