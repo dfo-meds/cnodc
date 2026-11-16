@@ -2,7 +2,6 @@ import datetime
 import typing as t
 
 import nodb.base as s
-from medsutil.awaretime import AwareDateTime
 from nodb import interface
 
 
@@ -12,10 +11,9 @@ class WISIncomingMessage(s.NODBBaseObject):
     message_id: str = s.StringColumn()
     path: str = s.StringColumn()
     hash: str = s.StringColumn()
-    received_date: AwareDateTime = s.DateTimeColumn()
+    received_date: datetime.date = s.DateColumn()
     bundled: int = s.IntColumn(default=0)
     source_file_uuid: str = s.UUIDColumn()
-    source_file_date: datetime.date = s.DateColumn()
 
     @classmethod
     def find_by_uuid(
@@ -37,6 +35,16 @@ class WISIncomingMessage(s.NODBBaseObject):
             cls,
             filters={
                 "hash": message_hash,
+            },
+            **kwargs,
+        )
+
+    @classmethod
+    def find_unbundled(cls, db: interface.NODBInstance, **kwargs) -> t.Iterable[WISIncomingMessage]:
+        yield from db.stream_objects(
+            cls,
+            filters={
+                "bundled": 0
             },
             **kwargs,
         )

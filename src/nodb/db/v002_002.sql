@@ -7,10 +7,9 @@ CREATE TABLE IF NOT EXISTS wis_incoming_message (
     message_id      VARCHAR(1024)   NOT NULL,
     path            TEXT            NOT NULL,
     hash            VARCHAR(1024)   NOT NULL,
-    received_date   TIMESTAMPTZ     NOT NULL,
+    received_date   DATE            NOT NULL,
     bundled         INTEGER         NOT NULL    DEFAULT 0,
-    source_file_uuid    UUID        DEFAULT NULL,
-    source_file_date    DATE        DEFAULT NULL
+    source_file_uuid    UUID        DEFAULT NULL
 
 );
 
@@ -25,4 +24,3 @@ COMMENT ON COLUMN wis_incoming_message.hash IS "A hash of the message's content"
 COMMENT ON COLUMN wis_incoming_message.received_date IS "The date the message was received";
 COMMENT ON COLUMN wis_incoming_message.bundled IS "Whether the message has been bundled to the old system"
 COMMENT ON COLUMN wis_incoming_message.source_file_uuid IS "The source file created from this file";
-COMMENT ON COLUMN wis_incoming_message.source_file_date IS "The date of the source file created from this file";
