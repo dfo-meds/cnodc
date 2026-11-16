@@ -1,3 +1,4 @@
+import datetime
 import typing as t
 
 import nodb.base as s
@@ -12,7 +13,9 @@ class WISIncomingMessage(s.NODBBaseObject):
     path: str = s.StringColumn()
     hash: str = s.StringColumn()
     received_date: AwareDateTime = s.DateTimeColumn()
-    obs_date: AwareDateTime = s.DateTimeColumn()
+    bundled: int = s.IntColumn(default=0)
+    source_file_uuid: str = s.UUIDColumn()
+    source_file_date: datetime.date = s.DateColumn()
 
     @classmethod
     def find_by_uuid(

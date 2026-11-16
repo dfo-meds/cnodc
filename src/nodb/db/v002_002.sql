@@ -8,9 +8,13 @@ CREATE TABLE IF NOT EXISTS wis_incoming_message (
     path            TEXT            NOT NULL,
     hash            VARCHAR(1024)   NOT NULL,
     received_date   TIMESTAMPTZ     NOT NULL,
-    obs_date        TIMESTAMPTZ     NOT NULL,
+    bundled         INTEGER         NOT NULL    DEFAULT 0,
+    source_file_uuid    UUID        DEFAULT NULL,
+    source_file_date    DATE        DEFAULT NULL
 
 );
+
+CREATE INDEX IF NOT EXISTS idx_wis_incoming_message_hash ON wis_incoming_message(hash);
 
 COMMENT ON TABLE wis_incoming_message IS "Stores incoming messages from the WIS";
 COMMENT ON COLUMN wis_incoming_message.message_uuid IS "A unique message identifier";
@@ -19,4 +23,6 @@ COMMENT ON COLUMN wis_incoming_message.message_id IS "A unique identifier from t
 COMMENT ON COLUMN wis_incoming_message.path IS "The path where this message's content is stored";
 COMMENT ON COLUMN wis_incoming_message.hash IS "A hash of the message's content";
 COMMENT ON COLUMN wis_incoming_message.received_date IS "The date the message was received";
-COMMENT ON COLUMN wis_incoming_message.obs_date IS "The date the observation was taken"
+COMMENT ON COLUMN wis_incoming_message.bundled IS "Whether the message has been bundled to the old system"
+COMMENT ON COLUMN wis_incoming_message.source_file_uuid IS "The source file created from this file";
+COMMENT ON COLUMN wis_incoming_message.source_file_date IS "The date of the source file created from this file";
