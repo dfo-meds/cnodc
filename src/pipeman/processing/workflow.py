@@ -25,11 +25,12 @@ from medsutil.exceptions import ex_pretty
 from medsutil.halts import HaltFlag, gzip_with_halt
 from medsutil.storage import FilePath, StorageController, StorageTier
 from medsutil.storage.interface import FeatureFlag, StorageError
+from nodb.interface import NODBInstance
 from nodb.workflow import (
     OverwriteOption,
     ProcessingStep,
     WorkflowConfiguration,
-    WorkflowDirectory,
+    WorkflowDirectory, NODBUploadWorkflow,
 )
 from pipeman.exceptions import CNODCError
 from pipeman.processing.payloads import (
@@ -481,3 +482,12 @@ class WorkflowController:
                 return file_handle, None, filename
             else:
                 return file_handle, storage_tier, filename
+
+    @staticmethod
+    def load_controller(db: NODBInstance, workflow_name: str, halt_flag: HaltFlag | None = None) -> WorkflowController:
+        workflow = NODBUploadWorkflow.find_by_name(db, workflow_name)
+        if workflow is None:
+            raise CNODCError(f"Workflow [{workflow_name}] not found", "WORKFLOW", 2000)
+        return WorkflowController(
+            workflow_name, workflow.configuration, halt_flag=halt_flag
+        )

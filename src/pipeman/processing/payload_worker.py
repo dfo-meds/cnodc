@@ -116,12 +116,7 @@ class PayloadWorker[T: Payload](QueueWorker):
 
     def get_workflow(self, workflow_name: str):
         self._log.debug("Looking for workflow [%s]", workflow_name)
-        workflow = NODBUploadWorkflow.find_by_name(self.db, workflow_name)
-        if workflow is None:
-            raise CNODCError(f"Workflow [{workflow_name}] not found", "FILEFLOW", 1002)
-        return WorkflowController(
-            workflow_name, workflow.configuration, halt_flag=self._halt_flag
-        )
+        return WorkflowController.load_controller(self.db, workflow_name, self._halt_flag)
 
     def batch_payload_from_uuid(self, batch_uuid: str) -> BatchPayload:
         """Create a new payload from a batch UUID."""

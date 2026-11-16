@@ -73,6 +73,8 @@ dev = [
     "Sphinx",
     "sphinx-rtd-theme",
     "pyftpdlib",
+    "metpx-sr3>=3.3.1",
+    "azure-storage-queue>=12.18.1",
 ]
 docker = [
     "gunicorn",

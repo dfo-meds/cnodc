@@ -11,7 +11,17 @@ import typing as t
 import uuid
 
 import medsutil.types as ct
+from medsutil.exceptions import CodedError
 from medsutil.frozendict import FrozenDict
+
+
+class JSONError(CodedError):
+    CODE_SPACE = "JSON"
+
+
+class JSONEncodeError(JSONError): ...
+class JSONDecodeError(JSONError): ...
+
 
 try:
     # orjson is very fast
@@ -30,21 +40,34 @@ try:
 
     def dumpb(__obj: ct.SupportsExtendedJson, /) -> bytes:
         """Returns a JSON string in utf-8 encoding from the given JSON-compatible object."""
-        return orjson.dumps(__obj, default=_clean_for_orjson)
+        try:
+            return orjson.dumps(__obj, default=_clean_for_orjson)
+        except orjson.JSONEncodeError as ex:
+            raise JSONEncodeError(str(ex), 1000) from ex
 
     def dumps(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a JSON string for the given object."""
-        return orjson.dumps(__obj, default=_clean_for_orjson).decode("utf-8")
+        try:
+            return orjson.dumps(__obj, default=_clean_for_orjson).decode("utf-8")
+        except orjson.JSONEncodeError as ex:
+            raise JSONEncodeError(str(ex), 1000) from ex
 
     def dumpp(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a prettified JSON string for the given object."""
-        return orjson.dumps(
-            __obj, default=_clean_for_orjson, option=orjson.OPT_INDENT_2
-        ).decode("utf-8")
+        try:
+            return orjson.dumps(
+                __obj, default=_clean_for_orjson, option=orjson.OPT_INDENT_2
+            ).decode("utf-8")
+        except orjson.JSONEncodeError as ex:
+            raise JSONEncodeError(str(ex), 1000) from ex
 
     def loads(__obj: ct.JsonString, /) -> ct.SupportsNativeJson:
         """Converts a JSON string into the correct object."""
-        return orjson.loads(__obj)
+        try:
+            return orjson.loads(__obj)
+        except orjson.JSONEncodeError as ex:
+            raise JSONDecodeError(str(ex), 1001) from ex
+
 
 except ModuleNotFoundError:
     # Basic json wrapper
@@ -59,19 +82,31 @@ except ModuleNotFoundError:
 
     def dumpb(__obj: ct.SupportsExtendedJson, /) -> bytes:
         """Returns a JSON string in utf-8 encoding from the given JSON-compatible object."""
-        return json.dumps(__obj, default=_clean_for_json).encode("utf-8")
+        try:
+            return json.dumps(__obj, default=_clean_for_json).encode("utf-8")
+        except TypeError as ex:
+            raise JSONEncodeError(str(ex), 1002) from ex
 
     def dumps(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a JSON string for the given object."""
-        return json.dumps(__obj, default=_clean_for_json)
+        try:
+            return json.dumps(__obj, default=_clean_for_json)
+        except TypeError as ex:
+            raise JSONEncodeError(str(ex), 1002) from ex
 
     def dumpp(__obj: ct.SupportsExtendedJson, /) -> str:
         """Returns a prettified JSON string for the given object."""
-        return json.dumps(__obj, default=_clean_for_json, indent=2)
+        try:
+            return json.dumps(__obj, default=_clean_for_json, indent=2)
+        except TypeError as ex:
+            raise JSONEncodeError(str(ex), 1002) from ex
 
     def loads(__obj: ct.JsonString, /) -> ct.SupportsNativeJson:
         """Converts a JSON string into the correct object."""
-        return json.loads(__obj)
+        try:
+            return json.loads(__obj)
+        except TypeError as ex:
+            raise JSONDecodeError(str(ex), 1003) from ex
 
 
 def clean_for_json(__obj, /):
@@ -90,14 +125,14 @@ def clean_for_json(__obj, /):
         return __obj.isoformat()
     elif isinstance(__obj, uuid.UUID):
         return str(__obj)
-    raise TypeError(f"Invalid data type [{__obj.__class__.__name__}] for a JSON object")
+    raise JSONEncodeError(f"Invalid data type [{__obj.__class__.__name__}] for a JSON object", 2000)
 
 
 def load_dict(__obj: ct.JsonDictString, /) -> dict[str, ct.SupportsNativeJson]:
     """Loads an object from a JSON string and ensures it is a dictionary."""
     d = loads(__obj)
     if not isinstance(d, dict):
-        raise TypeError(f"JSON string was not a dictionary, is {d.__class__.__name__}")
+        raise JSONDecodeError(f"JSON string was not a dictionary, is {d.__class__.__name__}", 2001)
     return d
 
 
@@ -105,7 +140,7 @@ def load_list(__obj: ct.JsonListString, /) -> list[ct.SupportsNativeJson]:
     """Loads an object from a JSON string and ensures it is a list"""
     d = loads(__obj)
     if not isinstance(d, list):
-        raise TypeError(f"JSON string was not a list, is {d.__class__.__name__}")
+        raise JSONDecodeError(f"JSON string was not a list, is {d.__class__.__name__}", 2002)
     return d
 
 
@@ -113,5 +148,5 @@ def load_set(__obj: ct.JsonListString, /) -> set[ct.SupportsNativeJson]:
     """Loads an object from a JSON string and ensures it is a list"""
     d = loads(__obj)
     if not isinstance(d, list):
-        raise TypeError(f"JSON string was not a set, is {d.__class__.__name__}")
+        raise JSONDecodeError(f"JSON string was not a set, is {d.__class__.__name__}", 2003)
     return set(d)
