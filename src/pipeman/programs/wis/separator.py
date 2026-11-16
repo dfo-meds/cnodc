@@ -12,11 +12,8 @@ from pipeman.processing.payloads import FilePayload
 from pipeman.processing.queue_worker import QueueItemResult
 
 
-class WISSeparatorWorker(FileWorkflowWorker):
+class WISSeparationWorker(FileWorkflowWorker):
 
-    storage: StorageController = auto()
-
-    @injector.construct
     def __init__(self, **kwargs):
         super().__init__(
             process_name="wis_separator",
@@ -49,7 +46,7 @@ class WISSeparatorWorker(FileWorkflowWorker):
                 return False
             if second_message is None:
                 return True
-            with self.storage.handle(self.get_config("upload_directory")) as handle:
+            with self.get_handle(self.get_config("upload_directory"), True) as handle:
                 if not (handle.exists() and handle.is_dir()):
                     raise CodedError("Storage directory does not exist or is not a directory", 1000, code_space="WIS-SEPARATOR")
                 self._save_new_message(first_message, handle)
