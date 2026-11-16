@@ -9,6 +9,7 @@ from collections import defaultdict
 from autoinject import injector
 
 from medsutil import ocproc2
+from medsutil.awaretime import AwareDateTime
 from medsutil.ocproc2 import OCProc2Ontology, SingleElement
 from medsutil.ocproc2.util import Quality
 from medsutil.units import UnitConverter
@@ -22,7 +23,7 @@ from nodb.observations import (
     NODBPlatform,
     NODBSourceFile,
     NODBWorkingRecord,
-    ObservationRelationshipType,
+    ObservationRelationshipType, SourceFileStatus,
 )
 from pipeman.programs.dedupe.dedupe import RelationshipAction
 
@@ -473,3 +474,32 @@ class NODBRecordManager:
         working_record.source_file_uuid = source_file_uuid
         working_record.record = record
         return working_record
+
+    @staticmethod
+    def ensure_source_file(db: NODBInstance,
+                           file_path: str,
+                           file_name: str,
+                           source_name: str | None = None,
+                           program_name: str | None = None,
+                           source_file_identifier: str | None = None,
+                           last_modified_date: str | datetime.date | None = None) -> NODBSourceFile:
+        source_file = NODBSourceFile.find_by_source_path(db, file_path)
+        if source_file is None:
+            source_file = NODBSourceFile(
+                source_path=file_path,
+                received_date=last_modified_date or AwareDateTime.utcnow().strftime("%Y-%m-%d"),
+                status = SourceFileStatus.NEW,
+                file_name=file_name,
+                source_name=source_name or None,
+                program_name=program_name or None,
+                source_file_identifier=source_file_identifier or None,
+            )
+            if source_file_identifier:
+                version = 0
+                for sf in NODBSourceFile.find_by_identifier(db, source_file_identifier):
+                    if sf.source_file_version and sf.source_file_version > version:
+                        version = sf.source_file_version
+                source_file.source_file_version = version + 1
+            db.insert_object(source_file)
+            db.commit()
+        return source_file

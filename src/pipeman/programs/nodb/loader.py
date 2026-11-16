@@ -185,35 +185,15 @@ class NODBDecodeLoadWorker(WorkflowWorker):
 
     def _fetch_source_file(self, payload: WorkflowPayload) -> NODBSourceFile:
         if isinstance(payload, FilePayload):
-            source_file = NODBSourceFile.find_by_source_path(
-                self.db, payload.file_path, lock_type=LockType.FOR_NO_KEY_UPDATE
+            return NODBRecordManager.ensure_source_file(
+                self.db,
+                payload.file_path,
+                payload.filename,
+                payload.get_metadata("source-name", ""),
+                payload.get_metadata("program-name", ""),
+                payload.get_metadata("source-file-identifier", ""),
+                payload.last_modified_date,
             )
-            if source_file is None:
-                source_file = NODBSourceFile()
-                source_file.source_path = payload.file_path
-                source_file.received_date = (
-                    payload.last_modified_date or AwareDateTime.utcnow()
-                ).date()
-                source_file.status = SourceFileStatus.NEW
-                source_file.file_name = payload.filename
-                source_file.source_name = payload.get_metadata("source-name", "")
-                source_file.program_name = payload.get_metadata("program-name", "")
-                source_file.source_file_identifier = (
-                    payload.get_metadata("source-file-identifier", None) or None
-                )
-                if source_file.source_file_identifier:
-                    version = 0
-                    for x in NODBSourceFile.find_by_identifier(
-                        self.db, source_file.source_file_identifier
-                    ):
-                        if x.source_file_version and x.source_file_version > version:
-                            version = x.source_file_version
-                    source_file.source_file_version = version + 1
-                else:
-                    source_file.source_file_version = None
-                self.db.insert_object(source_file)
-                self.db.commit()
-            return source_file
         elif isinstance(payload, SourceFilePayload):
             return payload.load_source_file(self.db)
         else:
