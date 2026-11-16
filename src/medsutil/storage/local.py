@@ -40,7 +40,7 @@ class LocalHandle(BaseStorageHandle):
         super().__init__(
             path,
             force_is_dir,
-            supports=FeatureFlag.DEFAULT | FeatureFlag.CHMOD | FeatureFlag.CREATED_TIME,
+            supports=FeatureFlag.DEFAULT | FeatureFlag.CHMOD | FeatureFlag.CREATED_TIME | FeatureFlag.FAST_MOVE,
             log_name="local",
             **kwargs,
         )

@@ -44,6 +44,7 @@ class FeatureFlag(enum.IntFlag):
     REMOVAL = 64
     CHMOD = 128
     CREATED_TIME = 256
+    FAST_MOVE = 512
     DEFAULT = FOLDERS | MODIFIED_TIME | SIZE | WALK | REMOVAL
 
 

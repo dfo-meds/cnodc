@@ -186,6 +186,9 @@ class _FTPWrapper:
     def delete(self, file_path):
         self.server.delete(file_path)
 
+    def rename(self, from_path, to_path):
+        self.server.rename(from_path, to_path)
+
     def transfer_command(self, cmd):
         return self.server.transfercmd(cmd)
 
@@ -298,7 +301,7 @@ class FTPHandle(UrlBaseHandle):
 
     @injector.construct
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, supports=FeatureFlag.DEFAULT, log_name="ftp", **kwargs)
+        super().__init__(*args, supports=FeatureFlag.DEFAULT | FeatureFlag.FAST_MOVE, log_name="ftp", **kwargs)
         self._open_conn: _FTPWrapper | None = None
 
     def current_dir(self) -> str:
@@ -397,6 +400,18 @@ class FTPHandle(UrlBaseHandle):
             self._update_stat(
                 is_dir=None, is_file=None, exists=False, st_size=None, st_mtime=None
             )
+
+    @ftplib_error_wrap
+    def _local_fast_move(
+        self, destination: t.Self, allow_overwrite: bool = False
+    ) -> t.Self:
+        if self.same_server(destination):
+            with self._connection() as ftp:
+                ftp.rename(self.current_file(), destination.current_file())
+                destination.clear_cache()
+                return destination
+        else:
+            return super()._local_fast_move(destination, allow_overwrite)
 
     def _build_modified_time(
         self, stat: dict[str, t.Any] | None

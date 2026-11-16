@@ -848,6 +848,15 @@ class UrlBaseHandle(BaseStorageHandle, ABC):
         path = self._replace_path_in_url(path, _path, force_is_dir)
         super().__init__(path, force_is_dir, **kwargs)
 
+    def same_server(self, handle: UrlBaseHandle) -> bool:
+        my_pieces = self.parse_url()
+        other_pieces = handle.parse_url()
+        if my_pieces.netloc != other_pieces.netloc:
+            return False
+        if my_pieces.port != other_pieces.port:
+            return False
+        return True
+
     def from_absolute_path(self, path: str, as_dir: bool | None = None) -> t.Self:
         if "://" in path:
             return self._build_descriptor(path, as_dir)
