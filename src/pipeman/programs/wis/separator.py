@@ -74,4 +74,3 @@ class WISSeparatorWorker(FileWorkflowWorker):
         handle.upload(temp_file)
         next_payload = self.file_payload_from_path(handle.path(), AwareDateTime.utcnow())
         self.progress_payload(next_payload)
-
