@@ -19,25 +19,27 @@ class AzureQueueWorker(BaseWorker):
             {
                 "azure_account_name": None,
                 "azure_queue_name": None,
-                "azure_hidden_time": 60,
-                "azure_delay_time": 5,
+                "azure_hidden_time_seconds": 60,
+                "delay_time_seconds": 5,
             }
         )
         self._client: QueueClient | None = None
         self._message: QueueMessage | None = None
 
     def _run(self):
+        vis_timeout = self.get_config("azure_hidden_time_seconds", 60, coerce=int)
+        sleep_time = self.get_config("delay_time_seconds", 5, coerce=float)
         wrapper = AzureQueueWrapper(
             self.get_config("azure_account_name"),
             self.get_config("azure_queue_name")
         )
         with wrapper.client() as queue_client:
             while self.continue_loop():
-                messages = queue_client.receive_messages(visibility_timeout=self.get_config("azure_hidden_time", 60, coerce=int))
+                messages = queue_client.receive_messages(visibility_timeout=vis_timeout)
                 for batch in messages.by_page():
                     for message in batch:
                         self._process_next_message(message, queue_client)
-                self.responsive_sleep(self.get_config("azure_delay_time", 5, coerce=float))
+                self.responsive_sleep(sleep_time)
 
     def _process_next_message(self,
                               message: QueueMessage,

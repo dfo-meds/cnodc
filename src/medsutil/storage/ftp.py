@@ -112,8 +112,6 @@ class _FTPWrapper:
             config["timeout"] = 60
         if "buffer_size" not in config:
             config["buffer_size"] = 256 * 1024
-        if "rate_limit" not in config:
-            config["rate_limit"] = 0
         self._config = config
         self._server: ftplib.FTP | ftplib.FTP_TLS | None = None
         self._depth = 0

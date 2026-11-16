@@ -125,7 +125,7 @@ class BaseWorker(CachedObjectMixin, InstrumentedObject):
 
     def responsive_sleep(self, time_seconds: float):
         """Sleep for a given amount of time, with regular wake-ups to check the halt/end flags."""
-        max_delay = self.get_config("max_check_delay_seconds", default=1.0)
+        max_delay = self.get_config("max_check_delay_seconds", default=1.0, coerce=float)
         if time_seconds <= 0:
             self.report(activity="", _resource_update=True)
             return

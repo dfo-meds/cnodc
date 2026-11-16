@@ -107,8 +107,9 @@ class WorkflowController:
         self._log.debug("Processing file [%s]", local_path)
         # Add the default metadata
         self._extend_metadata(metadata)
+        subs = self._substitutions(metadata)
         # Determine default filename
-        filename = self._determine_filename(metadata)
+        filename = self._determine_filename(metadata, subs)
         # Validate the upload
         self._validate_file_upload(local_path, metadata, filename)
         # Upload the file to various locations and queue the working file
@@ -117,6 +118,7 @@ class WorkflowController:
             metadata,
             success_hook,
             db,
+            subs,
             unique_queue_id,
             filename,
             correlation_id,
@@ -139,25 +141,6 @@ class WorkflowController:
         now_ = AwareDateTime.utcnow()
         if "last-modified-date" not in metadata or not metadata["last-modified-date"]:
             metadata["last-modified-date"] = now_.isoformat()
-        metadata["safe_mtime"] = AwareDateTime.fromisoformat(
-            metadata["last-modified-date"]
-        ).strftime("%Y%m%d%H%M%S")
-        if (
-            self.config.accept_user_filename
-            and "filename" in metadata
-            and metadata["filename"]
-        ):
-            filename = str(metadata["filename"])
-            metadata["safe_filename"] = filename
-            if "." in filename:
-                pos = filename.find(".")
-                metadata["safe_stem"] = filename[:pos]
-                metadata["safe_ext"] = filename[pos + 1 :]
-            else:
-                metadata["safe_stem"] = filename
-                metadata["safe_ext"] = ""
-        metadata["now"] = now_.strftime("%Y%m%d%H%M%S")
-        metadata["today"] = now_.strftime("%Y%m%d")
 
     def _validate_file_upload(
         self, local_path: pathlib.Path, metadata: dict[str, str], filename: str
@@ -171,9 +154,10 @@ class WorkflowController:
         metadata: dict[str, str],
         success_hook: t.Callable[[], None] | None,
         db: interface.NODBInstance,
+        subs: dict[str, str],
         unique_queue_id: str | None,
         filename: str,
-        correlation_id: str | None = None,
+        correlation_id: str | None = None
     ):
         """Upload the file and queue it if all succeed."""
 
@@ -201,7 +185,7 @@ class WorkflowController:
                     else:
                         lp, fn = local_path, filename
                     file_handles.append(
-                        self._handle_file_upload(lp, fn, metadata, target)
+                        self._handle_file_upload(lp, fn, metadata, target, subs=subs, gzip=target.gzip)
                     )
                 metadata["workflow-uploaded-files"] = ";".join(
                     str(x[0].path()) for x in file_handles
@@ -356,13 +340,13 @@ class WorkflowController:
         _, has_more = self._validate_step(current_step)
         return has_more
 
-    def _determine_filename(self, metadata: dict[str, str]) -> str:
+    def _determine_filename(self, metadata: dict[str, str], subs: dict[str, str]) -> str:
         """Determine the filename to save the uploaded file as."""
         filename = None
         if self.config.filename_pattern:
             filename = WorkflowController._sanitize_filename(
                 WorkflowController._substitute_headers(
-                    self.config.filename_pattern, metadata
+                    self.config.filename_pattern, metadata, subs
                 )
             )
             self._log.trace("Filename from pattern: [%s]", filename or "")
@@ -383,33 +367,58 @@ class WorkflowController:
             self._log.trace("UUID generated file name: [%s]", filename)
         return filename
 
+    def _substitutions(self, metadata: dict[str, str]):
+        now_ = AwareDateTime.utcnow()
+        subs = {
+            "now": now_.strftime("%Y%m%d%H%M%S"),
+            "today": now_.strftime("%Y%m%d"),
+            "safe_filename": "",
+            "safe_stem": "",
+            "safe_ext": "",
+            "safe_dot": "",
+            "safe_mtime": AwareDateTime.fromisoformat(metadata["last-modified-date"]).strftime("%Y%m%d%H%M%S"),
+        }
+        filename = metadata.get("filename", None)
+        if self.config.accept_user_filename and filename:
+            subs["safe_filename"] = filename
+            subs["safe_dot"] = "."
+            if "." in filename:
+                subs["safe_stem"], subs["safe_ext"] = filename.rsplit(".", maxsplit=1)
+            else:
+                subs["safe_stem"] = filename
+                subs["safe_ext"] = ""
+        return subs
+
     @staticmethod
     def _get_storage_metadata(
-        templates: dict[str, str], metadata: dict[str, str]
+        templates: dict[str, str], metadata: dict[str, str], subs: dict[str, str]
     ) -> dict[str, str]:
         """Get the necessary metadata for storage."""
         return {
             x: WorkflowController._sanitize_storage_metadata(
-                WorkflowController._substitute_headers(str(templates[x]), metadata)
+                WorkflowController._substitute_headers(str(templates[x]), metadata, subs)
             )
             for x in templates
         }
 
     @staticmethod
     def _sanitize_storage_metadata(s: t.Any) -> str:
-        """Santizie data for storage."""
+        """Sanitize data for storage."""
         return quote(str(s), safe=VALID_METADATA_CHARACTERS)
 
     @staticmethod
     def _substitute_headers(
-        s: str, metadata: dict[str, str], _now: datetime.datetime | None = None
+        s: str, metadata: dict[str, str], subs: dict[str, str], _now: datetime.datetime | None = None
     ) -> str:
         """Sanitize and substitute headers"""
         if _now is not None:
-            metadata["now"] = _now.strftime("%Y%m%d%H%M%S")
-            metadata["today"] = _now.strftime("%Y%m%d")
+            subs = { **subs }
+            subs["now"] = _now.strftime("%Y%m%d%H%M%S")
+            subs["today"] = _now.strftime("%Y%m%d")
         for h, v in metadata.items():
             s = s.replace("%{" + h.lower() + "}", str(v))
+        for k, v in subs.items():
+            s = s.replace("%{" + k.lower() + "}", str(v))
         return s
 
     @staticmethod
@@ -430,7 +439,8 @@ class WorkflowController:
         filename: str,
         metadata: dict[str, str],
         upload_info: WorkflowDirectory,
-        gzip: bool = False,
+        subs: dict[str, str],
+        gzip: bool = False
     ) -> tuple[FilePath, StorageTier | None, str]:
         """Upload a file to a given location."""
         with self.storage.handle(
@@ -453,7 +463,7 @@ class WorkflowController:
                 )
                 storage_metadata.update(
                     WorkflowController._get_storage_metadata(
-                        upload_info.metadata, metadata
+                        upload_info.metadata, metadata, subs
                     )
                 )
             else:

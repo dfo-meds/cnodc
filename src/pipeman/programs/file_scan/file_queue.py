@@ -19,7 +19,11 @@ class AzureQueueIntakeWorker(AzureQueueWorker):
 
     @injector.construct
     def __init__(self, **kwargs):
-        super().__init__(process_name="azure_queue_intake", process_version="1.0", **kwargs)
+        super().__init__(
+            process_name="azure_queue_intake",
+            process_version="1.0",
+            **kwargs
+        )
 
     def process_message(self, body: str):
         content = json.load_dict(body)
@@ -53,3 +57,4 @@ class AzureQueueIntakeWorker(AzureQueueWorker):
                     metadata=metadata,
                     db=db,
                 )
+                db.commit()
